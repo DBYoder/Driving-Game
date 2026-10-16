@@ -69,6 +69,7 @@ func _process(delta: float) -> void:
 	var s := car.station
 	var finish_mile := route.mile_at(route.finish_station)
 	var lines := ["HIGHWAY 1  ·  Kalona → Iowa City",
+		"%s  ·  points ×%s" % [car.stats.display_name, str(car.stats.score_multiplier)],
 		"Mile %.1f of %.1f    %s view" % [clampf(route.mile_at(s), 0.0, finish_mile), finish_mile, camera.mode_name()]]
 	var next := route.next_crossroad(s)
 	if not next.is_empty() and s < route.finish_station:
@@ -93,7 +94,7 @@ func _process(delta: float) -> void:
 	_results.visible = show_results
 
 	if get_tree().paused:
-		_show("PAUSED", 48)
+		_show("PAUSED\nEnter / LB: change car", 40)
 	elif tracker.state == RunTracker.State.READY:
 		_show("Cross the line in Kalona to start the clock", 26)
 		_go_flash = 1.2
@@ -146,7 +147,7 @@ func _fill_results() -> void:
 		_row("Made it to Iowa City", "no")
 	_row("SCORE", _fmt(score.banked) + ("  NEW BEST" if tracker.new_best_score else ""), 30)
 	_row("Best score", _fmt(tracker.best_score))
-	_row("", "R to run it again", 20)
+	_row("R: run it again", "Enter / LB: change car", 20)
 
 
 func _row(left: String, right: String, size := 22) -> void:

@@ -6,6 +6,10 @@ extends Node3D
 ##   --view=<n>           camera: 0 chase, 1 hood, 2 far chase, 3 drone
 ##   --autopilot          let the autopilot drive (demo mode)
 ##   --autopilot-mph=<n>  the autopilot's cruising speed (default 70)
+##   --car=<id>           windstar, tercel or legend (skips the car-select screen)
+##   --garage             open the car-select screen even with other options
+##   --damage=<0..1>      start with the car beaten up (for looking at the damage)
+##   --orbit              circle the car with the camera (for screenshots)
 ##   --tune=<k:v,...>     override CarStats values, e.g. --tune=handbrake_grip:0.2
 ##   --no-traffic         an empty road
 ##   --traffic-near       start with a buggy, a tractor and oncoming traffic in view
@@ -35,6 +39,7 @@ var camera: ChaseCamera
 var tracker: RunTracker
 var run: Run
 var hud: Hud
+var garage: CarSelect
 var _driver: Object
 var _testing := false
 var _spawn_station := 0.0
@@ -59,7 +64,7 @@ func _ready() -> void:
 	add_child(roadside)
 	roadside.setup(route)
 
-	var stats := CarStats.new()
+	var stats := CarStats.preset(args.get("car", "legend"))
 	if args.has("tune"):
 		_apply_tuning(stats, args.tune)
 	car = Car.new()
@@ -84,6 +89,7 @@ func _ready() -> void:
 	add_child(corn)
 	corn.setup(route, fields, car, run.score)
 	corn.canopy_material = streamer.canopy_material
+	car.part_lost.connect(props.add_debris)
 	traffic = Traffic.new()
 	add_child(traffic)
 	traffic.setup(route, car, run, int(args.get("seed", "1")))
@@ -102,10 +108,22 @@ func _ready() -> void:
 	camera.setup(car)
 	if args.has("traffic-near"):
 		traffic.populate_near()
+	if args.has("damage"):
+		_beat_up(float(args.damage))
+	camera.showroom = args.has("orbit")
 
 	hud = Hud.new()
 	add_child(hud)
 	hud.setup(route, car, run, camera)
+	garage = CarSelect.new()
+	add_child(garage)
+	garage.setup("" if _testing else RunTracker.SAVE_PATH)
+	garage.browsed.connect(_show_car)
+	garage.chosen.connect(_drive)
+	var skip_garage := args.has("car") or _testing or args.has("smoke-test") or args.has("screenshot") \
+		or args.has("benchmark") or args.has("autopilot")
+	if args.has("garage") or not skip_garage:
+		open_garage()
 
 	if args.has("smoke-test"):
 		_smoke_test()
@@ -131,6 +149,9 @@ func _pick_driver(args: Dictionary) -> DriftDriver:
 		drift = DriftDriver.new()
 		drift.pull_time = float(args.get("drift-pull", drift.pull_time))
 		drift.countersteer = float(args.get("drift-counter", drift.countersteer))
+		drift.handbrake = args.get("drift-handbrake", "1") != "0"
+		if args.has("drift-mph"):
+			drift.set_entry_speed(float(args["drift-mph"]) / Hud.MPH)
 		_driver = drift
 	elif args.has("autopilot") or args.has("qa-drive") or args.has("benchmark"):
 		var autopilot := Autopilot.new()
@@ -157,7 +178,12 @@ func _physics_process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("restart"):
+	if garage.visible:
+		return
+	if event.is_action_pressed("change_car") and tracker.over():
+		open_garage()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("restart"):
 		restart()
 	elif event.is_action_pressed("recover"):
 		_tow()
@@ -176,6 +202,40 @@ func restart() -> void:
 	traffic.reset()
 	corn.reset()
 	_spawn(_spawn_station)
+
+
+## Hits from all around adding up to `amount` of the car's health.
+func _beat_up(amount: float) -> void:
+	var hits := [Vector3.FORWARD, Vector3.RIGHT, Vector3.BACK, Vector3.LEFT, Vector3.FORWARD + Vector3.LEFT]
+	for d: Vector3 in hits:
+		car.apply_hit(car.stats.durability * amount / hits.size(), true, car.global_transform.basis * d)
+
+
+## The car-select screen: the car waits at the start line while you choose.
+func open_garage() -> void:
+	get_tree().paused = false
+	run.restart()
+	car.driver = null
+	camera.crash_cam = false
+	camera.showroom = true
+	hud.visible = false
+	garage.open()
+
+
+## Show a car in the garage (it's swapped in for real, so it sits on the road).
+func _show_car(car_id: String, paint: int) -> void:
+	var stats := CarStats.preset(car_id)
+	stats.body_color = stats.paints[paint][1]
+	car.change(stats)
+	run.car_changed()
+	garage.set_records(tracker.best_score, tracker.best_time)
+	_spawn(_spawn_station)
+
+
+func _drive(_car_id: String, _paint: int) -> void:
+	camera.showroom = false
+	hud.visible = true
+	restart()
 
 
 func _on_wrecked(_reason: String) -> void:

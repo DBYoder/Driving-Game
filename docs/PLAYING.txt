@@ -15,9 +15,22 @@ HOW TO RUN
 
 HOW TO PLAY
 -----------
-Get from Kalona to Iowa City causing as much chaos as you can. The clock and the
-scoring start when you cross the line at the IA-22 four-way stop in Kalona and stop
-at the US-218 overpass. Your best score and best time are saved.
+Pick a car and a paint color in the garage, then get from Kalona to Iowa City causing
+as much chaos as you can. The clock and the scoring start when you cross the line at
+the IA-22 four-way stop in Kalona and stop at the US-218 overpass. Your best score and
+best time are saved for each car.
+
+
+THE CARS
+--------
+1998 Ford Windstar  Heavy boat. Soft and top-heavy, so it leans hard; tough enough
+                    to plow through anything. Hubcaps and the sliding door come off.
+                    Points x1.2.
+1997 Toyota Tercel  93 horsepower. Light, nimble, slow, and fragile, but the engine
+                    never dies: it can't be totaled, it just sheds mirrors and
+                    bumpers. Points x1.5.
+1993 Acura Legend   Fastest and grippiest. The hood and trunk pop open when it's
+                    beaten up. Points x1.0.
 
 Points:
   Mailbox 50 · fence 25 · hay bale 100 (heavy: it hurts) · plowing corn 5 a meter
@@ -29,10 +42,10 @@ the combo runs out, its points are banked and safe. A hard hit, the tow truck, o
 wreck throws away the combo you haven't banked yet.
 
 Make it to Iowa City and your whole score is multiplied by 1.5, plus 20 points for
-every second under 15 minutes.
+every second under 15 minutes. Every point is also multiplied by your car's number.
 
 The run is over if:
-  - the car is totaled (watch the health bar)
+  - the car is totaled (watch the health bar; not the Tercel)
   - it's on its roof or side for 3 seconds
   - you hit an Amish buggy
   - you hit oncoming traffic head-on at speed
@@ -49,17 +62,21 @@ Change camera                 C                   Y
 Tow truck (-500)              T                   X
 Restart                       R                   Back
 Pause                         P                   Start
+Change car (paused or after)  Enter               LB
+In the garage: pick           arrows / WASD       D-pad or stick
+In the garage: drive          Enter or Space      A
 Mute                          M
 Quit                          Esc
 
 
 WHAT'S IN THIS BUILD
 --------------------
-v0.2.1: one placeholder car on the real road, with things to smash, corn to plow,
-traffic both ways, Amish buggies and tractors to get around, and real passing zones.
-The curves, hills, crossroads and street names come from USGS map and elevation data,
-and you can see the real countryside out to about 3 km.
-Coming next: the Windstar, Tercel and Legend, then cops and deer.
+v0.3: the Windstar, the Tercel and the Legend, each with its own handling, toughness,
+points and ways of falling apart, on the real road, with things to smash, deep corn
+fields to plow, traffic both ways, Amish buggies and tractors to get around, and real
+passing zones. The curves, hills, crossroads and street names come from USGS map and
+elevation data, and you can see the real countryside out to about 3 km.
+Coming next: cops and deer.
 
 
 IF IT WON'T START OR LOOKS BROKEN

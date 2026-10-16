@@ -1,8 +1,9 @@
 class_name Run
 extends Node
 ## The rules of a run: starts the clock and the scoring at the Kalona line, awards
-## airtime, ends the run when the car is totaled, rolled, or something else wrecks it
-## (a buggy, a head-on), and handles the tow-truck penalty.
+## airtime, ends the run when the car is totaled (except the Tercel, whose engine never
+## dies), rolled, or something else wrecks it (a buggy, a head-on), and handles the
+## tow-truck penalty.
 
 const ROLLED_SECONDS := 3.0
 const TOW_PENALTY := 500
@@ -24,6 +25,13 @@ func setup(c: Car, t: RunTracker) -> void:
 	car = c
 	tracker = t
 	car.hit.connect(_on_car_hit)
+	car_changed()
+
+
+## After the car has been swapped for another (the car-select screen).
+func car_changed() -> void:
+	score.car_multiplier = car.stats.score_multiplier
+	tracker.set_car(car.stats.display_name)
 
 
 func restart() -> void:
@@ -47,7 +55,7 @@ func _physics_process(delta: float) -> void:
 
 	score.update(delta)
 	_track_air(delta)
-	if car.health <= 0.0:
+	if car.health <= 0.0 and car.stats.can_total:
 		wreck("Totaled")
 	_rolled_time = _rolled_time + delta if car.global_transform.basis.y.y < 0.3 else 0.0
 	if _rolled_time > ROLLED_SECONDS:

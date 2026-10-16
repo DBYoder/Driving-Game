@@ -15,6 +15,8 @@ const GRAVITY := 9.8
 ## Something hit the car (or the car hit something) hard enough to do damage.
 ## `smash` is true for things you're meant to plow through (mailboxes, hay bales).
 signal hit(damage: float, smash: bool)
+## A piece of the car came off (a hubcap, a bumper...); it's a physics body now.
+signal part_lost(body: RigidBody3D)
 
 ## Grip multiplier and extra rolling resistance per surface.
 const SURFACES := {
@@ -57,6 +59,8 @@ var body_shape: CollisionShape3D  ## the lower body's box
 var _rear_loose := 0.0  ## 0 = rear tires gripping, 1 = locked and sliding (handbrake)
 var health := 100.0
 var _last_velocity := Vector3.ZERO
+var _accel := Vector3.ZERO  ## smoothed acceleration in the car's own space, for the body lean
+var _accel_last_velocity := Vector3.ZERO
 var _impact_grace := 0.0  ## seconds to ignore jolts after being placed
 var peak_jolt := 0.0  ## biggest one-tick velocity change seen (m/s), for tuning damage
 
@@ -97,15 +101,25 @@ func setup(car_stats: CarStats, r: RouteData) -> void:
 			w.spring_length = stats.rest_length
 			wheels.append(w)
 
-	model = CarModel.new()
-	add_child(model)
-	model.build(stats, wheels)
 	repair()
 
 
+## Become another car (the car-select screen): its body, wheels and model, good as new.
+func change(car_stats: CarStats) -> void:
+	body_shape.free()
+	wheels.clear()
+	setup(car_stats, route)
+
+
+## Good as new: full health, a fresh body with every part back on.
 func repair() -> void:
 	health = stats.durability
-	model.set_damage(0.0)
+	if model:
+		model.free()
+	model = CarModel.new()
+	add_child(model)
+	model.build(stats, wheels)
+	model.part_lost.connect(func(body): part_lost.emit(body))
 
 
 ## Plowing through something: lose `velocity_scale` of the speed and take `damage`,
@@ -117,17 +131,23 @@ func bump(velocity_scale: float, damage: float, smash := true) -> void:
 ## A collision that leaves the car moving at `velocity` (momentum shared with whatever
 ## it hit), without the change also counting as a second impact.
 func bump_to(velocity: Vector3, damage: float, smash := false) -> void:
+	var change := velocity - linear_velocity
 	linear_velocity = velocity
 	_last_velocity = velocity
-	apply_hit(damage, smash)
+	apply_hit(damage, smash, -change)
 
 
-## Take damage from a collision.
-func apply_hit(damage: float, smash := false) -> void:
+## Take damage from a collision. `toward_hit` (world space) points from the car toward
+## what it hit, which is where it dents and what falls off first.
+func apply_hit(damage: float, smash := false, toward_hit := Vector3.ZERO) -> void:
 	if damage <= 0.0:
 		return
 	health = maxf(health - damage, 0.0)
-	model.set_damage(1.0 - health / stats.durability)
+	var local := global_transform.basis.inverse() * toward_hit
+	local.y = 0.0
+	model.dent(local, damage / stats.durability)
+	var at := local.normalized() * stats.body_size.z / 2.0 if local.length() > 0.01 else Vector3.ZERO
+	model.set_damage(1.0 - health / stats.durability, at)
 	hit.emit(damage, smash)
 
 
@@ -147,6 +167,8 @@ func place_at(s: float, lane_offset := 1.83) -> void:
 		w.compression = 0.0
 		w.spring_length = stats.rest_length
 	_last_velocity = Vector3.ZERO
+	_accel_last_velocity = Vector3.ZERO
+	_accel = Vector3.ZERO
 	_impact_grace = 0.5
 	reset_physics_interpolation()
 
@@ -207,20 +229,24 @@ func _physics_process(delta: float) -> void:
 			_tire(w, forward, up, com, drive * 0.5 if w.front else 0.0, braking)
 
 	apply_central_force(-linear_velocity * linear_velocity.length() * stats.drag)
-	model.update_wheels(wheels, steer_angle, stats)
+	var accel := global_transform.basis.inverse() * (linear_velocity - _accel_last_velocity) / delta
+	_accel_last_velocity = linear_velocity
+	_accel = _accel.lerp(accel, 1.0 - exp(-delta * 8.0))
+	model.update(wheels, steer_angle, _accel, speed, delta)
 
 
 ## A collision shows up as a sudden change in velocity. Normal driving stays under
 ## ~0.3 m/s per physics tick, drifts ~0.7, and landing big ditch jumps ~1.8.
 func _check_impact(delta: float) -> void:
-	var jolt := (linear_velocity - _last_velocity).length()
+	var change := linear_velocity - _last_velocity
+	var jolt := change.length()
 	_last_velocity = linear_velocity
 	_impact_grace = maxf(_impact_grace - delta, 0.0)
 	if _impact_grace > 0.0:
 		return
 	peak_jolt = maxf(peak_jolt, jolt)
 	if jolt > stats.impact_threshold:
-		apply_hit((jolt - stats.impact_threshold) * stats.impact_damage)
+		apply_hit((jolt - stats.impact_threshold) * stats.impact_damage, false, -change)
 
 
 func _track_route() -> void:

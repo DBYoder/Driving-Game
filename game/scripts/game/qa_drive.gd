@@ -43,6 +43,7 @@ var _wreck_reasons: Array[String] = []
 var _furthest := 0.0
 var _peak_slip := 0.0
 var _peak_yaw_rate := 0.0
+var _peak_lean := 0.0
 var _recovery_time := -1.0
 var _start_heading := 0.0
 var _problems: Array[String] = []
@@ -121,6 +122,10 @@ func _stress_tick(up_y: float, delta: float) -> void:
 
 
 func _drift_tick() -> void:
+	if drift.phase != DriftDriver.Phase.ACCELERATE and absf(car.lateral) < RoadMesher.PAVED_HALF_WIDTH:
+		# Roll on the pavement: how far the car's sides tip relative to its own forward direction.
+		var b := car.global_transform.basis
+		_peak_lean = maxf(_peak_lean, rad_to_deg(absf(atan2(b.x.y, b.y.y))))
 	var slip := DriftDriver.slip_angle(car)
 	var yaw_rate := absf(rad_to_deg(car.angular_velocity.y))
 	match drift.phase:
@@ -135,8 +140,8 @@ func _drift_tick() -> void:
 				_recovery_time = drift.phase_time
 		DriftDriver.Phase.DONE:
 			var turned := rad_to_deg(absf(angle_difference(_start_heading, car.global_rotation.y)))
-			print("QA drift: peak slide %.0f deg, peak yaw rate %.0f deg/s, turned %.0f deg, %s, %.0f mph after" % [
-				_peak_slip, _peak_yaw_rate, turned,
+			print("QA drift (%s): peak slide %.0f deg, peak yaw rate %.0f deg/s, leaned %.0f deg, turned %.0f deg, %s, %.0f mph after" % [
+				car.stats.display_name, _peak_slip, _peak_yaw_rate, _peak_lean, turned,
 				"recovered %.1f s after straightening" % _recovery_time if _recovery_time >= 0.0 else "never recovered",
 				car.forward_speed() * Hud.MPH])
 			if _peak_slip < DRIFT_MIN_SLIP:

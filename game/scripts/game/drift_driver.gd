@@ -13,13 +13,20 @@ const STRAIGHTEN_TIME := 5.0
 
 var pull_time := 0.5  ## how long the handbrake is yanked
 var countersteer := -0.6  ## steering while catching the slide
+var handbrake := true  ## false: just yank the wheel (a swerve), for seeing how far a car leans
+var entry_speed := ENTRY_SPEED
 var phase := Phase.ACCELERATE
 var phase_time := 0.0
 var _autopilot := Autopilot.new()
 
 
 func _init() -> void:
-	_autopilot.target_speed = ENTRY_SPEED + 0.5
+	_autopilot.target_speed = entry_speed + 0.5
+
+
+func set_entry_speed(speed: float) -> void:
+	entry_speed = speed
+	_autopilot.target_speed = speed + 0.5
 
 
 func update(car: Car, delta: float) -> void:
@@ -27,10 +34,10 @@ func update(car: Car, delta: float) -> void:
 	match phase:
 		Phase.ACCELERATE:
 			_autopilot.update(car, delta)
-			if car.forward_speed() >= ENTRY_SPEED and phase_time > 3.0:
+			if car.forward_speed() >= entry_speed and phase_time > 3.0:
 				_next(Phase.PULL)
 		Phase.PULL:
-			_inputs(car, 0.0, 1.0, true)
+			_inputs(car, 0.0, 1.0, handbrake)
 			if phase_time >= pull_time:
 				_next(Phase.HOLD)
 		Phase.HOLD:

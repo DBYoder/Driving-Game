@@ -24,10 +24,17 @@ var new_best_score := false
 func _init(start: float, finish: float, name_of_car: String, path := SAVE_PATH) -> void:
 	start_station = start
 	finish_station = finish
-	car_name = name_of_car
 	save_path = path
+	set_car(name_of_car)
+
+
+## Switch to another car's records.
+func set_car(name_of_car: String) -> void:
+	car_name = name_of_car
+	best_time = 0.0
+	best_score = 0
 	var cfg := ConfigFile.new()
-	if cfg.load(save_path) == OK:
+	if not save_path.is_empty() and cfg.load(save_path) == OK:
 		best_time = cfg.get_value("best_times", car_name, 0.0)
 		best_score = cfg.get_value("best_scores", car_name, 0)
 

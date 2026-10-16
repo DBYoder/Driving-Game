@@ -37,11 +37,13 @@ func _process(delta: float) -> void:
 	_rpm = lerpf(_rpm, maxf(target, 0.15 + car.throttle * 0.1), 1.0 - exp(-delta * 8.0))
 	_load = lerpf(_load, car.throttle, 1.0 - exp(-delta * 6.0))
 
-	var freq := 28.0 + _rpm * 110.0  # firing frequency of a V6, roughly
+	var freq := (28.0 + _rpm * 110.0) * car.stats.engine_note  # firing frequency, roughly
 	var amp := 0.18 + 0.22 * _load
+	var rasp := car.stats.engine_rasp
 	for i in _playback.get_frames_available():
 		_phase = fmod(_phase + freq / MIX_RATE, 1.0)
 		var saw := _phase * 2.0 - 1.0
-		var pulse := 1.0 if _phase < 0.3 else -0.4
-		var sample := (saw * 0.6 + pulse * 0.4) * amp + randf_range(-0.03, 0.03) * _load
+		var pulse := 1.0 if _phase < 0.15 + 0.3 * (1.0 - rasp) else -0.4
+		var sample := (saw * (1.0 - rasp * 0.5) + pulse * (0.2 + rasp * 0.5)) * amp \
+			+ randf_range(-0.03, 0.03) * _load * (0.5 + rasp)
 		_playback.push_frame(Vector2(sample, sample))

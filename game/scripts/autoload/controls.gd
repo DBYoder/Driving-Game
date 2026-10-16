@@ -17,12 +17,21 @@ var bindings := {
 	"restart": [KEY_R, {"button": JOY_BUTTON_BACK}],
 	"mute": [KEY_M],
 	"quit": [KEY_ESCAPE],
+	# The car-select screen.
+	"menu_left": [KEY_A, KEY_LEFT, {"button": JOY_BUTTON_DPAD_LEFT}, {"axis": JOY_AXIS_LEFT_X, "value": -1.0}],
+	"menu_right": [KEY_D, KEY_RIGHT, {"button": JOY_BUTTON_DPAD_RIGHT}, {"axis": JOY_AXIS_LEFT_X, "value": 1.0}],
+	"menu_up": [KEY_W, KEY_UP, {"button": JOY_BUTTON_DPAD_UP}, {"axis": JOY_AXIS_LEFT_Y, "value": -1.0}],
+	"menu_down": [KEY_S, KEY_DOWN, {"button": JOY_BUTTON_DPAD_DOWN}, {"axis": JOY_AXIS_LEFT_Y, "value": 1.0}],
+	"menu_accept": [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE, {"button": JOY_BUTTON_A}],
+	"change_car": [KEY_ENTER, KEY_KP_ENTER, {"button": JOY_BUTTON_LEFT_SHOULDER}],
 }
 
 
 func _ready() -> void:
 	for action in bindings:
 		var deadzone := TRIGGER_DEADZONE if action in ["accelerate", "brake"] else STICK_DEADZONE
+		if action.begins_with("menu_"):
+			deadzone = 0.6  # a deliberate push of the stick, one step at a time
 		if not InputMap.has_action(action):
 			InputMap.add_action(action, deadzone)
 		for binding in bindings[action]:

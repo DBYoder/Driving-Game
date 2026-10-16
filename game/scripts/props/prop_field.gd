@@ -94,6 +94,12 @@ func debris_bodies() -> Array[RigidBody3D]:
 	return _debris.duplicate()
 
 
+## Something else to clear away with the debris once it's far behind (parts that fell
+## off the car).
+func add_debris(body: RigidBody3D) -> void:
+	_debris.append(body)
+
+
 func _physics_process(delta: float) -> void:
 	if car == null:
 		return

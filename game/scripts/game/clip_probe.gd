@@ -20,7 +20,8 @@ func sample(main: Node, car: Car) -> void:
 	_record("wreck", deepest, VISIBLE_OVERLAP, mile)
 	deepest = 0.0
 	for body: RigidBody3D in main.props.debris_bodies():
-		deepest = maxf(deepest, _overlap(car, body))
+		if not body.has_meta("car_part"):  # the car's own hubcaps can't hit it anyway
+			deepest = maxf(deepest, _overlap(car, body))
 	_record("debris", deepest, VISIBLE_OVERLAP, mile)
 	_record("corn", main.corn.standing_clumps_touching(car), 0.5, mile)
 	_record("ground", _sink(car), VISIBLE_SINK, mile)

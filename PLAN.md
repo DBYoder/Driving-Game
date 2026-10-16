@@ -266,6 +266,32 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
 ### Phase 3: v0.3 "The three cars"
 - Low-poly Windstar, Tercel, and Legend models with per-car handling, durability, and multipliers.
 - Visual damage: dents and flying parts. A car-select screen.
+- **Built:**
+  - **The cars** (`CarStats.preset()`). Springs, tire stiffness, brakes and the handbrake kick scale with each car's weight and size, so they only differ where they're meant to.
+
+    | | Windstar | Tercel | Legend |
+    |---|---|---|---|
+    | Weight | 1,830 kg | 930 kg | 1,590 kg |
+    | Power, top speed | 200 hp, 110 mph | 93 hp, 103 mph | 230 hp, 139 mph |
+    | Feel | soft and top-heavy: leans ~6° in a swerve (others 1°), plus a cosmetic lean | light, nimble | most grip, sits low |
+    | Health | 160 | 70, but can't be totaled | 110 |
+    | Points | ×1.2 | ×1.5 | ×1.0 |
+
+  - **Models.** Each car's side outline is extruded across its width, with a narrower greenhouse, glass, lights and bumpers.
+  - **Damage.** Hits dent the body where they land (the outlines are split finely enough to crumple). Each car loses its signature parts, the one nearest the hit first:
+    - Windstar: hubcaps, then the sliding door.
+    - Tercel: mirrors, then bumpers.
+    - Legend: the hood and trunk lid pop open and flap, and later the hood tears off.
+
+    Lost parts are physics debris. Smoke at 60% damage, as before.
+  - **Garage** (car-select screen). The car waits at the start line while the camera circles it. Pick the car and a paint color, with stats and best records shown. It remembers the last pick. Enter / LB goes back to it from the pause or results screen. Records are kept per car.
+  - **Engine sounds** differ: the Windstar is lower, the Tercel buzzy, the Legend smooth.
+  - **Defaults I picked** (tell me if they're wrong): a 1997 (5th-gen) Tercel sedan and a 1993 (2nd-gen) Legend sedan. Paint colors are from each car's real '90s palette, since I didn't know yours.
+  - **Corn (playtest note: too close to the road and not deep enough).**
+    - Corn starts 26 m from the centerline, behind a wider grass strip.
+    - It fills whole fields. Real clumps (now with a leafy top) fill every corn field within ~100 m of the car, however deep you drive in.
+    - Past them, a corn canopy covers the rest of each field to its real edges: a top of leaves and tassels plus walls of stalks. It sinks out of the way near the car.
+  - **Tests.** QA drives, drift and stress runs for every car in CI. Unit tests for the car stats and the points multiplier.
 
 ### Phase 4: v0.4 "Cops & deer"
 - Speed traps, chases, busted, the county-line jurisdiction bonus, deer.
@@ -299,7 +325,7 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
 ## 9. What I need from you (open questions)
 
 1. **Landmarks, in order heading north from Kalona.** I want the 5–15 things you'd point at from the passenger seat: buildings, signs, the hill that gives you air, where cops actually sit, deer spots, a weird mailbox. Rough locations are fine ("just past F62 on the right").
-2. **The cars.** The Tercel's year and body style (sedan, coupe, or hatch) and the Legend's (sedan or coupe), plus colors for all three. Any inside-joke details count too: the tape deck, a door that didn't close, a dent.
+2. **The cars.** I went with a 1997 Tercel sedan and a 1993 Legend sedan, in each car's real paint colors, all pickable in the garage. Tell me if your Tercel was a coupe or hatch, if the Legend was a coupe, or the actual colors, and I'll match them. Inside-joke details count too: the tape deck, a door that didn't close, a dent.
 3. ~~A phone video of the drive.~~ Not available, so Street View stands in. It needs a **Google Maps API key** saved as a secret in this cloud environment; the free monthly allowance easily covers a few hundred reference frames. Without one, I'll rely on your landmark list and the map data. Needed before Phase 5.
 4. **A gamepad?** It plays fine on keyboard, but tell me if everyone will use controllers.
 5. **A name.** Working title: *Highway 1*.

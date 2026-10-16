@@ -13,6 +13,7 @@ const MODES := [
 var car: Car
 var mode := 0
 var crash_cam := false  ## slowly circle the car (after a wreck)
+var showroom := false  ## circle close and low, for the car-select screen
 var _heading := Vector3.FORWARD
 var _orbit := 0.0
 
@@ -38,22 +39,26 @@ func snap() -> void:
 func _process(delta: float) -> void:
 	if car == null:
 		return
-	if crash_cam:
-		_circle(delta)
+	if showroom:
+		_circle(delta, 7.0, 1.4, 0.25, 50.0, 2.4)  # the car on the right, the garage panel on the left
+	elif crash_cam:
+		_circle(delta, 9.0, 3.5, 0.5, 60.0)
 	else:
 		_follow(1.0 - exp(-delta * 5.0))
 
 
-func _circle(delta: float) -> void:
+## Circle the car; `aside` shifts it that far to the right of the frame.
+func _circle(delta: float, radius: float, height: float, rate: float, view: float, aside := 0.0) -> void:
 	var target := car.get_global_transform_interpolated().origin
-	_orbit += delta * 0.5
-	var pos := target + Vector3(cos(_orbit) * 9.0, 3.5, sin(_orbit) * 9.0)
+	_orbit += delta * rate
+	var pos := target + Vector3(cos(_orbit) * radius, height, sin(_orbit) * radius)
 	var ground := car.route.terrain.height_at(pos.x, pos.z)
 	if not is_nan(ground):
 		pos.y = maxf(pos.y, ground + 1.0)
 	global_position = pos
-	look_at(target + Vector3.UP * 0.5, Vector3.UP)
-	fov = 60.0
+	var right := (target - pos).cross(Vector3.UP).normalized()
+	look_at(target + Vector3.UP * 0.5 - right * aside, Vector3.UP)
+	fov = view
 
 
 func _unhandled_input(event: InputEvent) -> void:

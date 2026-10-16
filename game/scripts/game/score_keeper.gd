@@ -4,7 +4,8 @@ extends RefCounted
 ## (x1, x2 ... x5). If nothing else scores within COMBO_WINDOW seconds, the pot is banked
 ## at its multiplier. A hard hit, a tow or a wreck throws the unbanked pot away; banked
 ## points are safe. Reaching Iowa City banks everything, multiplies the lot by 1.5 and
-## adds a bonus for every second under par.
+## adds a bonus for every second under par. Every point scored is first multiplied by
+## the car's multiplier (harder cars score more).
 
 signal scored(label: String, points: int)  ## an event added to the pot
 signal combo_banked(points: int)
@@ -16,6 +17,7 @@ const FINISH_MULTIPLIER := 1.5
 const PAR_SECONDS := 900.0  ## 15 minutes
 const BONUS_PER_SECOND := 20
 
+var car_multiplier := 1.0
 var banked := 0
 var pot := 0  ## combo points not yet banked (before the multiplier)
 var multiplier := 0  ## 0 = no combo running
@@ -40,6 +42,7 @@ func reset() -> void:
 ## Score something. `event` = false adds points without bumping the multiplier
 ## (for continuous things like plowing corn), but still keeps the combo alive.
 func add(label: String, points: int, event := true) -> void:
+	points = roundi(points * car_multiplier)
 	if points <= 0:
 		return
 	pot += points
