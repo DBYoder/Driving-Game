@@ -55,7 +55,7 @@ A web build was rejected because you chose a Windows download, though Godot can 
 | Elevation | **USGS 3DEP**: 1/3″ (~10 m) tile `n42w092` (covers the whole route; confirmed downloadable), plus 1 m lidar from the `IA_EasternIA_2019` project for the road profile | Rolling hills, crests you get air off, ditches, creek valleys |
 | What's growing where | **USDA Cropland Data Layer** (30 m) | Real corn fields vs. soybeans vs. pasture vs. woods, placed where they actually are |
 | Landmarks and "vibe" | **You**: a list, photos, and ideally a passenger-shot phone video of the drive | The "hey, that's ___" moments the data can't provide |
-| Eyeball reference only | Google Street View / Iowa aerial imagery | Checking sign placement, tree lines, and farm layouts. Never copied into the game (licensing). |
+| Eyeball reference only | Google Street View / Iowa aerial imagery | Checking sign placement, tree lines, and farm layouts. Never copied into the game (licensing). No dashcam video is coming, so Street View is the main reference for Phase 5. From the cloud environment it needs a Google Maps API key (§9). |
 
 ### 3.2 Pipeline (`tools/`, run once, outputs committed)
 
@@ -223,6 +223,11 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
 - One placeholder box car with the arcade raycast physics; keyboard and gamepad.
 - Start at the Kalona four-way stop and finish at the 218 interchange, with a timer, speedometer, and mile markers.
 - **Goal: confirm the hills and curves feel like Hwy 1 and the car is fun to throw around.**
+- **Built, waiting on your playtest.**
+  - What's in it: the raycast car with surface grip (asphalt, gravel shoulder, grass), front-wheel drive, a handbrake and reverse, and an automatic hold on hills. Plus chase, hood, far-chase and drone cameras, a synthesized engine sound, the clock and saved best time, and "back on the road" and restart.
+  - Measured in the automated test drive: 0–60 mph in 7.7 s, a 70 mph run takes 13:10, and the 123 mph limiter is reachable.
+  - The autopilot drives all 15 miles at 70, 100 and 120 mph without leaving its lane. The hooligan stress test (90–110 mph with random handbrake, full lock and panic stops) hasn't broken the physics.
+  - Finding: the smoothed road profile never launches the car, even at 118 mph. Air will have to come from ditches (Phase 2) and from your "hill that gives you air" spots, which can be sharpened in the bake.
 
 ### Phase 2: v0.2 "Chaos core"
 - Score and combo system, smashable mailboxes, fences, and hay bales, corn plowing, airtime.
@@ -266,7 +271,7 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
 
 1. **Landmarks, in order heading north from Kalona.** I want the 5–15 things you'd point at from the passenger seat: buildings, signs, the hill that gives you air, where cops actually sit, deer spots, a weird mailbox. Rough locations are fine ("just past F62 on the right").
 2. **The cars.** The Tercel's year and body style (sedan, coupe, or hatch) and the Legend's (sedan or coupe), plus colors for all three. Any inside-joke details count too: the tape deck, a door that didn't close, a dent.
-3. **A phone video of the drive northbound in daylight**, shot by a passenger (never the driver), plus a few photos. This is the single most valuable "asset" you can give me.
+3. ~~A phone video of the drive.~~ Not available, so Street View stands in. It needs a **Google Maps API key** saved as a secret in this cloud environment; the free monthly allowance easily covers a few hundred reference frames. Without one, I'll rely on your landmark list and the map data. Needed before Phase 5.
 4. **A gamepad?** It plays fine on keyboard, but tell me if everyone will use controllers.
 5. **A name.** Working title: *Highway 1*.
 6. **Network access for this cloud environment.** Not needed for Phase 0, since the road now comes from USGS. OpenStreetMap (`overpass-api.de`, `download.geofabrik.de`) and the crop data (`nassgeodata.gmu.edu`) are still blocked here. They only matter in Phase 5, so allow those hosts in the environment's network settings before then.

@@ -4,24 +4,27 @@ var route := RouteData.load_from("res://data/route")
 
 
 func test_ground_never_pokes_through_the_road() -> void:
-	# Check the rendered terrain against the road surface across the full paved width,
-	# every 10 m for the whole route.
+	# Check the rendered terrain against the road surface across the whole cross-section
+	# (pavement, shoulders and the foreslopes down to the ditches), every 10 m.
+	var offsets: Array[float] = []
+	for o in range(-95, 96, 5):
+		offsets.append(o / 10.0)
 	var worst := -INF
-	var worst_station := 0.0
+	var worst_at := ""
 	var station := 0.0
 	while station <= route.length:
 		var center := route.position_at(station)
 		var right := route.right_at(station)
-		for offset: float in [-RoadMesher.SECTION[1][0], -4.26, 0.0, 4.26, RoadMesher.SECTION[1][0]]:
+		for offset in offsets:
 			var p := center + right * offset
 			var ground := route.terrain.height_at(p.x, p.z)
 			check(not is_nan(ground), "terrain exists under the road at station %d" % station)
-			var gap := ground - (center.y - 0.08)  # lowest road surface point (gravel edge)
+			var gap := ground - (center.y + RoadMesher.surface_height(offset))
 			if gap > worst:
 				worst = gap
-				worst_station = station
+				worst_at = "station %d, %.1f m from center" % [station, offset]
 		station += 10.0
-	check(worst < 0.0, "ground is %.2f m above the road at station %d" % [worst, worst_station])
+	check(worst < 0.0, "ground is %.2f m above the road at %s" % [worst, worst_at])
 
 
 func test_terrain_mesh_matches_height_lookup() -> void:

@@ -5,19 +5,37 @@ extends RefCounted
 ## so stripes stay crisp at any distance with no extra geometry.
 
 const CHUNK_SAMPLES := 128
+const LANE_WIDTH := 3.66  ## 12 ft
+const PAVED_HALF_WIDTH := 4.26  ## lane + 2 ft paved shoulder
+const GRAVEL_HALF_WIDTH := 6.5
+
+const DITCH_EDGE := 10.0  ## where the grassy foreslope meets the ditch bottom
 
 ## Cross-section, left to right: [meters from centerline, height above the profile].
-## Lanes are 12 ft with a 2 ft paved shoulder, then gravel, then a short skirt that
-## tucks into the ditch the bake carved into the terrain.
+## Asphalt, gravel shoulder, then a 1:3.5 grass foreslope down into the ditch (gentle
+## enough to drive back out of), ending in a short skirt tucked into the ditch bottom
+## that the bake carved into the terrain 1.25 m below the road.
 const SECTION := [
-	[-6.9, -1.2],
-	[-6.5, -0.08],
-	[-4.26, 0.0],
+	[-DITCH_EDGE - 0.3, -1.5],
+	[-DITCH_EDGE, -1.1],
+	[-GRAVEL_HALF_WIDTH, -0.08],
+	[-PAVED_HALF_WIDTH, 0.0],
 	[0.0, 0.04],
-	[4.26, 0.0],
-	[6.5, -0.08],
-	[6.9, -1.2],
+	[PAVED_HALF_WIDTH, 0.0],
+	[GRAVEL_HALF_WIDTH, -0.08],
+	[DITCH_EDGE, -1.1],
+	[DITCH_EDGE + 0.3, -1.5],
 ]
+
+
+## Height of the road surface above the profile at a lateral offset (0 outside the section).
+static func surface_height(offset: float) -> float:
+	for i in SECTION.size() - 1:
+		var a: Array = SECTION[i]
+		var b: Array = SECTION[i + 1]
+		if offset >= a[0] and offset <= b[0]:
+			return lerpf(a[1], b[1], (offset - a[0]) / (b[0] - a[0]))
+	return 0.0
 
 var route: RouteData
 

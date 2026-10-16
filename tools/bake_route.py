@@ -225,11 +225,8 @@ def smoothstep(e0, e1, x):
 
 def carve(natural, road, d):
     """Terrain height given natural ground, road surface height and distance from centerline."""
-    ditch = config.UNDER_ROAD_DROP_M + (config.DITCH_DEPTH_M - config.UNDER_ROAD_DROP_M) * smoothstep(
-        config.ROAD_HALF_WIDTH_M, config.DITCH_INNER_M, d)
-    shaped = road - ditch
     w = smoothstep(config.DITCH_OUTER_M, config.BLEND_OUTER_M, d)
-    return shaped * (1 - w) + natural * w
+    return (road - config.DITCH_DEPTH_M) * (1 - w) + natural * w
 
 
 def main():

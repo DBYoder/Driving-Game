@@ -9,10 +9,9 @@ from bake_route import base_name, carve, center_divided
 def test_carve_keeps_ground_under_the_road_and_untouched_far_away():
     natural = np.array([5.0, 5.0, 5.0, 5.0])
     road = np.array([2.0, 2.0, 2.0, 2.0])
-    d = np.array([0.0, config.ROAD_HALF_WIDTH_M, 12.0, config.BLEND_OUTER_M + 1])
+    d = np.array([0.0, 8.0, config.DITCH_OUTER_M, config.BLEND_OUTER_M + 1])
     out = carve(natural, road, d)
-    assert out[0] < road[0] and out[1] < road[1]
-    assert np.isclose(out[2], road[2] - config.DITCH_DEPTH_M)  # ditch bottom
+    assert np.allclose(out[:3], road[:3] - config.DITCH_DEPTH_M)  # flat ditch-depth bed
     assert np.isclose(out[3], natural[3])
 
 

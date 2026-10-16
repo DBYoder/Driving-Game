@@ -1,0 +1,242 @@
+class_name Car
+extends RigidBody3D
+## Arcade raycast car. Each wheel is a ray: a spring-damper pushes the body up, and the
+## tire pushes back against sliding sideways and drives/brakes along its heading,
+## capped by friction. All tuning comes from CarStats.
+##
+## Body axes: -Z is forward, +X is right, +Y is up.
+
+const WORLD_LAYER := 1
+const CAR_LAYER := 2
+const GRAVITY := 9.8
+
+## Grip multiplier and extra rolling resistance per surface.
+const SURFACES := {
+	"asphalt": {"grip": 1.0, "rolling": 0.0},
+	"gravel": {"grip": 0.72, "rolling": 0.03},
+	"grass": {"grip": 0.6, "rolling": 0.07},
+}
+
+
+class Wheel:
+	var mount: Vector3  ## top of the suspension, body space
+	var front: bool
+	var left: bool
+	var grounded := false
+	var compression := 0.0
+	var spring_length := 0.0
+	var load := 0.0  ## suspension force, N
+	var contact := Vector3.ZERO
+	var normal := Vector3.UP
+	var surface := "asphalt"
+	var spin := 0.0  ## radians, for the visual
+	var slide := 0.0  ## sideways slip speed, m/s
+
+
+## Driver inputs, written every physics tick by whoever is driving.
+var throttle := 0.0  ## 0..1
+var brake := 0.0  ## 0..1; also reverse when stopped
+var steer := 0.0  ## -1 (left) .. 1 (right)
+var handbrake := false
+var driver: Object  ## anything with update(car: Car, delta: float)
+
+var stats: CarStats
+var route: RouteData
+var station := 0.0  ## distance along the route of the nearest centerline point
+var lateral := 0.0  ## meters right of the centerline
+var wheels: Array[Wheel] = []
+var steer_angle := 0.0  ## radians, positive turns left
+var model: CarModel
+
+
+func setup(car_stats: CarStats, r: RouteData) -> void:
+	stats = car_stats
+	route = r
+	mass = stats.mass
+	center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM
+	center_of_mass = Vector3(0.0, stats.center_of_mass_y, 0.0)
+	continuous_cd = true
+	# Our own drag model handles air resistance; the engine's default damping would add
+	# another ~4 kN at highway speed.
+	linear_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+	linear_damp = 0.0
+	angular_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+	angular_damp = 0.4
+	collision_layer = 1 << (CAR_LAYER - 1)
+	collision_mask = 1 << (WORLD_LAYER - 1)
+
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(stats.body_size.x, 0.72, stats.body_size.z * 0.97)
+	var col := CollisionShape3D.new()
+	col.shape = shape
+	col.position = Vector3(0.0, 0.08, 0.0)
+	add_child(col)
+
+	var half_track := stats.track / 2.0
+	var half_base := stats.wheelbase / 2.0
+	for z in [-half_base, half_base]:
+		for x in [-half_track, half_track]:
+			var w := Wheel.new()
+			w.mount = Vector3(x, stats.mount_y, z)
+			w.front = z < 0.0
+			w.left = x < 0.0
+			w.spring_length = stats.rest_length
+			wheels.append(w)
+
+	model = CarModel.new()
+	add_child(model)
+	model.build(stats, wheels)
+
+
+## Put the car on the road at a station, in the northbound lane, stopped.
+func place_at(s: float, lane_offset := 1.83) -> void:
+	station = s
+	var pos := route.position_at(s) + route.right_at(s) * lane_offset
+	var ahead := route.position_at(s + 5.0) + route.right_at(s + 5.0) * lane_offset
+	ahead.y = pos.y
+	pos.y += 0.9
+	ahead.y += 0.9
+	global_transform = Transform3D(Basis.IDENTITY, pos).looking_at(ahead, Vector3.UP)
+	linear_velocity = Vector3.ZERO
+	angular_velocity = Vector3.ZERO
+	steer_angle = 0.0
+	for w in wheels:
+		w.compression = 0.0
+		w.spring_length = stats.rest_length
+	reset_physics_interpolation()
+
+
+## Forward speed in m/s (negative when reversing).
+func forward_speed() -> float:
+	return linear_velocity.dot(-global_transform.basis.z)
+
+
+func grounded_wheels() -> int:
+	var n := 0
+	for w in wheels:
+		if w.grounded:
+			n += 1
+	return n
+
+
+func _physics_process(delta: float) -> void:
+	if stats == null:
+		return
+	if driver:
+		driver.update(self, delta)
+	_track_route()
+
+	var xf := global_transform
+	var up := xf.basis.y
+	var forward := -xf.basis.z
+	var speed := linear_velocity.dot(forward)
+	var limit := stats.steer_limit(speed)
+	steer_angle = move_toward(steer_angle, -steer * limit, stats.steer_rate * delta)
+
+	var space := get_world_3d().direct_space_state
+	for w in wheels:
+		_suspend(w, xf, up, space, delta)
+	_anti_roll(xf, up)
+
+	# Drive split across the front tires; reverse when the brake is held at a standstill.
+	var reversing := brake > 0.1 and throttle < 0.1 and speed < 0.5
+	var drive := throttle * stats.drive_force(maxf(speed, 0.0))
+	var braking := brake
+	if reversing:
+		drive = -brake * stats.reverse_force * clampf((stats.reverse_speed + speed) / 2.0, 0.0, 1.0)
+		braking = 0.0
+	elif throttle < 0.05 and brake < 0.05 and absf(speed) < 0.6:
+		braking = 0.5  # hold still on hills with no pedals pressed, like an automatic
+	var com := xf * center_of_mass
+	for w in wheels:
+		if w.grounded:
+			_tire(w, forward, up, com, drive * 0.5 if w.front else 0.0, braking)
+
+	apply_central_force(-linear_velocity * linear_velocity.length() * stats.drag)
+	model.update_wheels(wheels, steer_angle, stats)
+
+
+func _track_route() -> void:
+	station = route.nearest_station(global_position, station, 60.0)
+	var center := route.position_at(station)
+	lateral = (global_position - center).dot(route.right_at(station))
+
+
+func _suspend(w: Wheel, xf: Transform3D, up: Vector3, space: PhysicsDirectSpaceState3D, delta: float) -> void:
+	var origin := xf * w.mount
+	var reach := stats.rest_length + stats.wheel_radius
+	var query := PhysicsRayQueryParameters3D.create(origin, origin - up * reach, 1 << (WORLD_LAYER - 1), [get_rid()])
+	var hit := space.intersect_ray(query)
+	if hit.is_empty():
+		w.grounded = false
+		w.load = 0.0
+		w.compression = 0.0
+		w.spring_length = stats.rest_length
+		return
+
+	w.grounded = true
+	w.contact = hit.position
+	w.normal = hit.normal
+	w.surface = _surface_at(hit)
+	w.spring_length = clampf(origin.distance_to(hit.position) - stats.wheel_radius, 0.0, stats.rest_length)
+	var compression := stats.rest_length - w.spring_length
+	var force := stats.spring * compression + stats.damper * (compression - w.compression) / delta
+	w.compression = compression
+	if w.spring_length < 0.04:  # bump stop
+		force += (0.04 - w.spring_length) * stats.spring * 8.0
+	w.load = clampf(force, 0.0, stats.mass * GRAVITY * 2.5)
+	apply_force(up * w.load, origin - global_position)
+
+
+## Roll bars: push the low side of each axle up and the high side down.
+func _anti_roll(xf: Transform3D, up: Vector3) -> void:
+	for pair in [[0, 1], [2, 3]]:
+		var l: Wheel = wheels[pair[0]]
+		var r: Wheel = wheels[pair[1]]
+		if not (l.grounded and r.grounded):
+			continue
+		var force := (l.compression - r.compression) * stats.anti_roll
+		apply_force(up * force, xf * l.mount - global_position)
+		apply_force(-up * force, xf * r.mount - global_position)
+
+
+func _tire(w: Wheel, forward: Vector3, up: Vector3, com: Vector3, drive: float, braking: float) -> void:
+	var n := w.normal
+	var heading := forward.rotated(up, steer_angle) if w.front else forward
+	var fwd := (heading - n * heading.dot(n)).normalized()
+	var side := fwd.cross(n)
+	var v := linear_velocity + angular_velocity.cross(w.contact - com)
+	var v_long := v.dot(fwd)
+	var v_lat := v.dot(side)
+	var surface: Dictionary = SURFACES[w.surface]
+	var rear_handbrake := handbrake and not w.front
+
+	var f_lat := -v_lat * stats.cornering_stiffness * (stats.handbrake_grip if rear_handbrake else 1.0)
+	var f_long := drive
+	if braking > 0.0:
+		var b := braking * stats.brake_force / 4.0
+		f_long -= clampf(v_long * 2000.0, -b, b)
+	if rear_handbrake:
+		var hb := stats.handbrake_force / 2.0
+		f_long -= clampf(v_long * 2000.0, -hb, hb)
+	f_long -= clampf(v_long, -1.0, 1.0) * (stats.rolling_resistance + surface.rolling) * w.load
+
+	# Friction circle: total tire force can't exceed grip x load.
+	var limit: float = stats.grip * surface.grip * w.load
+	var total := Vector2(f_long, f_lat).length()
+	if total > limit and total > 0.0:
+		f_long *= limit / total
+		f_lat *= limit / total
+	w.slide = absf(v_lat)
+	w.spin += v_long / stats.wheel_radius * get_physics_process_delta_time()
+	apply_force(fwd * f_long + side * f_lat, w.contact - global_position)
+
+
+## Road colliders are tagged "road"; where on the road decides asphalt vs gravel shoulder.
+func _surface_at(hit: Dictionary) -> String:
+	var collider: Object = hit.collider
+	if collider == null or collider.get_meta("surface", "grass") != "road":
+		return "grass"
+	var center := route.position_at(station)
+	var offset := absf((hit.position - center).dot(route.right_at(station)))
+	return "asphalt" if offset <= RoadMesher.PAVED_HALF_WIDTH else "gravel"

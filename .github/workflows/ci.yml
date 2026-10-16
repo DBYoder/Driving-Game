@@ -37,7 +37,7 @@ jobs:
 
       - name: Cache Godot and export templates
         id: godot-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/godot
           key: godot-${{ env.GODOT_VERSION }}-v1
@@ -60,36 +60,47 @@ jobs:
           mkdir -p "$dest" && cp ~/godot/templates/* "$dest/"
           echo "$HOME/godot" >> "$GITHUB_PATH"
 
+      # Every Godot call gets a hard timeout: a script that fails to compile can leave
+      # the engine running instead of exiting.
       - name: Import project
-        run: godot --headless --path game --import
+        run: timeout 300 godot --headless --path game --import
 
       - name: Unit tests
-        run: godot --headless --path game -s res://tests/run_tests.gd
+        run: timeout 300 godot --headless --path game -s res://tests/run_tests.gd
 
       - name: Export Windows and Linux builds
         run: |
           mkdir -p build/windows build/linux
-          godot --headless --path game --export-release "Windows Desktop" ../build/windows/HighwayOne.exe
-          godot --headless --path game --export-release "Linux" ../build/linux/HighwayOne.x86_64
+          timeout 300 godot --headless --path game --export-release "Windows Desktop" ../build/windows/HighwayOne.exe
+          timeout 300 godot --headless --path game --export-release "Linux" ../build/linux/HighwayOne.x86_64
           test -s build/windows/HighwayOne.exe
 
       - name: Smoke-test the exported build
-        run: ./build/linux/HighwayOne.x86_64 --headless -- --smoke-test
+        run: timeout 120 ./build/linux/HighwayOne.x86_64 --headless -- --smoke-test
+
+      - name: QA drive (autopilot drives all 15 miles)
+        run: timeout 600 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive
+
+      - name: QA stress (fast driving with random handbrake, full lock and panic stops)
+        run: |
+          for seed in 1 2 3; do
+            timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-stress --seed=$seed
+          done
 
       - name: Screenshots (software rendering)
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q xvfb libgl1-mesa-dri
           mkdir -p build/screenshots
           shoot() {
-            xvfb-run -a -s "-screen 0 1280x720x24" ./build/linux/HighwayOne.x86_64 \
+            timeout 300 xvfb-run -a -s "-screen 0 1280x720x24" ./build/linux/HighwayOne.x86_64 \
               --rendering-driver opengl3 --resolution 1280x720 -- \
               --screenshot="$PWD/build/screenshots/$1.png" --station=$2 --view=$3
           }
-          shoot kalona-climb 520 0
-          shoot mile-2-chase 4000 1
-          shoot mile-7-drone 11500 2
+          shoot kalona-start-chase 175 0
+          shoot mile-2-hood 4000 1
+          shoot mile-7-drone 11500 3
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: screenshots
           path: build/screenshots
@@ -100,7 +111,7 @@ jobs:
           cp docs/GODOT_LICENSE.txt build/windows/LICENSE-Godot.txt
           cd build/windows && zip -q -9 -r ../HighwayOne-windows.zip .
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: HighwayOne-windows
           path: build/HighwayOne-windows.zip
@@ -113,7 +124,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: HighwayOne-windows
       - uses: softprops/action-gh-release@v2

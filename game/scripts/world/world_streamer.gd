@@ -1,10 +1,14 @@
 class_name WorldStreamer
 extends Node3D
-## Keeps the terrain tiles and road chunks near a focus point built, and frees far ones.
-## Building is spread over frames (`builds_per_frame`) so driving doesn't hitch.
+## Keeps terrain tiles and road chunks near a focus point built and frees far ones.
+## Pieces close to the focus also get collision, built from the same triangles that are
+## drawn, so what the tires touch is exactly what you see. Building is spread over
+## frames (`builds_per_frame`) so driving doesn't hitch.
 
 @export var load_radius := 1300.0
 @export var unload_radius := 1600.0
+@export var collision_radius := 350.0
+@export var collision_unload_radius := 500.0
 @export var builds_per_frame := 2  # at 65 mph only ~1 new tile is needed per second
 
 var route: RouteData
@@ -13,9 +17,9 @@ var focus := Vector3.ZERO
 var _road: RoadMesher
 var _terrain_material: ShaderMaterial
 var _road_material: ShaderMaterial
-var _tiles := {}  ## tile index -> MeshInstance3D
-var _chunks := {}  ## road chunk index -> MeshInstance3D
-var _queue: Array = []  ## [kind, index, distance] waiting to be built
+var _meshes := {}  ## "tile:12" / "road:3" -> MeshInstance3D
+var _bodies := {}  ## same keys -> StaticBody3D
+var _queue: Array = []  ## [key, priority, distance], most urgent first
 
 
 func setup(r: RouteData) -> void:
@@ -28,7 +32,7 @@ func setup(r: RouteData) -> void:
 	_road_material.shader = preload("res://shaders/road.gdshader")
 
 
-## Build everything around `pos` right now (used before the first frame is shown).
+## Build everything around `pos` right now (before the first frame, or after a teleport).
 func warm_up(pos: Vector3) -> void:
 	focus = pos
 	_refresh_queue()
@@ -37,11 +41,15 @@ func warm_up(pos: Vector3) -> void:
 
 
 func loaded_tile_count() -> int:
-	return _tiles.size()
+	return _meshes.keys().filter(func(k): return k.begins_with("tile")).size()
 
 
 func loaded_chunk_count() -> int:
-	return _chunks.size()
+	return _meshes.keys().filter(func(k): return k.begins_with("road")).size()
+
+
+func collider_count() -> int:
+	return _bodies.size()
 
 
 func _process(_delta: float) -> void:
@@ -58,42 +66,54 @@ func _process(_delta: float) -> void:
 func _refresh_queue() -> void:
 	_queue.clear()
 	var flat_focus := Vector3(focus.x, 0.0, focus.z)
-	var terrain := route.terrain
-	for i in terrain.count():
-		var d := terrain.tile_center(i).distance_to(flat_focus)
-		if d <= load_radius and not _tiles.has(i):
-			_queue.append(["tile", i, d])
-		elif d > unload_radius and _tiles.has(i):
-			_tiles[i].queue_free()
-			_tiles.erase(i)
+	for i in route.terrain.count():
+		_consider("tile:%d" % i, route.terrain.tile_center(i).distance_to(flat_focus))
 	for c in _road.chunk_count():
 		var center := _road.chunk_center(c)
+		# Road chunks are long and thin; measure to the nearer of their two ends too.
 		var d := Vector3(center.x, 0.0, center.z).distance_to(flat_focus)
-		if d <= load_radius and not _chunks.has(c):
-			_queue.append(["road", c, d - 1000.0])  # road first: it's what you look at
-		elif d > unload_radius and _chunks.has(c):
-			_chunks[c].queue_free()
-			_chunks.erase(c)
-	_queue.sort_custom(func(a, b): return a[2] < b[2])
+		_consider("road:%d" % c, maxf(d - 128.0, 0.0))
+	_queue.sort_custom(func(a, b): return a[1] < b[1])
+
+
+func _consider(key: String, d: float) -> void:
+	if d > unload_radius and _meshes.has(key):
+		_meshes[key].queue_free()
+		_meshes.erase(key)
+	if d > collision_unload_radius and _bodies.has(key):
+		_bodies[key].queue_free()
+		_bodies.erase(key)
+	var needs_mesh := d <= load_radius and not _meshes.has(key)
+	var needs_body := d <= collision_radius and not _bodies.has(key)
+	if needs_mesh or needs_body:
+		# Collision first (the car falls through without it), then road, then scenery.
+		var priority := d - 5000.0 if needs_body else (d - 1000.0 if key.begins_with("road") else d)
+		_queue.append([key, priority, d])
 
 
 func _build_next() -> void:
 	var job: Array = _queue.pop_front()
-	var node := MeshInstance3D.new()
-	if job[0] == "tile":
-		if _tiles.has(job[1]):
-			return
-		node.mesh = route.terrain.build_mesh(job[1])
-		node.material_override = _terrain_material
-		_tiles[job[1]] = node
-	else:
-		if _chunks.has(job[1]):
-			return
-		node.mesh = _road.build_chunk(job[1])
-		node.material_override = _road_material
-		_chunks[job[1]] = node
-	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(node)
+	var key: String = job[0]
+	var parts := key.split(":")
+	var index := int(parts[1])
+	var is_road := parts[0] == "road"
+	if not _meshes.has(key):
+		var node := MeshInstance3D.new()
+		node.mesh = _road.build_chunk(index) if is_road else route.terrain.build_mesh(index)
+		node.material_override = _road_material if is_road else _terrain_material
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(node)
+		_meshes[key] = node
+	if job[2] <= collision_radius and not _bodies.has(key):
+		var body := StaticBody3D.new()
+		body.collision_layer = 1 << (Car.WORLD_LAYER - 1)
+		body.collision_mask = 0
+		body.set_meta("surface", "road" if is_road else "grass")
+		var shape := CollisionShape3D.new()
+		shape.shape = _meshes[key].mesh.create_trimesh_shape()
+		body.add_child(shape)
+		add_child(body)
+		_bodies[key] = body
 
 
 ## Section-line roads run every mile on a north-south grid. Snapping the field patchwork

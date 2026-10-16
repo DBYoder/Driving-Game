@@ -13,20 +13,32 @@ HOW TO RUN
    Click "More info", then "Run anyway". You only have to do this once per build.
 
 
+HOW TO PLAY
+-----------
+Drive from Kalona to Iowa City as fast as you dare. The clock starts when you cross
+the line at the IA-22 four-way stop in Kalona and stops at the US-218 overpass.
+Your best time is saved.
+
+
 CONTROLS                      KEYBOARD            CONTROLLER
 --------                      --------            ----------
-Faster / slower               W / S, Up / Down    Right / left trigger
+Gas                           W or Up             Right trigger
+Brake (hold to reverse)       S or Down           Left trigger
+Steer                         A / D, Left/Right   Left stick
+Handbrake                     Space               A
 Change camera                 C                   Y
-Pause                         P                   Start
+Back on the road              T                   X
 Restart                       R                   Back
+Pause                         P                   Start
+Mute                          M
 Quit                          Esc
 
 
 WHAT'S IN THIS BUILD
 --------------------
-Phase 0: a flythrough of the real road. The curves, hills, crossroads and street
-names come from USGS map and elevation data. The car (Windstar, Tercel, Legend)
-shows up in the next builds.
+v0.1: one placeholder car on the real road. The curves, hills, crossroads and
+street names come from USGS map and elevation data. Coming next: things to smash,
+traffic, Amish buggies, cops, and the Windstar, Tercel and Legend.
 
 
 IF IT WON'T START OR LOOKS BROKEN

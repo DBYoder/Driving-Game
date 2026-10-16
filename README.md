@@ -10,13 +10,15 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 
 | | |
 |---|---|
-| ![Climbing out of Kalona](docs/screenshots/kalona-climb.png) | ![Mile 7, drone view](docs/screenshots/mile-7-drone.png) |
+| ![At the Kalona start line](docs/screenshots/kalona-start-chase.png) | ![Mile 2, hood view](docs/screenshots/mile-2-hood.png) |
 
 ## Status
 
-**Phase 0: the real road.** A flythrough of the actual Highway 1: real curves, hills,
-crossroads and street names from USGS data, low-poly, built to run on a potato.
-The drivable car arrives in v0.1 (see the roadmap in PLAN.md).
+**v0.1: drive the real road.** A placeholder car with arcade physics on the actual
+Highway 1: real curves, hills, crossroads and street names from USGS data, low-poly,
+built to run on a potato. Timed from the Kalona start line to the US-218 overpass,
+with your best time saved. Chaos (smashables, traffic, buggies, cops) is next; see the
+roadmap in PLAN.md.
 
 ## Layout
 
@@ -24,7 +26,9 @@ The drivable car arrives in v0.1 (see the roadmap in PLAN.md).
 game/                  Godot 4.6.3 project (GL Compatibility renderer)
   data/route/          baked road + terrain (generated, committed)
   scripts/route/       RouteData, TerrainTiles: loading and querying the baked data
-  scripts/world/       road and terrain meshes, streaming, roadside signs
+  scripts/world/       road and terrain meshes and colliders, streaming, roadside signs
+  scripts/car/         raycast car physics, CarStats tuning, model, drivers, engine sound
+  scripts/game/        run timing and best times, QA test drives
   shaders/             flat-shaded terrain and road paint
   tests/               headless GDScript tests
 tools/                 Python pipeline that bakes the road from USGS data
@@ -40,7 +44,12 @@ docs/                  route previews, screenshots, the README that ships in the
 ```sh
 godot --headless --path game --import                   # first time, or after adding files
 godot --headless --path game -s res://tests/run_tests.gd  # unit tests
-godot --path game -- --station=15000 --view=2             # start mid-route in drone view
+godot --path game -- --station=15000 --view=3             # start mid-route in drone view
+godot --path game -- --autopilot --autopilot-mph=90       # watch the autopilot drive
+
+# Automated test drives, headless and ~25x faster than real time:
+godot --headless --fixed-fps 60 --path game -- --qa-drive            # autopilot, all 15 miles
+godot --headless --fixed-fps 60 --path game -- --qa-stress --seed=1  # hooligan inputs
 ```
 
 **Road data:** only needed to re-bake (the baked files are committed).

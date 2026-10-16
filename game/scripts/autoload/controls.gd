@@ -12,8 +12,10 @@ var bindings := {
 	"steer_right": [KEY_D, KEY_RIGHT, {"axis": JOY_AXIS_LEFT_X, "value": 1.0}],
 	"handbrake": [KEY_SPACE, {"button": JOY_BUTTON_A}],
 	"camera_next": [KEY_C, {"button": JOY_BUTTON_Y}],
+	"recover": [KEY_T, {"button": JOY_BUTTON_X}],
 	"pause": [KEY_P, {"button": JOY_BUTTON_START}],
 	"restart": [KEY_R, {"button": JOY_BUTTON_BACK}],
+	"mute": [KEY_M],
 	"quit": [KEY_ESCAPE],
 }
 

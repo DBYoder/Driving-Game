@@ -43,11 +43,12 @@ TILE_SIZE_M = 256.0
 TILE_GRID = 33  # vertices per tile side -> 8 m spacing
 
 # Cross-section the terrain is carved around (distance from centerline, meters).
-ROAD_HALF_WIDTH_M = 6.5
-UNDER_ROAD_DROP_M = 0.35
-DITCH_INNER_M = 10.0
+# The game's road mesh covers the pavement, shoulders and the grass foreslope down to
+# the ditch 10 m out (game/scripts/world/road_mesher.gd). Under all of that the ground
+# sits flat at ditch depth, so its coarse 8 m triangles can never poke through; past
+# the ditch bottom it blends back up to the natural ground.
+DITCH_DEPTH_M = 1.25
 DITCH_OUTER_M = 14.0
-DITCH_DEPTH_M = 1.2
 BLEND_OUTER_M = 36.0
 
 # USGS/Census MAF/TIGER feature class codes.
