@@ -32,8 +32,17 @@ extends Resource
 @export var grip := 1.05  ## friction coefficient on dry asphalt
 @export var cornering_stiffness := 8500.0  ## N per m/s of sideways slide, per tire
 @export var brake_force := 12000.0  ## N, all four tires together
-@export var handbrake_force := 3500.0  ## N, rear tires together
-@export var handbrake_grip := 0.35  ## rear sideways grip while the handbrake is on
+@export var handbrake_force := 1800.0  ## N, rear tires together
+
+@export_group("Handbrake drifts")
+@export var handbrake_grip := 0.35  ## rear sideways stiffness with the rears locked
+@export var handbrake_friction := 0.8  ## rear grip limit with the rears locked
+@export var drift_recovery := 2.0  ## per second; how fast rear grip comes back after letting go
+@export var handbrake_yaw_rate := 75.0  ## deg/s the handbrake kick swings the car toward, at full lock
+@export var handbrake_yaw_assist := 6000.0  ## N·m; the most the kick can push
+@export var handbrake_kick_max_slip := 30.0  ## deg sideways at which the kick lets go
+@export var spin_damping := 6.0  ## per second; resists rotation once the car is far sideways
+@export var slide_friction := 0.8  ## grip of a tire sliding sideways, vs. one that's rolling
 @export var rolling_resistance := 0.015
 @export var drag := 0.38  ## N per (m/s)^2
 

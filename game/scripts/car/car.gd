@@ -47,6 +47,7 @@ var lateral := 0.0  ## meters right of the centerline
 var wheels: Array[Wheel] = []
 var steer_angle := 0.0  ## radians, positive turns left
 var model: CarModel
+var _rear_loose := 0.0  ## 0 = rear tires gripping, 1 = locked and sliding (handbrake)
 
 
 func setup(car_stats: CarStats, r: RouteData) -> void:
@@ -147,6 +148,9 @@ func _physics_process(delta: float) -> void:
 		braking = 0.0
 	elif throttle < 0.05 and brake < 0.05 and absf(speed) < 0.6:
 		braking = 0.5  # hold still on hills with no pedals pressed, like an automatic
+	_update_rear_grip(delta)
+	_handbrake_kick(up, speed)
+	_stabilize_spin(up)
 	var com := xf * center_of_mass
 	for w in wheels:
 		if w.grounded:
@@ -188,6 +192,43 @@ func _suspend(w: Wheel, xf: Transform3D, up: Vector3, space: PhysicsDirectSpaceS
 	apply_force(up * w.load, origin - global_position)
 
 
+## The handbrake locks the rears: they lose most of their sideways grip. Letting go brings
+## the grip back over a moment rather than instantly, so a yank swings the tail out
+## and the slide carries on long enough to catch with countersteer and throttle.
+func _update_rear_grip(delta: float) -> void:
+	_rear_loose = 1.0 if handbrake else move_toward(_rear_loose, 0.0, stats.drift_recovery * delta)
+
+
+## While the handbrake is held, nudge the car's rotation toward a target yaw rate set by
+## the steering. A tap gives an immediate, proportional swing. The kick only starts the
+## slide: it stops once the car is well sideways, so it never spins the car by itself
+## (holding the handbrake at full lock too long still will, the honest way).
+func _handbrake_kick(up: Vector3, speed: float) -> void:
+	if not handbrake or speed < 3.0 or steer == 0.0:
+		return
+	if DriftDriver.slip_angle(self) > stats.handbrake_kick_max_slip:
+		return
+	var target := -steer * deg_to_rad(stats.handbrake_yaw_rate)
+	var current := angular_velocity.dot(up)
+	if signf(target - current) != signf(target):
+		return  # already swinging at least that fast
+	var yaw_inertia := stats.mass * (stats.body_size.x ** 2 + stats.body_size.z ** 2) / 12.0
+	var torque := clampf((target - current) * yaw_inertia * 8.0, -stats.handbrake_yaw_assist, stats.handbrake_yaw_assist)
+	apply_torque(up * torque * clampf(speed / 12.0, 0.0, 1.0))
+
+
+## Arcade drift assist: once the car is far sideways (40-80 degrees), damp its rotation
+## so big slides are holdable and a full spin takes real effort.
+func _stabilize_spin(up: Vector3) -> void:
+	if linear_velocity.length() < 8.0 or grounded_wheels() < 2:
+		return
+	var weight := smoothstep(40.0, 80.0, DriftDriver.slip_angle(self))
+	if weight == 0.0:
+		return
+	var yaw_inertia := stats.mass * (stats.body_size.x ** 2 + stats.body_size.z ** 2) / 12.0
+	apply_torque(-up * angular_velocity.dot(up) * yaw_inertia * stats.spin_damping * weight)
+
+
 ## Roll bars: push the low side of each axle up and the high side down.
 func _anti_roll(xf: Transform3D, up: Vector3) -> void:
 	for pair in [[0, 1], [2, 3]]:
@@ -210,8 +251,9 @@ func _tire(w: Wheel, forward: Vector3, up: Vector3, com: Vector3, drive: float, 
 	var v_lat := v.dot(side)
 	var surface: Dictionary = SURFACES[w.surface]
 	var rear_handbrake := handbrake and not w.front
+	var loose := 0.0 if w.front else _rear_loose
 
-	var f_lat := -v_lat * stats.cornering_stiffness * (stats.handbrake_grip if rear_handbrake else 1.0)
+	var f_lat := -v_lat * stats.cornering_stiffness * lerpf(1.0, stats.handbrake_grip, loose)
 	var f_long := drive
 	if braking > 0.0:
 		var b := braking * stats.brake_force / 4.0
@@ -222,7 +264,10 @@ func _tire(w: Wheel, forward: Vector3, up: Vector3, com: Vector3, drive: float, 
 	f_long -= clampf(v_long, -1.0, 1.0) * (stats.rolling_resistance + surface.rolling) * w.load
 
 	# Friction circle: total tire force can't exceed grip x load.
-	var limit: float = stats.grip * surface.grip * w.load
+	# Rubber grips best just before it lets go: a tire sliding sideways has less grip,
+	# which is what lets a drift keep going once it's started.
+	var sliding := lerpf(1.0, stats.slide_friction, smoothstep(2.0, 6.0, absf(v_lat)))
+	var limit: float = stats.grip * surface.grip * w.load * sliding * lerpf(1.0, stats.handbrake_friction, loose)
 	var total := Vector2(f_long, f_lat).length()
 	if total > limit and total > 0.0:
 		f_long *= limit / total

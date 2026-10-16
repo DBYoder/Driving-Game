@@ -6,8 +6,10 @@ extends Node3D
 ##   --view=<n>           camera: 0 chase, 1 hood, 2 far chase, 3 drone
 ##   --autopilot          let the autopilot drive (demo mode)
 ##   --autopilot-mph=<n>  the autopilot's cruising speed (default 70)
+##   --tune=<k:v,...>     override CarStats values, e.g. --tune=handbrake_grip:0.2
 ##   --qa-drive           autopilot the whole route, check for problems, exit 0/1
 ##   --qa-stress          random inputs for 4 minutes, check the physics holds up, exit 0/1
+##   --qa-drift           a scripted handbrake turn; checks it slides and recovers, exit 0/1
 ##                        (--seed=<n> picks the random sequence; run both QA modes
 ##                        headless with --fixed-fps 60 to go faster than real time)
 ##   --smoke-test         load everything, drop the car on the road, check it, exit 0/1
@@ -42,11 +44,20 @@ func _ready() -> void:
 	add_child(roadside)
 	roadside.setup(route)
 
+	var stats := CarStats.new()
+	if args.has("tune"):
+		_apply_tuning(stats, args.tune)
 	car = Car.new()
 	add_child(car)
-	car.setup(CarStats.new(), route)
+	car.setup(stats, route)
+	var drift: DriftDriver = null
 	if args.has("qa-stress"):
 		car.driver = StressDriver.new(int(args.get("seed", "1")))
+	elif args.has("qa-drift"):
+		drift = DriftDriver.new()
+		drift.pull_time = float(args.get("drift-pull", drift.pull_time))
+		drift.countersteer = float(args.get("drift-counter", drift.countersteer))
+		car.driver = drift
 	elif args.has("autopilot") or args.has("qa-drive"):
 		var autopilot := Autopilot.new()
 		if args.has("autopilot-mph"):
@@ -58,7 +69,7 @@ func _ready() -> void:
 	sound.car = car
 	car.add_child(sound)
 
-	var testing := args.has("qa-drive") or args.has("qa-stress")
+	var testing := args.has("qa-drive") or args.has("qa-stress") or args.has("qa-drift")
 	var save_path := "" if testing else RunTracker.SAVE_PATH
 	tracker = RunTracker.new(route.start_station, route.finish_station, car.stats.display_name, save_path)
 
@@ -67,6 +78,8 @@ func _ready() -> void:
 	if args.has("view"):
 		camera.mode = int(args.view)
 	_spawn_station = float(args.station) if args.has("station") else route.start_station - SPAWN_BEHIND_START
+	if drift:
+		_spawn_station = route.start_station + 1.5 * RouteData.MILE_M  # the long straight north of Kalona
 	_spawn(_spawn_station)
 	camera.setup(car)
 
@@ -81,6 +94,7 @@ func _ready() -> void:
 		qa.car = car
 		qa.tracker = tracker
 		qa.stress = args.has("qa-stress")
+		qa.drift = drift
 		add_child(qa)
 	elif args.has("screenshot"):
 		_screenshot(args.screenshot)
@@ -159,6 +173,16 @@ func _add_environment() -> void:
 	sun.light_energy = 1.1
 	sun.shadow_enabled = false
 	add_child(sun)
+
+
+## --tune=handbrake_grip:0.2,top_speed:50 overrides CarStats values, for tuning sweeps.
+func _apply_tuning(stats: CarStats, spec: String) -> void:
+	for pair in spec.split(",", false):
+		var kv := pair.split(":")
+		if kv.size() == 2 and kv[0] in stats:
+			stats.set(kv[0], float(kv[1]))
+		else:
+			push_warning("ignoring --tune entry '%s'" % pair)
 
 
 func _parse_args() -> Dictionary:

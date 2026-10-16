@@ -50,6 +50,8 @@ godot --path game -- --autopilot --autopilot-mph=90       # watch the autopilot 
 # Automated test drives, headless and ~25x faster than real time:
 godot --headless --fixed-fps 60 --path game -- --qa-drive            # autopilot, all 15 miles
 godot --headless --fixed-fps 60 --path game -- --qa-stress --seed=1  # hooligan inputs
+godot --headless --fixed-fps 60 --path game -- --qa-drift            # scripted handbrake turn
+godot --path game -- --tune=handbrake_grip:0.5                        # try a CarStats tweak
 ```
 
 **Road data:** only needed to re-bake (the baked files are committed).

@@ -81,6 +81,9 @@ jobs:
       - name: QA drive (autopilot drives all 15 miles)
         run: timeout 600 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive
 
+      - name: QA drift (a handbrake turn slides at least 35 degrees and recovers)
+        run: timeout 120 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drift
+
       - name: QA stress (fast driving with random handbrake, full lock and panic stops)
         run: |
           for seed in 1 2 3; do
