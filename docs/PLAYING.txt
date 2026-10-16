@@ -1,0 +1,41 @@
+HIGHWAY 1: KALONA TO IOWA CITY
+==============================
+
+A homemade game about 15 real miles of Iowa Highway 1.
+
+
+HOW TO RUN
+----------
+1. Unzip this folder anywhere (the Desktop is fine).
+2. Double-click HighwayOne.exe.
+3. Windows will probably say "Windows protected your PC". That's because this is a
+   homemade game without a paid code-signing certificate, not because anything is wrong.
+   Click "More info", then "Run anyway". You only have to do this once per build.
+
+
+CONTROLS                      KEYBOARD            CONTROLLER
+--------                      --------            ----------
+Faster / slower               W / S, Up / Down    Right / left trigger
+Change camera                 C                   Y
+Pause                         P                   Start
+Restart                       R                   Back
+Quit                          Esc
+
+
+WHAT'S IN THIS BUILD
+--------------------
+Phase 0: a flythrough of the real road. The curves, hills, crossroads and street
+names come from USGS map and elevation data. The car (Windstar, Tercel, Legend)
+shows up in the next builds.
+
+
+IF IT WON'T START OR LOOKS BROKEN
+---------------------------------
+- Update your graphics driver.
+- Tell whoever sent you this what kind of computer you have.
+
+
+CREDITS
+-------
+Road and elevation data: U.S. Geological Survey, The National Map (public domain).
+Made with the Godot Engine (godotengine.org); see LICENSE-Godot.txt.

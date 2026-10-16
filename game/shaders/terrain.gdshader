@@ -1,0 +1,38 @@
+// Flat-shaded farmland: a patchwork of quarter-quarter-section fields with grass along the road.
+shader_type spatial;
+render_mode diffuse_lambert, specular_disabled;
+
+uniform vec3 corn : source_color = vec3(0.19, 0.36, 0.11);
+uniform vec3 soybeans : source_color = vec3(0.34, 0.50, 0.17);
+uniform vec3 hay : source_color = vec3(0.58, 0.60, 0.30);
+uniform vec3 pasture : source_color = vec3(0.42, 0.50, 0.24);
+uniform vec3 verge : source_color = vec3(0.47, 0.57, 0.29);
+// A quarter of a quarter section (1/4 mile), the classic Iowa field. Offset lines the
+// field edges up with the real section-line roads.
+uniform float field_size = 402.336;
+uniform vec2 field_offset = vec2(0.0);
+uniform float verge_width = 16.0;
+
+varying vec3 world_pos;
+varying float road_dist;
+
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+void vertex() {
+	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	road_dist = UV.x;
+}
+
+void fragment() {
+	// Face normal from screen-space derivatives gives the low-poly look for free.
+	vec3 n = normalize(cross(dFdx(VERTEX), dFdy(VERTEX)));
+	NORMAL = dot(n, VIEW) < 0.0 ? -n : n;
+
+	vec2 cell = floor((world_pos.xz - field_offset) / field_size);
+	float h = hash(cell);
+	vec3 crop = h < 0.45 ? corn : (h < 0.85 ? soybeans : (h < 0.93 ? hay : pasture));
+	crop *= 0.94 + 0.12 * hash(cell + 17.0);
+	ALBEDO = mix(verge, crop, smoothstep(verge_width - 3.0, verge_width + 3.0, road_dist));
+}

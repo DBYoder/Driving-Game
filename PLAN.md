@@ -31,13 +31,13 @@ It's not for sale and not meant to be polished like a product.
 
 | Piece | Choice | Why |
 |---|---|---|
-| Engine | **Godot 4** (latest stable, version pinned in Phase 0) | Free (MIT). Scenes and scripts are plain text, so Claude can write and diff everything. Small one-file Windows exports. Has an OpenGL 3.3 "Compatibility" renderer that runs on old integrated graphics. |
+| Engine | **Godot 4.6.3** (pinned in CI) | Free (MIT). Scenes and scripts are plain text, so Claude can write and diff everything. Small one-file Windows exports. Has an OpenGL 3.3 "Compatibility" renderer that runs on old integrated graphics. |
 | Language | GDScript | Built in, readable, fast iteration; no C# toolchain needed |
 | Physics | Godot's built-in Jolt physics + a **custom raycast car** | Godot's stock `VehicleBody3D` is finicky. A raycast car (4 spring rays + simple tire grip) is the standard arcade approach and easy to tune per car. |
 | Data pipeline | Python (`numpy`, `shapely`, `pyproj`, `rasterio`) | Runs once to turn map and elevation data into baked game files that are committed to the repo |
 | 3D models | Procedural meshes in Godot for props; Blender (free) Python scripts for the 3 cars and hero landmarks; CC0 packs (Kenney, Quaternius) as placeholders | You have no assets. Boxy '90s cars are ideal for scripted low-poly modeling. |
 | Builds | GitHub Actions: headless Godot export → `.zip` attached to a GitHub Release | Every push to `main` produces a downloadable build, so nobody needs Godot installed |
-| Tests | gdUnit4 (GDScript) and pytest (pipeline), plus an **autopilot QA bot** (§6) | I can't feel the game, but I can verify a lot automatically |
+| Tests | A small headless GDScript test runner and pytest (pipeline), plus an **autopilot QA bot** (§6) | I can't feel the game, but I can verify a lot automatically |
 
 **Rejected:** Unity (heavier, editor-centric, worse on potatoes) and Unreal (overkill).
 A web build was rejected because you chose a Windows download, though Godot can add one later almost for free.
@@ -50,7 +50,8 @@ A web build was rejected because you chose a Windows download, though Godot can 
 
 | Data | Source | Used for |
 |---|---|---|
-| Road centerline, crossroads, creeks, buildings | **OpenStreetMap** (Overpass API, or the Geofabrik Iowa extract) | Exact curve geometry of Hwy 1; intersections (Johnson-Washington Rd, F67/540th St, F62/500th St, Hazelwood Rd, Sharon Center Rd/W62, Naples Ave); farmstead and building footprints |
+| Road centerline and crossroads | **USGS National Transportation Dataset** for Iowa (public domain, TIGER-based) | Exact curve geometry of Hwy 1 and the 29 crossroads on it, with names (Johnson-Washington Rd, 540th St, 500th St, Hazelwood Ave, Sharon Center Rd, Naples Ave, …). *Used instead of OpenStreetMap: it's reachable from the cloud dev environment and needs no API.* |
+| Buildings, creeks (later) | OpenStreetMap | Farmstead and building footprints for Phase 5; the USGS road data has no driveways |
 | Elevation | **USGS 3DEP**: 1/3″ (~10 m) tile `n42w092` (covers the whole route; confirmed downloadable), plus 1 m lidar from the `IA_EasternIA_2019` project for the road profile | Rolling hills, crests you get air off, ditches, creek valleys |
 | What's growing where | **USDA Cropland Data Layer** (30 m) | Real corn fields vs. soybeans vs. pasture vs. woods, placed where they actually are |
 | Landmarks and "vibe" | **You**: a list, photos, and ideally a passenger-shot phone video of the drive | The "hey, that's ___" moments the data can't provide |
@@ -58,17 +59,20 @@ A web build was rejected because you chose a Windows download, though Godot can 
 
 ### 3.2 Pipeline (`tools/`, run once, outputs committed)
 
-1. `fetch_osm.py`: pull the Hwy 1 ways plus everything within ~1.5 km of the road.
-2. `fetch_elevation.py`: download the DEM tiles and clip them to the corridor.
-3. `fetch_cdl.py`: pull the crop raster for the corridor.
-4. `bake_route.py`:
+Built in Phase 0:
+
+1. `sources.py`: downloads the Iowa road dataset once (~190 MB, cached), and reads just the route's window of the elevation tile over HTTP.
+2. `bake_route.py`:
    - project everything to UTM 15N (meters), with the **origin at the route midpoint** so no point is more than ~12 km from the origin (avoids float jitter at the far end);
-   - clip the route from the Kalona IA-22 junction to the US-218 interchange;
-   - resample the centerline every 2 m with elevation, heading, and bank;
-   - **smooth the elevation profile**, since real road grades are gentler than the raw DEM;
-   - tag mile markers, intersections, and passing / no-passing zones (sight-line check over crests and curves);
-   - write `game/data/route/` (centerline + POIs) and terrain/crop tiles.
-5. `preview_route.py`: writes a top-down map and an elevation-profile PNG. **You check it: "does this look like the road?"**
+   - find IA 1 between the IA-22 crossing in Kalona and the US-218 crossing, keeping 200 m of road before the start line and 300 m past the finish;
+   - where IA 1 is divided (through the Kalona intersection and the last half mile before 218), run the road down the middle of the median;
+   - resample the centerline every 2 m and smooth it;
+   - **fill bridge dips and smooth the elevation profile.** The bare-earth elevation model has bridges removed, so creek crossings and the 218 overpass show up as pits; filling them gives a max grade of 6.2%, which is realistic;
+   - find the crossroads (name, side) and the filled-in "bridges";
+   - write `game/data/route/`: centerline + crossroads (`route.json`), plus 1,144 terrain tiles with the road bed and ditches carved in.
+3. `preview_route.py`: writes a top-down map and an elevation-profile PNG to `docs/route-preview/`. **You check it: "does this look like the road?"**
+
+Still to come: crop data (`fetch_cdl.py`, Phase 5) and passing / no-passing zones (Phase 2).
 
 ### 3.3 In-game world
 
@@ -208,9 +212,11 @@ Keyboard and Xbox-style gamepad from day one, both handled natively by Godot. St
 
 Each phase ends with a **zip you can send to friends**. Nothing past a phase gate starts until that phase is fun.
 
-### Phase 0: Skeleton and data (first session or two)
+### Phase 0: Skeleton and data ✅
 - Godot project, CI Windows export, a GitHub Release with a "hello Iowa" build.
-- Data pipeline fetches OSM and elevation and bakes the route. **You review the preview map and elevation profile.**
+- Data pipeline fetches road and elevation data and bakes the route. **You review the preview map and elevation profile.**
+- The "hello Iowa" build is a flythrough camera driving the real road at an adjustable speed, with street-name signs, mile markers, and a trip HUD.
+- What the data says: the start line to the finish line is **15.14 mi**. The route climbs ~100 ft out of Kalona, rolls at 750–800 ft for 8 miles, drops into a two-mile flat creek bottom around mile 9–11, and climbs again toward Sharon Center.
 
 ### Phase 1: v0.1 "Drive the real road" ⭐ the ASAP prototype
 - A real Hwy 1 road mesh on real terrain, with ditches and fog.
@@ -252,7 +258,7 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
 | Too much chaos content | Strict phase gates; conditions are data, not new systems |
 | Friends get a "Windows protected your PC" warning | Expected for an unsigned hobby `.exe`. Click **More info → Run anyway**. Instructions ship in the zip. |
 | Copyright | CC0 or self-made assets; music is bring-your-own; real place names are fine for a private game |
-| Map data blocked from the cloud dev environment | Allow the data hosts in the environment settings, or bake the data in a GitHub Actions job (§9) |
+| Map data blocked from the cloud dev environment | Resolved: the USGS sources are reachable, and the baked data is committed |
 
 ---
 
@@ -263,7 +269,8 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
 3. **A phone video of the drive northbound in daylight**, shot by a passenger (never the driver), plus a few photos. This is the single most valuable "asset" you can give me.
 4. **A gamepad?** It plays fine on keyboard, but tell me if everyone will use controllers.
 5. **A name.** Working title: *Highway 1*.
-6. **Network access for this cloud environment.** OpenStreetMap (`overpass-api.de`, `download.geofabrik.de`) and the crop data (`nassgeodata.gmu.edu`) are currently blocked here. USGS elevation already works. Either allow those hosts in the environment's network settings, or I'll have a GitHub Actions job fetch and bake the data instead.
+6. **Network access for this cloud environment.** Not needed for Phase 0, since the road now comes from USGS. OpenStreetMap (`overpass-api.de`, `download.geofabrik.de`) and the crop data (`nassgeodata.gmu.edu`) are still blocked here. They only matter in Phase 5, so allow those hosts in the environment's network settings before then.
+7. **Set `main` as the repo's default branch** (GitHub → Settings → General → Default branch). It's currently a feature branch.
 
 ### Where access to your Windows PC would help
 

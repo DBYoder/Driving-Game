@@ -1,0 +1,8 @@
+# Downloaded source data (re-created by tools/bake_route.py)
+tools/.cache/
+__pycache__/
+.pytest_cache/
+
+# Godot editor/import cache and local builds
+game/.godot/
+build/
