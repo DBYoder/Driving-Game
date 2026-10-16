@@ -97,10 +97,12 @@ jobs:
           shoot() {
             timeout 300 xvfb-run -a -s "-screen 0 1280x720x24" ./build/linux/HighwayOne.x86_64 \
               --rendering-driver opengl3 --resolution 1280x720 -- \
-              --screenshot="$PWD/build/screenshots/$1.png" --station=$2 --view=$3
+              --screenshot="$PWD/build/screenshots/$1.png" --station=$2 --view=$3 $4
           }
           shoot kalona-start-chase 175 0
-          shoot mile-2-hood 4000 1
+          shoot mile-1-traffic 2400 0 --traffic-near
+          shoot mile-4-props 6150 2
+          shoot mile-5-corn 8000 2
           shoot mile-7-drone 11500 3
 
       - uses: actions/upload-artifact@v6

@@ -16,7 +16,7 @@ const DRIFT_MIN_SLIP := 35.0
 const DRIFT_MAX_RECOVERY := 4.0
 
 var car: Car
-var tracker: RunTracker
+var run: Run
 var stress := false
 var drift: DriftDriver  ## set for the drift test
 var _sim_time := 0.0
@@ -29,6 +29,8 @@ var _airborne_ticks := 0
 var _zero_to_sixty := 0.0
 var _upside_down_time := 0.0
 var _flips := 0
+var _wrecks := 0
+var _wreck_reasons: Array[String] = []
 var _furthest := 0.0
 var _peak_slip := 0.0
 var _peak_yaw_rate := 0.0
@@ -75,21 +77,29 @@ func _physics_process(delta: float) -> void:
 	if drift:
 		_drift_tick()
 		return
-	if tracker.state == RunTracker.State.RUNNING:
-		var lane_error := absf(car.lateral - Autopilot.LANE_OFFSET)
+	if run.tracker.running():
+		var aim: float = car.driver.lane if car.driver is Autopilot else Autopilot.LANE_OFFSET
+		var lane_error := absf(car.lateral - aim)
 		if lane_error > _worst_lane_error:
 			_worst_lane_error = lane_error
 			_worst_lane_station = car.station
 	if _lowest_up < 0.3:
 		_fail("car rolled over near mile %.2f" % car.route.mile_at(car.station))
-	elif tracker.state == RunTracker.State.FINISHED:
+	elif run.tracker.state == RunTracker.State.WRECKED:
+		_fail("wrecked (%s) near mile %.2f" % [run.tracker.wreck_reason, car.route.mile_at(car.station)])
+	elif run.tracker.state == RunTracker.State.FINISHED:
 		_finish()
 	elif _sim_time > ROUTE_TIME_LIMIT:
 		_fail("did not finish within %d s of simulated time" % ROUTE_TIME_LIMIT)
 
 
-## Flips are expected when mashing buttons; put the car back like a player would.
+## Flips and wrecks are expected when mashing buttons; carry on like a player would.
 func _stress_tick(up_y: float, delta: float) -> void:
+	if run.tracker.state == RunTracker.State.WRECKED:
+		_wrecks += 1
+		_wreck_reasons.append(run.tracker.wreck_reason)
+		get_parent().restart()
+		return
 	_upside_down_time = _upside_down_time + delta if up_y < 0.3 else 0.0
 	if _upside_down_time > 3.0:
 		_flips += 1
@@ -139,9 +149,10 @@ func _finish() -> void:
 		_problems.append("drifted %.1f m out of the lane near mile %.2f" % [
 			_worst_lane_error, car.route.mile_at(_worst_lane_station)])
 	var wall := (Time.get_ticks_msec() - _wall_start) / 1000.0
-	var what := "QA drive: %s run time" % RunTracker.format_time(tracker.elapsed)
+	var what := "QA drive: %s run time, score %d" % [RunTracker.format_time(run.tracker.elapsed), run.score.banked]
 	if stress:
-		what = "QA stress: reached mile %.1f, %d flips recovered" % [car.route.mile_at(_furthest), _flips]
+		what = "QA stress: reached mile %.1f, %d flips recovered, %d wrecks %s" % [
+			car.route.mile_at(_furthest), _flips, _wrecks, _wreck_reasons]
 	elif drift:
 		what = "QA drift"
 	print("%s, %.1f s simulated in %.1f s wall (%.1fx real time)" % [
@@ -150,6 +161,11 @@ func _finish() -> void:
 		_worst_lane_error, car.route.mile_at(_worst_lane_station)]
 	print("  0-60 mph %.1f s, top speed %.0f mph%s, min uprightness %.2f, airborne %.1f s" % [
 		_zero_to_sixty, _top_speed * Hud.MPH, lane, _lowest_up, _airborne_ticks * get_physics_process_delta_time()])
+	print("  biggest one-tick jolt %.2f m/s, car health %.0f%%, props smashed %d" % [
+		car.peak_jolt, car.health / car.stats.durability * 100.0, get_parent().props.smashed_count()])
+	var labels := run.score.totals.keys()
+	labels.sort()
+	print("  scored: %s" % ", ".join(labels.map(func(l): return "%s %d" % [l, run.score.totals[l]])))
 	if _problems.is_empty():
 		print("QA OK")
 		get_tree().quit(0)

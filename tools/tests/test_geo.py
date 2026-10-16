@@ -75,6 +75,32 @@ def test_path_polyline_orients_edges():
     assert np.allclose(path, [[0, 0], [10, 0], [20, 0]])
 
 
+def test_no_passing_over_a_crest_only():
+    s = np.arange(1000) * 2.0
+    xy = np.column_stack([np.zeros_like(s), s])
+    z = 10 * np.exp(-((s - 1000) / 120) ** 2)  # a hill at 1000 m
+    blocked = geo.no_passing(xy, z, 2.0)
+    assert not blocked[100]  # flat, 800 m before the hill
+    assert blocked[400]  # 200 m before the top: can't see over it
+    assert not blocked[700]  # past the top, flat road ahead
+
+
+def test_no_passing_around_a_bend():
+    s = np.arange(800) * 2.0
+    angle = np.clip((s - 600) / 400, 0, 1) * np.pi / 2  # straight, then a quarter turn
+    xy = np.column_stack([np.cumsum(np.sin(angle)) * 2.0, np.cumsum(np.cos(angle)) * 2.0])
+    blocked = geo.no_passing(xy, np.zeros(len(s)), 2.0)
+    assert not blocked[50]
+    assert blocked[350]  # sight line cuts across the inside of the bend
+
+
+def test_zones_stretch_short_ones_and_merge():
+    mask = np.zeros(200, dtype=bool)
+    mask[10:12] = True  # 4 m: stretched to 150 m around its middle
+    mask[100:180] = True
+    assert geo.zones(mask, 2.0, 150.0) == [[0.0, 97.0], [200.0, 360.0]]
+
+
 @pytest.mark.parametrize("spacing", [1.0, 2.0, 3.5])
 def test_resample_spacing(spacing):
     pts = geo.resample(np.array([[0.0, 0.0], [100.0, 0.0]]), spacing)

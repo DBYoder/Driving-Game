@@ -1,5 +1,5 @@
 extends Node3D
-## Entry point: loads the baked road, builds the world around the car, and times the run.
+## Entry point: loads the baked road, builds the world around the car, and runs the game.
 ##
 ## Command-line options (after `--`):
 ##   --station=<m>        start the car here instead of just behind the Kalona start line
@@ -7,23 +7,33 @@ extends Node3D
 ##   --autopilot          let the autopilot drive (demo mode)
 ##   --autopilot-mph=<n>  the autopilot's cruising speed (default 70)
 ##   --tune=<k:v,...>     override CarStats values, e.g. --tune=handbrake_grip:0.2
+##   --no-traffic         an empty road
+##   --traffic-near       start with a buggy, a tractor and oncoming traffic in view
 ##   --qa-drive           autopilot the whole route, check for problems, exit 0/1
 ##   --qa-stress          random inputs for 4 minutes, check the physics holds up, exit 0/1
 ##   --qa-drift           a scripted handbrake turn; checks it slides and recovers, exit 0/1
-##                        (--seed=<n> picks the random sequence; run both QA modes
+##                        (--seed=<n> picks the random sequence; run the QA modes
 ##                        headless with --fixed-fps 60 to go faster than real time)
 ##   --smoke-test         load everything, drop the car on the road, check it, exit 0/1
 ##   --screenshot=<path>  let the car settle, save a PNG, exit
 
 const ROUTE_DIR := "res://data/route"
 const SPAWN_BEHIND_START := 25.0
-const LOST_SECONDS := 2.0  ## off the edge of the world this long -> back on the road
+const LOST_SECONDS := 2.0  ## off the edge of the world this long -> towed back
 
 var route: RouteData
+var fields: Fields
 var streamer: WorldStreamer
+var props: PropField
+var traffic: Traffic
+var corn: CornField
 var car: Car
 var camera: ChaseCamera
 var tracker: RunTracker
+var run: Run
+var hud: Hud
+var _driver: Object
+var _testing := false
 var _spawn_station := 0.0
 var _lost_time := 0.0
 
@@ -34,6 +44,8 @@ func _ready() -> void:
 	if route == null:
 		get_tree().quit(1)
 		return
+	fields = Fields.new(route)
+	_testing = args.has("qa-drive") or args.has("qa-stress") or args.has("qa-drift")
 
 	_add_environment()
 	add_child(preload("res://scripts/game/pause_control.gd").new())
@@ -50,28 +62,30 @@ func _ready() -> void:
 	car = Car.new()
 	add_child(car)
 	car.setup(stats, route)
-	var drift: DriftDriver = null
-	if args.has("qa-stress"):
-		car.driver = StressDriver.new(int(args.get("seed", "1")))
-	elif args.has("qa-drift"):
-		drift = DriftDriver.new()
-		drift.pull_time = float(args.get("drift-pull", drift.pull_time))
-		drift.countersteer = float(args.get("drift-counter", drift.countersteer))
-		car.driver = drift
-	elif args.has("autopilot") or args.has("qa-drive"):
-		var autopilot := Autopilot.new()
-		if args.has("autopilot-mph"):
-			autopilot.target_speed = float(args["autopilot-mph"]) / Hud.MPH
-		car.driver = autopilot
-	else:
-		car.driver = PlayerDriver.new()
+	var drift := _pick_driver(args)
 	var sound := EngineSound.new()
 	sound.car = car
 	car.add_child(sound)
 
-	var testing := args.has("qa-drive") or args.has("qa-stress") or args.has("qa-drift")
-	var save_path := "" if testing else RunTracker.SAVE_PATH
-	tracker = RunTracker.new(route.start_station, route.finish_station, car.stats.display_name, save_path)
+	tracker = RunTracker.new(route.start_station, route.finish_station, car.stats.display_name,
+		"" if _testing else RunTracker.SAVE_PATH)
+	run = Run.new()
+	add_child(run)
+	run.setup(car, tracker)
+	run.wrecked.connect(_on_wrecked)
+
+	props = PropField.new()
+	add_child(props)
+	props.setup(route, fields, car, run.score)
+	corn = CornField.new()
+	add_child(corn)
+	corn.setup(route, fields, car, run.score)
+	traffic = Traffic.new()
+	add_child(traffic)
+	traffic.setup(route, car, run, int(args.get("seed", "1")))
+	traffic.enabled = not args.has("no-traffic") and not args.has("qa-drift")
+	if _driver is Autopilot:
+		_driver.traffic = traffic
 
 	camera = ChaseCamera.new()
 	add_child(camera)
@@ -82,17 +96,21 @@ func _ready() -> void:
 		_spawn_station = route.start_station + 1.5 * RouteData.MILE_M  # the long straight north of Kalona
 	_spawn(_spawn_station)
 	camera.setup(car)
+	props.refresh()
+	corn.rebuild()
+	if args.has("traffic-near"):
+		traffic.populate_near()
 
-	var hud := Hud.new()
+	hud = Hud.new()
 	add_child(hud)
-	hud.setup(route, car, tracker, camera)
+	hud.setup(route, car, run, camera)
 
 	if args.has("smoke-test"):
 		_smoke_test()
-	elif testing:
+	elif _testing:
 		var qa := QaDrive.new()
 		qa.car = car
-		qa.tracker = tracker
+		qa.run = run
 		qa.stress = args.has("qa-stress")
 		qa.drift = drift
 		add_child(qa)
@@ -100,34 +118,75 @@ func _ready() -> void:
 		_screenshot(args.screenshot)
 
 
+## Who's driving. Returns the drift script when that's the test being run.
+func _pick_driver(args: Dictionary) -> DriftDriver:
+	var drift: DriftDriver = null
+	if args.has("qa-stress"):
+		_driver = StressDriver.new(int(args.get("seed", "1")))
+	elif args.has("qa-drift"):
+		drift = DriftDriver.new()
+		drift.pull_time = float(args.get("drift-pull", drift.pull_time))
+		drift.countersteer = float(args.get("drift-counter", drift.countersteer))
+		_driver = drift
+	elif args.has("autopilot") or args.has("qa-drive"):
+		var autopilot := Autopilot.new()
+		if args.has("autopilot-mph"):
+			autopilot.target_speed = float(args["autopilot-mph"]) / Hud.MPH
+		_driver = autopilot
+	else:
+		_driver = PlayerDriver.new()
+	car.driver = _driver
+	return drift
+
+
 func _physics_process(delta: float) -> void:
-	tracker.update(car.station, delta)
 	streamer.focus = car.global_position
-	# Rescue a car that's left the corridor or fallen out of the world.
+	# Tow a car that's left the corridor or fallen out of the world.
 	var pos := car.global_position
 	var ground := route.terrain.height_at(pos.x, pos.z)
 	if is_nan(ground) or pos.y < ground - 5.0:
 		_lost_time += delta
 		if _lost_time > LOST_SECONDS:
-			_recover()
+			_tow()
 	else:
 		_lost_time = 0.0
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("restart"):
-		tracker.reset()
-		_spawn(_spawn_station)
+		restart()
 	elif event.is_action_pressed("recover"):
-		_recover()
+		_tow()
 	elif event.is_action_pressed("mute"):
 		var master := AudioServer.get_bus_index("Master")
 		AudioServer.set_bus_mute(master, not AudioServer.is_bus_mute(master))
 
 
-## Back on the road at the nearest point, facing north, clock still running.
-func _recover() -> void:
+## Back to Kalona with a fresh car and everything put back.
+func restart() -> void:
+	run.restart()
+	car.repair()
+	car.driver = _driver
+	camera.crash_cam = false
+	_spawn(_spawn_station)
+	props.reset()
+	traffic.reset()
+	corn.reset()
+
+
+func _on_wrecked(_reason: String) -> void:
+	camera.crash_cam = true
+	if not _testing:
+		car.driver = null  # hands off the wheel; let it tumble
+
+
+## The tow truck: back on the road at the nearest point, facing north. Costs points
+## once the clock is running.
+func _tow() -> void:
+	if tracker.state == RunTracker.State.WRECKED:
+		return
 	_lost_time = 0.0
+	run.tow()
 	_spawn(clampf(car.station, 0.0, route.length - 10.0))
 
 
@@ -209,6 +268,8 @@ func _smoke_test() -> void:
 		problems.append("car has %d wheels on the ground after landing" % car.grounded_wheels())
 	if absf(car.forward_speed()) > 0.5:
 		problems.append("car is creeping at %.2f m/s with no input" % car.forward_speed())
+	if car.health < car.stats.durability:
+		problems.append("car took %.1f damage just landing" % (car.stats.durability - car.health))
 	for station in [route.length * 0.5, route.finish_station]:
 		streamer.warm_up(route.position_at(station))
 	if streamer.loaded_tile_count() < 20 or streamer.loaded_chunk_count() < 5:

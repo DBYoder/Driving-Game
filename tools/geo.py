@@ -83,6 +83,49 @@ def runs(mask: np.ndarray) -> list[tuple[int, int]]:
     return list(zip(edges[0::2], edges[1::2]))
 
 
+def no_passing(xy: np.ndarray, z: np.ndarray, spacing: float, sight: float = 275.0,
+               eye: float = 1.08, clear_width: float = 12.0) -> np.ndarray:
+    """Per sample, True where a driver heading toward increasing index can't see `sight`
+    meters of road ahead: over a crest (an eye 1.08 m up can't see a car 1.08 m up that
+    far away) or around a bend (the road strays more than `clear_width` from the
+    straight line of sight, into the corn). 275 m is the MUTCD passing sight distance
+    for 55 mph. For the other direction, pass the arrays reversed.
+    """
+    n = len(z)
+    k = int(round(sight / spacing))
+    blocked = np.ones(n, dtype=bool)  # the last `k` samples can't see far enough anyway
+    if n <= k:
+        return blocked
+    t = np.arange(1, k) / k  # fractions along each sight line
+    for i in range(n - k):
+        j = i + k
+        line = (z[i] + eye) + (z[j] - z[i]) * t
+        crest = np.any(z[i + 1:j] > line)
+        a, b = xy[i], xy[j]
+        ab = b - a
+        rel = xy[i + 1:j] - a
+        off = np.abs(ab[0] * rel[:, 1] - ab[1] * rel[:, 0]) / max(np.hypot(*ab), 1e-9)
+        blocked[i] = crest or off.max() > clear_width
+    return blocked
+
+
+def zones(mask: np.ndarray, spacing: float, min_length: float) -> list[list[float]]:
+    """True runs of `mask` as [from, to] stations; runs shorter than `min_length` are
+    stretched (around their middle) to that length, and overlapping runs merged."""
+    out = []
+    for i0, i1 in runs(mask):
+        s0, s1 = i0 * spacing, i1 * spacing
+        if s1 - s0 < min_length:
+            mid = (s0 + s1) / 2
+            s0, s1 = mid - min_length / 2, mid + min_length / 2
+        s0, s1 = max(s0, 0.0), min(s1, (len(mask) - 1) * spacing)
+        if out and s0 <= out[-1][1]:
+            out[-1][1] = max(out[-1][1], s1)
+        else:
+            out.append([s0, s1])
+    return [[round(a, 1), round(b, 1)] for a, b in out]
+
+
 def headings(xy: np.ndarray) -> np.ndarray:
     """Unit tangent at each point (central differences)."""
     t = np.gradient(xy, axis=0)

@@ -67,6 +67,17 @@ func height_at(x: float, z: float) -> float:
 	return h00 + fz * (h10 - h00) + fx * (h11 - h10)
 
 
+## Meters from the road centerline at (x, z), to the nearest 8 m grid point
+## (255 = far away or outside the corridor).
+func road_distance_at(x: float, z: float) -> float:
+	var c := Vector2i(floori(x / size), floori(z / size))
+	if not _by_coord.has(c):
+		return 255.0
+	var col := roundi((x - c.x * size) / step)
+	var row := roundi((z - c.y * size) / step)
+	return road_distance[_by_coord[c] * grid * grid + row * grid + col]
+
+
 func build_mesh(i: int) -> ArrayMesh:
 	var n := grid
 	var base := i * n * n

@@ -1,9 +1,10 @@
 class_name RunTracker
 extends RefCounted
 ## Times a run: the clock starts when the car crosses the Kalona start line and stops
-## at the US 218 finish. Keeps the best time per car in a small save file.
+## at the US 218 finish, or when the car is wrecked. Keeps the best time and best score
+## per car in a small save file.
 
-enum State { READY, RUNNING, FINISHED }
+enum State { READY, RUNNING, FINISHED, WRECKED }
 
 const SAVE_PATH := "user://records.cfg"
 
@@ -13,8 +14,11 @@ var car_name: String
 var save_path: String
 var state := State.READY
 var elapsed := 0.0
+var wreck_reason := ""
 var best_time := 0.0  ## 0 = no record yet
-var new_best := false
+var best_score := 0
+var new_best := false  ## best time
+var new_best_score := false
 
 
 func _init(start: float, finish: float, name_of_car: String, path := SAVE_PATH) -> void:
@@ -25,12 +29,23 @@ func _init(start: float, finish: float, name_of_car: String, path := SAVE_PATH) 
 	var cfg := ConfigFile.new()
 	if cfg.load(save_path) == OK:
 		best_time = cfg.get_value("best_times", car_name, 0.0)
+		best_score = cfg.get_value("best_scores", car_name, 0)
 
 
 func reset() -> void:
 	state = State.READY
 	elapsed = 0.0
+	wreck_reason = ""
 	new_best = false
+	new_best_score = false
+
+
+func running() -> bool:
+	return state == State.RUNNING
+
+
+func over() -> bool:
+	return state == State.FINISHED or state == State.WRECKED
 
 
 ## Call every physics tick with the car's station.
@@ -47,15 +62,30 @@ func update(station: float, delta: float) -> void:
 				if best_time <= 0.0 or elapsed < best_time:
 					best_time = elapsed
 					new_best = true
-					_save()
+					_save("best_times", best_time)
 
 
-func _save() -> void:
+## The run ends here. Only counts once the clock is running.
+func wreck(reason: String) -> void:
+	if state == State.RUNNING:
+		state = State.WRECKED
+		wreck_reason = reason
+
+
+## Record the final score of a finished or wrecked run.
+func record_score(score: int) -> void:
+	if score > best_score:
+		best_score = score
+		new_best_score = true
+		_save("best_scores", best_score)
+
+
+func _save(section: String, value) -> void:
 	if save_path.is_empty():
 		return
 	var cfg := ConfigFile.new()
 	cfg.load(save_path)
-	cfg.set_value("best_times", car_name, best_time)
+	cfg.set_value(section, car_name, value)
 	cfg.save(save_path)
 
 

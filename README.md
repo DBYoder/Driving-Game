@@ -10,15 +10,16 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 
 | | |
 |---|---|
-| ![At the Kalona start line](docs/screenshots/kalona-start-chase.png) | ![Mile 2, hood view](docs/screenshots/mile-2-hood.png) |
+| ![Traffic north of Kalona](docs/screenshots/mile-1-traffic.png) | ![Corn near mile 5](docs/screenshots/mile-5-corn.png) |
 
 ## Status
 
-**v0.1: drive the real road.** A placeholder car with arcade physics on the actual
-Highway 1: real curves, hills, crossroads and street names from USGS data, low-poly,
-built to run on a potato. Timed from the Kalona start line to the US-218 overpass,
-with your best time saved. Chaos (smashables, traffic, buggies, cops) is next; see the
-roadmap in PLAN.md.
+**v0.2: chaos.** A placeholder car with arcade physics (and a handbrake that drifts) on
+the actual Highway 1: real curves, hills, crossroads, street names and passing zones from
+USGS data. Score attack from Kalona to the US-218 overpass: smash mailboxes, fences and
+hay bales, plow corn, get air, near-miss oncoming traffic, get around Amish buggies and
+tractors, and don't wreck. Low-poly, built to run on a potato. The three real cars are
+next; see the roadmap in PLAN.md.
 
 ## Layout
 
@@ -28,7 +29,9 @@ game/                  Godot 4.6.3 project (GL Compatibility renderer)
   scripts/route/       RouteData, TerrainTiles: loading and querying the baked data
   scripts/world/       road and terrain meshes and colliders, streaming, roadside signs
   scripts/car/         raycast car physics, CarStats tuning, model, drivers, engine sound
-  scripts/game/        run timing and best times, QA test drives
+  scripts/game/        run rules, scoring and combos, timing and records, QA test drives
+  scripts/props/       mailboxes, fences, hay bales and corn
+  scripts/traffic/     other road users and crashing into them
   shaders/             flat-shaded terrain and road paint
   tests/               headless GDScript tests
 tools/                 Python pipeline that bakes the road from USGS data
@@ -45,7 +48,8 @@ docs/                  route previews, screenshots, the README that ships in the
 godot --headless --path game --import                   # first time, or after adding files
 godot --headless --path game -s res://tests/run_tests.gd  # unit tests
 godot --path game -- --station=15000 --view=3             # start mid-route in drone view
-godot --path game -- --autopilot --autopilot-mph=90       # watch the autopilot drive
+godot --path game -- --autopilot --autopilot-mph=90       # watch the autopilot drive (and pass)
+godot --path game -- --station=2400 --traffic-near        # start with traffic in view
 
 # Automated test drives, headless and ~25x faster than real time:
 godot --headless --fixed-fps 60 --path game -- --qa-drive            # autopilot, all 15 miles

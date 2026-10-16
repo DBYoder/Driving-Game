@@ -27,7 +27,7 @@ func setup(r: RouteData) -> void:
 	_road = RoadMesher.new(r)
 	_terrain_material = ShaderMaterial.new()
 	_terrain_material.shader = preload("res://shaders/terrain.gdshader")
-	_terrain_material.set_shader_parameter("field_offset", _field_grid_offset())
+	_terrain_material.set_shader_parameter("field_offset", Fields.new(r).offset)
 	_road_material = ShaderMaterial.new()
 	_road_material.shader = preload("res://shaders/road.gdshader")
 
@@ -114,14 +114,3 @@ func _build_next() -> void:
 		body.add_child(shape)
 		add_child(body)
 		_bodies[key] = body
-
-
-## Section-line roads run every mile on a north-south grid. Snapping the field patchwork
-## to one east-west road and IA 1's north-south run makes field edges meet the real roads.
-func _field_grid_offset() -> Vector2:
-	var offset := Vector2.ZERO
-	for c in route.crossroads:
-		if c.name == "540th St SW":
-			offset.y = route.position_at(c.station).z
-			offset.x = route.position_at(c.station).x
-	return offset

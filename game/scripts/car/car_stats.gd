@@ -8,6 +8,9 @@ extends Resource
 
 @export_group("Body")
 @export var mass := 1500.0
+@export var durability := 100.0  ## health; 0 = totaled
+@export var impact_threshold := 2.0  ## m/s of instant speed change before a hit does damage
+@export var impact_damage := 8.0  ## health lost per m/s over the threshold
 @export var body_size := Vector3(1.78, 1.38, 4.85)  ## width, height, length (visual)
 @export var center_of_mass_y := -0.25  ## below the body origin; higher = tippier
 

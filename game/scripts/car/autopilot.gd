@@ -1,29 +1,67 @@
 class_name Autopilot
 extends RefCounted
 ## Drives the northbound lane at a target speed: steers toward a point down the road
-## (pure pursuit) and works the pedals to hold speed. Used by the QA drive and for demos.
+## (pure pursuit) and works the pedals to hold speed. With traffic, it follows slow
+## vehicles and overtakes them where the line is dashed and the oncoming lane is clear.
+## Used by the QA drives
+## and for demos.
 
 const LANE_OFFSET := 1.83
+const PASS_CLEARANCE := 450.0  ## meters of empty oncoming lane needed to pass
+const FOLLOW_GAP := 25.0
 
 var target_speed := 31.3  ## m/s, 70 mph
+var traffic: Traffic  ## optional
+var passing := false
+var lane := LANE_OFFSET  ## where it's steering: the northbound lane, or the other one to pass
+var _passing_vehicle: Traffic.Vehicle
 
 
-func update(car: Car, _delta: float) -> void:
+func update(car: Car, delta: float) -> void:
 	var speed := car.forward_speed()
+	var wanted := target_speed
+	if traffic:
+		wanted = minf(wanted, _plan_traffic(car))
+	lane = move_toward(lane, -LANE_OFFSET if passing else LANE_OFFSET, 3.0 * delta)
+
 	var look := clampf(speed * 0.9, 12.0, 40.0)
 	var s := car.station + look
-	var target := car.route.position_at(s) + car.route.right_at(s) * LANE_OFFSET
+	var target := car.route.position_at(s) + car.route.right_at(s) * lane
 	var local := car.global_transform.affine_inverse() * target
 	car.steer = steer_toward(local, car.stats.steer_limit(speed))
 
 	# Facing the wrong way (after a spin): slow down to make the U-turn, or the steering
 	# lock shrinks with speed and the car runs off across the fields.
 	var off_angle := absf(atan2(local.x, -local.z))
-	var wanted := lerpf(target_speed, 8.0, clampf((off_angle - 0.5) / 0.7, 0.0, 1.0))
+	wanted = lerpf(wanted, 8.0, clampf((off_angle - 0.5) / 0.7, 0.0, 1.0))
 	var error := wanted - speed
 	car.throttle = clampf(error * 0.4, 0.0, 1.0)
 	car.brake = clampf(-error * 0.25, 0.0, 1.0)
 	car.handbrake = false
+
+
+## Decide whether to follow, start passing or finish passing. Returns the speed to hold.
+func _plan_traffic(car: Car) -> float:
+	if passing:
+		var done: bool = _passing_vehicle == null or not traffic.vehicles.has(_passing_vehicle) \
+			or car.station > _passing_vehicle.station + Traffic.KINDS[_passing_vehicle.kind].length / 2.0 + 15.0
+		if done:
+			passing = false
+			_passing_vehicle = null
+		elif not traffic.oncoming_clear(car.station, 150.0):
+			passing = false  # abort: tuck back in behind
+		return target_speed
+	var lead := traffic.leader(car.station, 1.0, 150.0)
+	if lead == null or lead.speed > target_speed - 2.0:
+		return target_speed
+	var gap: float = lead.station - car.station - Traffic.KINDS[lead.kind].length / 2.0
+	var may_pass := not car.route.no_passing(car.station, 1.0) and not car.route.no_passing(car.station + 150.0, 1.0)
+	if gap < 90.0 and may_pass and traffic.oncoming_clear(car.station, PASS_CLEARANCE):
+		passing = true
+		_passing_vehicle = lead
+		return target_speed
+	# Can't pass yet: follow.
+	return minf(target_speed, lead.speed + maxf(gap - FOLLOW_GAP, 0.0) * 0.3)
 
 
 ## Steering input (-1 left .. 1 right) that points the front wheels at a target given

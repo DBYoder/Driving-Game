@@ -2,7 +2,8 @@ class_name RoadMesher
 extends RefCounted
 ## Builds the road surface along the route, one chunk of samples at a time.
 ## Paint and surface colors come from road.gdshader using UV.x = meters from centerline,
-## so stripes stay crisp at any distance with no extra geometry.
+## so stripes stay crisp at any distance with no extra geometry. UV.y is the station
+## (for dashes) and UV2 says which way passing is allowed.
 
 const CHUNK_SAMPLES := 128
 const LANE_WIDTH := 3.66  ## 12 ft
@@ -59,14 +60,17 @@ func build_chunk(c: int) -> ArrayMesh:
 	var cols := SECTION.size()
 	var verts := PackedVector3Array()
 	var uvs := PackedVector2Array()
+	var lines := PackedVector2Array()  ## UV2: solid center line for (northbound, southbound)
 	var indices := PackedInt32Array()
 	for i in range(i0, i1 + 1):
 		var station := i * route.spacing
 		var center := route.points[i]
 		var right := route.right_at(station)
+		var solid := Vector2(float(route.no_passing(station, 1.0)), float(route.no_passing(station, -1.0)))
 		for s in SECTION:
 			verts.append(center + right * s[0] + Vector3.UP * s[1])
 			uvs.append(Vector2(s[0], station))
+			lines.append(solid)
 	for row in i1 - i0:
 		for col in cols - 1:
 			var a := row * cols + col
@@ -80,6 +84,7 @@ func build_chunk(c: int) -> ArrayMesh:
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_TEX_UV2] = lines
 	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)

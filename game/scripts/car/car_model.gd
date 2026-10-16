@@ -11,12 +11,17 @@ const HUB := Color(0.62, 0.63, 0.65)
 var _wheel_pivots: Array[Node3D] = []
 var _wheel_spinners: Array[Node3D] = []
 var _shadow: MeshInstance3D
+var _paint: StandardMaterial3D
+var _paint_color: Color
+var _smoke: CPUParticles3D
 
 
 func build(stats: CarStats, wheels: Array) -> void:
 	var w := stats.body_size.x
 	var l := stats.body_size.z
-	var paint := _material(stats.body_color)
+	_paint_color = stats.body_color
+	_paint = _material(stats.body_color)
+	var paint := _paint
 	# Lower body sits between the wheel tops; greenhouse slightly behind center like a '90s sedan.
 	_box(Vector3(w, 0.62, l), Vector3(0, -0.06, 0), paint)
 	_box(Vector3(w * 0.84, 0.48, l * 0.46), Vector3(0, 0.49, 0.18), _material(GLASS))
@@ -55,6 +60,9 @@ func build(stats: CarStats, wheels: Array) -> void:
 		_wheel_pivots.append(pivot)
 		_wheel_spinners.append(spinner)
 
+	_smoke = _make_smoke(l)
+	add_child(_smoke)
+
 	_shadow = MeshInstance3D.new()
 	var quad := QuadMesh.new()
 	quad.size = Vector2(w * 1.25, l * 1.1)
@@ -63,6 +71,12 @@ func build(stats: CarStats, wheels: Array) -> void:
 	_shadow.material_override = _shadow_material()
 	_shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_shadow)
+
+
+## 0 = showroom, 1 = totaled: the paint goes dull and dark, and smoke pours out when it's bad.
+func set_damage(amount: float) -> void:
+	_paint.albedo_color = _paint_color.lerp(Color(0.12, 0.1, 0.09), clampf(amount, 0.0, 1.0) * 0.7)
+	_smoke.emitting = amount > 0.6
 
 
 func update_wheels(wheels: Array, steer_angle: float, stats: CarStats) -> void:
@@ -100,6 +114,31 @@ func _material(color: Color, glow := false) -> StandardMaterial3D:
 	if glow:
 		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	return m
+
+
+func _make_smoke(length: float) -> CPUParticles3D:
+	var smoke := CPUParticles3D.new()
+	smoke.emitting = false
+	smoke.amount = 24
+	smoke.lifetime = 1.6
+	smoke.position = Vector3(0, 0.3, -length * 0.38)  # from under the hood
+	smoke.direction = Vector3.UP
+	smoke.spread = 25.0
+	smoke.initial_velocity_min = 1.0
+	smoke.initial_velocity_max = 2.0
+	smoke.gravity = Vector3(0, 0.6, 0)
+	smoke.scale_amount_min = 0.5
+	smoke.scale_amount_max = 1.2
+	var puff := QuadMesh.new()
+	puff.size = Vector2(0.8, 0.8)
+	smoke.mesh = puff
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.25, 0.25, 0.25, 0.5)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	smoke.material_override = m
+	return smoke
 
 
 func _shadow_material() -> StandardMaterial3D:

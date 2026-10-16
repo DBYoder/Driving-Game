@@ -125,6 +125,22 @@ def base_name(name: str) -> str:
     return " ".join(words[:-1]) if words and words[-1] in {"N", "S", "E", "W", "NE", "NW", "SE", "SW"} else name
 
 
+def passing_zones(xy, profile, start_s, finish_s):
+    """Solid-line (no passing) zones for each direction, from sight distance, plus
+    through Kalona and the divided stretch at the US 218 interchange."""
+    out = {}
+    for direction in ("northbound", "southbound"):
+        if direction == "northbound":
+            blocked = geo.no_passing(xy, profile, config.SPACING_M)
+        else:
+            blocked = geo.no_passing(xy[::-1], profile[::-1], config.SPACING_M)[::-1]
+        stations = np.arange(len(xy)) * config.SPACING_M
+        blocked |= stations < start_s + config.TOWN_NO_PASSING_M
+        blocked |= stations > finish_s - config.INTERCHANGE_NO_PASSING_M
+        out[direction] = geo.zones(blocked, config.SPACING_M, config.MIN_NO_PASSING_M)
+    return out
+
+
 def find_junctions(roads, raw_line: shapely.LineString, all_hwy: shapely.MultiLineString, xy: np.ndarray):
     """Side roads and driveways that end on IA 1, as stations along the smoothed route.
 
@@ -249,6 +265,7 @@ def main():
     lon0, lat0 = to_geo.transform(e0, n0)
 
     junctions = find_junctions(roads, raw_line, hwy, xy)
+    no_pass = passing_zones(xy, profile, start_s, finish_s)
     tiles, heights, road_dist = bake_terrain(xy, profile, dem, origin)
 
     points = np.column_stack([xy[:, 0] - e0, profile - h0, -(xy[:, 1] - n0)])
@@ -271,6 +288,7 @@ def main():
         "crossroads": [j for j in junctions if j["kind"] != "driveway"],
         "driveways": [{"station": j["station"], "side": j["side"]} for j in junctions if j["kind"] == "driveway"],
         "bridges": bridges,
+        "no_passing": no_pass,
         "terrain": {
             "file": "terrain.bin",              # float32 height per vertex, tile after tile
             "distance_file": "terrain_dist.bin",  # uint8 meters from the road centerline
@@ -290,6 +308,9 @@ def main():
     print(f"start line -> finish line: {drive_m / 1000:.2f} km = {drive_m / MILE_M:.2f} mi")
     print(f"origin: {lat0:.5f}, {lon0:.5f} at {h0} m")
     print(f"road elevation {profile.min():.1f}-{profile.max():.1f} m, max grade {np.abs(grade).max() * 100:.1f}%")
+    for direction, zs in no_pass.items():
+        share = sum(b - a for a, b in zs) / (len(xy) * config.SPACING_M)
+        print(f"no-passing {direction}: {len(zs)} zones, {share:.0%} of the road")
     print(f"bridges (dips filled): {len(bridges)}")
     for b in bridges:
         print(f"  mile {(b[0] - start_s) / MILE_M:5.2f}  {b[1] - b[0]:.0f} m")

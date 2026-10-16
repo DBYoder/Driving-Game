@@ -16,8 +16,14 @@ uniform float verge_width = 16.0;
 varying vec3 world_pos;
 varying float road_dist;
 
-float hash(vec2 p) {
-	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+// 32-bit integer hash of a field cell to [0, 1). Must match Fields.cell_hash() in
+// scripts/world/fields.gd so game logic (corn to plow) agrees with what's drawn.
+float cell_hash(vec2 cell) {
+	uvec2 c = uvec2(ivec2(cell));
+	uint h = (c.x * 73856093u) ^ (c.y * 19349663u);
+	h = (h ^ (h >> 13u)) * 0x5bd1e995u;
+	h ^= h >> 15u;
+	return float(h & 0xFFFFFFu) / 16777216.0;
 }
 
 void vertex() {
@@ -31,8 +37,8 @@ void fragment() {
 	NORMAL = dot(n, VIEW) < 0.0 ? -n : n;
 
 	vec2 cell = floor((world_pos.xz - field_offset) / field_size);
-	float h = hash(cell);
+	float h = cell_hash(cell);
 	vec3 crop = h < 0.45 ? corn : (h < 0.85 ? soybeans : (h < 0.93 ? hay : pasture));
-	crop *= 0.94 + 0.12 * hash(cell + 17.0);
+	crop *= 0.94 + 0.12 * cell_hash(cell + vec2(17.0, 31.0));
 	ALBEDO = mix(verge, crop, smoothstep(verge_width - 3.0, verge_width + 3.0, road_dist));
 }

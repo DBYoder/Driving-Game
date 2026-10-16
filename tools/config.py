@@ -35,6 +35,9 @@ DIP_FILL_WINDOW_M = 120.0      # bare-earth DEM has no bridges; fill dips narrow
 BRIDGE_MIN_FILL_M = 1.0        # a fill deeper than this counts as a bridge
 JUNCTION_TOL_M = 4.0           # a side road ending this close to IA 1 joins it
 JUNCTION_MERGE_M = 30.0        # side-road pieces this close together are one junction
+MIN_NO_PASSING_M = 152.0       # MUTCD: no-passing zones are at least 500 ft long
+TOWN_NO_PASSING_M = 300.0      # solid lines out of Kalona
+INTERCHANGE_NO_PASSING_M = 700.0  # and through the divided stretch at US 218
 
 # Terrain corridor around the road.
 DEM_RES_M = 4.0

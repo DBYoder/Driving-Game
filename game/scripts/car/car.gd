@@ -8,7 +8,13 @@ extends RigidBody3D
 
 const WORLD_LAYER := 1
 const CAR_LAYER := 2
+const DEBRIS_LAYER := 3
+const WRECK_LAYER := 4  ## crashed traffic: solid to the car, unlike flying mailboxes
 const GRAVITY := 9.8
+
+## Something hit the car (or the car hit something) hard enough to do damage.
+## `smash` is true for things you're meant to plow through (mailboxes, hay bales).
+signal hit(damage: float, smash: bool)
 
 ## Grip multiplier and extra rolling resistance per surface.
 const SURFACES := {
@@ -48,6 +54,10 @@ var wheels: Array[Wheel] = []
 var steer_angle := 0.0  ## radians, positive turns left
 var model: CarModel
 var _rear_loose := 0.0  ## 0 = rear tires gripping, 1 = locked and sliding (handbrake)
+var health := 100.0
+var _last_velocity := Vector3.ZERO
+var _impact_grace := 0.0  ## seconds to ignore jolts after being placed
+var peak_jolt := 0.0  ## biggest one-tick velocity change seen (m/s), for tuning damage
 
 
 func setup(car_stats: CarStats, r: RouteData) -> void:
@@ -64,7 +74,7 @@ func setup(car_stats: CarStats, r: RouteData) -> void:
 	angular_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
 	angular_damp = 0.4
 	collision_layer = 1 << (CAR_LAYER - 1)
-	collision_mask = 1 << (WORLD_LAYER - 1)
+	collision_mask = (1 << (WORLD_LAYER - 1)) | (1 << (WRECK_LAYER - 1))
 
 	var shape := BoxShape3D.new()
 	shape.size = Vector3(stats.body_size.x, 0.72, stats.body_size.z * 0.97)
@@ -87,6 +97,35 @@ func setup(car_stats: CarStats, r: RouteData) -> void:
 	model = CarModel.new()
 	add_child(model)
 	model.build(stats, wheels)
+	repair()
+
+
+func repair() -> void:
+	health = stats.durability
+	model.set_damage(0.0)
+
+
+## Plowing through something: lose `velocity_scale` of the speed and take `damage`,
+## without the slowdown also counting as a second impact.
+func bump(velocity_scale: float, damage: float, smash := true) -> void:
+	bump_to(linear_velocity * velocity_scale, damage, smash)
+
+
+## A collision that leaves the car moving at `velocity` (momentum shared with whatever
+## it hit), without the change also counting as a second impact.
+func bump_to(velocity: Vector3, damage: float, smash := false) -> void:
+	linear_velocity = velocity
+	_last_velocity = velocity
+	apply_hit(damage, smash)
+
+
+## Take damage from a collision.
+func apply_hit(damage: float, smash := false) -> void:
+	if damage <= 0.0:
+		return
+	health = maxf(health - damage, 0.0)
+	model.set_damage(1.0 - health / stats.durability)
+	hit.emit(damage, smash)
 
 
 ## Put the car on the road at a station, in the northbound lane, stopped.
@@ -104,6 +143,8 @@ func place_at(s: float, lane_offset := 1.83) -> void:
 	for w in wheels:
 		w.compression = 0.0
 		w.spring_length = stats.rest_length
+	_last_velocity = Vector3.ZERO
+	_impact_grace = 0.5
 	reset_physics_interpolation()
 
 
@@ -125,7 +166,13 @@ func _physics_process(delta: float) -> void:
 		return
 	if driver:
 		driver.update(self, delta)
+	else:
+		throttle = 0.0
+		brake = 0.0
+		steer = 0.0
+		handbrake = false
 	_track_route()
+	_check_impact(delta)
 
 	var xf := global_transform
 	var up := xf.basis.y
@@ -158,6 +205,19 @@ func _physics_process(delta: float) -> void:
 
 	apply_central_force(-linear_velocity * linear_velocity.length() * stats.drag)
 	model.update_wheels(wheels, steer_angle, stats)
+
+
+## A collision shows up as a sudden change in velocity. Normal driving stays under
+## ~0.3 m/s per physics tick, drifts ~0.7, and landing big ditch jumps ~1.8.
+func _check_impact(delta: float) -> void:
+	var jolt := (linear_velocity - _last_velocity).length()
+	_last_velocity = linear_velocity
+	_impact_grace = maxf(_impact_grace - delta, 0.0)
+	if _impact_grace > 0.0:
+		return
+	peak_jolt = maxf(peak_jolt, jolt)
+	if jolt > stats.impact_threshold:
+		apply_hit((jolt - stats.impact_threshold) * stats.impact_damage)
 
 
 func _track_route() -> void:

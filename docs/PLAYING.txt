@@ -15,9 +15,28 @@ HOW TO RUN
 
 HOW TO PLAY
 -----------
-Drive from Kalona to Iowa City as fast as you dare. The clock starts when you cross
-the line at the IA-22 four-way stop in Kalona and stops at the US-218 overpass.
-Your best time is saved.
+Get from Kalona to Iowa City causing as much chaos as you can. The clock and the
+scoring start when you cross the line at the IA-22 four-way stop in Kalona and stop
+at the US-218 overpass. Your best score and best time are saved.
+
+Points:
+  Mailbox 50 · fence 25 · hay bale 100 (heavy: it hurts) · plowing corn 5 a meter
+  Air time 100 per half second · near miss with oncoming traffic 250
+  Passing a car 100 · a buggy 150 · a tractor 200 · a semi 300
+
+Chain things together within 4 seconds and the combo multiplier climbs to x5. When
+the combo runs out, its points are banked and safe. A hard hit, the tow truck, or a
+wreck throws away the combo you haven't banked yet.
+
+Make it to Iowa City and your whole score is multiplied by 1.5, plus 20 points for
+every second under 15 minutes.
+
+The run is over if:
+  - the car is totaled (watch the health bar)
+  - it's on its roof or side for 3 seconds
+  - you hit an Amish buggy
+  - you hit oncoming traffic head-on at speed
+Stuck in a ditch? T calls the tow truck: back on the road for 500 points.
 
 
 CONTROLS                      KEYBOARD            CONTROLLER
@@ -27,7 +46,7 @@ Brake (hold to reverse)       S or Down           Left trigger
 Steer                         A / D, Left/Right   Left stick
 Handbrake                     Space               A
 Change camera                 C                   Y
-Back on the road              T                   X
+Tow truck (-500)              T                   X
 Restart                       R                   Back
 Pause                         P                   Start
 Mute                          M
@@ -36,9 +55,10 @@ Quit                          Esc
 
 WHAT'S IN THIS BUILD
 --------------------
-v0.1: one placeholder car on the real road. The curves, hills, crossroads and
-street names come from USGS map and elevation data. Coming next: things to smash,
-traffic, Amish buggies, cops, and the Windstar, Tercel and Legend.
+v0.2: one placeholder car on the real road, with things to smash, corn to plow,
+traffic, Amish buggies and tractors to get around, and real passing zones. The
+curves, hills, crossroads and street names come from USGS map and elevation data.
+Coming next: the Windstar, Tercel and Legend, then cops and deer.
 
 
 IF IT WON'T START OR LOOKS BROKEN

@@ -233,6 +233,13 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
 - Score and combo system, smashable mailboxes, fences, and hay bales, corn plowing, airtime.
 - Health and the wreck/run-over rules, a crash cam, a results screen, local high scores.
 - Basic traffic: oncoming cars, buggies, tractors, and near-misses.
+- **Built:**
+  - **Handbrake (from playtest feedback).** It now drifts: a quick tap slides the tail 30–45°, a longer pull about 60°, and the car straightens up 2–4 s after you do. Before, the same yank gave 6°.
+  - **Scoring.** Mailboxes, pasture fences and round hay bales are placed from a seed, so they're the same every run. Fences only run along pasture and hay ground, and bales sit in hay fields. Corn (instanced, flattens where you plow) grows in the real corn fields. Airtime, near misses, and passing buggies, tractors, slow cars and semis also score. The ×5 combo and finish bonus work as in §4.3.
+  - **Wrecks.** The car has health. A hit counts as damage from a 2 m/s instant speed change upward, while normal driving peaks at 0.3 and big ditch landings at 1.8. The run ends on being totaled, rolled for 3 s, hitting a buggy, or a head-on. A crash cam circles the wreck, then the results screen shows the score breakdown, best score and best time. The tow truck costs −500.
+  - **Traffic.** Buggies are common near Kalona (half of the slow traffic before mile 5). Traffic brakes for you, and crashed vehicles tumble away as physics wrecks.
+  - **Passing zones.** Computed from real sight distance over crests and around bends (275 m, the MUTCD figure for 55 mph). About 29% of the road is no-passing in each direction, drawn as solid or dashed lines. The autopilot only passes on a dashed line.
+  - **Tests.** The autopilot now completes the whole run with traffic, passing legally (16:29 at 70 mph, because it waits behind buggies). The hooligan stress test now meets traffic and gets wrecked by it.
 
 ### Phase 3: v0.3 "The three cars"
 - Low-poly Windstar, Tercel, and Legend models with per-car handling, durability, and multipliers.

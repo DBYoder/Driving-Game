@@ -17,6 +17,8 @@ var points := PackedVector3Array()
 var crossroads: Array = []  ## Dictionaries: station, name, route, kind, side
 var bridges: Array = []  ## [from_station, to_station] pairs
 var terrain: TerrainTiles
+var _no_pass_north := PackedByteArray()  ## per sample: 1 = solid line for northbound
+var _no_pass_south := PackedByteArray()
 
 
 static func load_from(dir: String) -> RouteData:
@@ -40,6 +42,8 @@ static func load_from(dir: String) -> RouteData:
 		r.points[i] = Vector3(flat[i * 3], flat[i * 3 + 1], flat[i * 3 + 2])
 	r.length = (r.points.size() - 1) * r.spacing
 
+	r._no_pass_north = r._flags(d.no_passing.northbound)
+	r._no_pass_south = r._flags(d.no_passing.southbound)
 	r.terrain = TerrainTiles.load_from(dir, d.terrain)
 	if r.terrain == null:
 		return null
@@ -80,6 +84,22 @@ func nearest_station(pos: Vector3, hint := -1.0, window := 250.0) -> float:
 			best_d = d
 			best = i
 	return best * spacing
+
+
+## True where the center line is solid for traffic going `direction` (+1 north, -1 south):
+## not enough sight distance to pass, or in town.
+func no_passing(station: float, direction: float) -> bool:
+	var i := clampi(roundi(station / spacing), 0, points.size() - 1)
+	return (_no_pass_north if direction > 0.0 else _no_pass_south)[i] == 1
+
+
+func _flags(zones: Array) -> PackedByteArray:
+	var flags := PackedByteArray()
+	flags.resize(points.size())
+	for z in zones:
+		for i in range(clampi(ceili(z[0] / spacing), 0, points.size()), clampi(floori(z[1] / spacing) + 1, 0, points.size())):
+			flags[i] = 1
+	return flags
 
 
 ## Miles driven from the Kalona start line.

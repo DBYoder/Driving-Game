@@ -52,3 +52,17 @@ func test_crossroads_are_in_order_and_named() -> void:
 	for expected in ["Johnson-Washington Rd SW", "540th St SW", "Sharon Center Rd SW", "Naples Ave SW"]:
 		check(expected in names, "%s is on the route" % expected)
 	check(route.next_crossroad(route.start_station + 1.0).name == "W H Ave", "first crossroad north of the start")
+
+
+func test_passing_zones() -> void:
+	check(route.no_passing(route.start_station + 50.0, 1.0), "no passing leaving Kalona")
+	check(route.no_passing(route.finish_station - 100.0, 1.0), "no passing at the interchange")
+	var solid := 0
+	var samples := 0
+	var s := route.start_station
+	while s < route.finish_station:
+		solid += int(route.no_passing(s, 1.0))
+		samples += 1
+		s += 50.0
+	var share := float(solid) / samples
+	check(share > 0.1 and share < 0.6, "some but not most of the road is no-passing (%.0f%%)" % (share * 100.0))

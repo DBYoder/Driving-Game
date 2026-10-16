@@ -12,7 +12,9 @@ const MODES := [
 
 var car: Car
 var mode := 0
+var crash_cam := false  ## slowly circle the car (after a wreck)
 var _heading := Vector3.FORWARD
+var _orbit := 0.0
 
 
 func setup(c: Car) -> void:
@@ -34,8 +36,24 @@ func snap() -> void:
 
 
 func _process(delta: float) -> void:
-	if car:
+	if car == null:
+		return
+	if crash_cam:
+		_circle(delta)
+	else:
 		_follow(1.0 - exp(-delta * 5.0))
+
+
+func _circle(delta: float) -> void:
+	var target := car.get_global_transform_interpolated().origin
+	_orbit += delta * 0.5
+	var pos := target + Vector3(cos(_orbit) * 9.0, 3.5, sin(_orbit) * 9.0)
+	var ground := car.route.terrain.height_at(pos.x, pos.z)
+	if not is_nan(ground):
+		pos.y = maxf(pos.y, ground + 1.0)
+	global_position = pos
+	look_at(target + Vector3.UP * 0.5, Vector3.UP)
+	fov = 60.0
 
 
 func _unhandled_input(event: InputEvent) -> void:
