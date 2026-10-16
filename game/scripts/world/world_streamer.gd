@@ -1,10 +1,11 @@
 class_name WorldStreamer
 extends Node3D
 ## Keeps the world around a focus point built and frees what's far away: the detailed
-## terrain tiles of the corridor, the road, and the coarse horizon ground under and
-## beyond them. Pieces close to the focus also get collision, built from the same
-## triangles that are drawn, so what the tires touch is exactly what you see. Building
-## is spread over frames (`builds_per_frame`) so driving doesn't hitch.
+## terrain tiles of the corridor (each with the corn canopy over its corn fields), the
+## road, and the coarse horizon ground under and beyond them. Pieces close to the focus
+## also get collision, built from the same triangles that are drawn, so what the tires
+## touch is exactly what you see. Building is spread over frames (BUILD_BUDGET_USEC of
+## work per frame) so driving doesn't hitch.
 ##
 ## Each kind of piece appears far enough out that the haze hides it arriving: the
 ## horizon past where the fog is total, the road deep in the haze, and the detailed
@@ -23,12 +24,14 @@ const COLLISION_RADII := [250.0, 400.0]
 const FAR_LOD := {"tile": 600.0, "road": 700.0}
 const LOD_HYSTERESIS := 50.0
 const ROAD_FAR_STEP := 4  ## route samples per row in far-off road
+const CANOPY_STEP := [16.0, 32.0]  ## corn canopy grid (m) on near and far tiles
+const BUILD_BUDGET_USEC := 4000  ## building per frame; at 110 mph ~3 pieces a second are needed
 const TILE_HALF_DIAGONAL := 181.0
 const ROAD_HALF_LENGTH := 128.0
 
-@export var builds_per_frame := 2  # at 110 mph about 3 new pieces are needed per second
-
 var route: RouteData
+var fields: Fields
+var canopy_material: ShaderMaterial  ## shared by every tile's corn canopy
 var focus := Vector3.ZERO
 ## The closest each kind of piece has been to the focus when it appeared, after the
 ## initial build: how close to the camera things pop in (checked by the QA drive).
@@ -46,9 +49,19 @@ var _warming_up := false
 func setup(r: RouteData) -> void:
 	route = r
 	_road = RoadMesher.new(r)
+	fields = Fields.new(r)
 	_terrain_material = ShaderMaterial.new()
 	_terrain_material.shader = preload("res://shaders/terrain.gdshader")
-	_terrain_material.set_shader_parameter("field_offset", Fields.new(r).offset)
+	_terrain_material.set_shader_parameter("field_offset", fields.offset)
+	_terrain_material.set_shader_parameter("verge_width", CornField.VERGE - 2.0)
+	canopy_material = ShaderMaterial.new()
+	canopy_material.shader = preload("res://shaders/corn_canopy.gdshader")
+	canopy_material.set_shader_parameter("field_offset", fields.offset)
+	canopy_material.set_shader_parameter("field_size", Fields.FIELD_SIZE)
+	canopy_material.set_shader_parameter("verge", CornField.VERGE)
+	canopy_material.set_shader_parameter("height", CornCanopy.HEIGHT)
+	canopy_material.set_shader_parameter("clear_inner", CornCanopy.CLEAR_INNER)
+	canopy_material.set_shader_parameter("clear_outer", CornCanopy.CLEAR_OUTER)
 	_road_material = ShaderMaterial.new()
 	_road_material.shader = preload("res://shaders/road.gdshader")
 
@@ -84,9 +97,8 @@ func _process(_delta: float) -> void:
 		return
 	if Engine.get_process_frames() % 10 == 0:
 		_refresh_queue()
-	for i in builds_per_frame:
-		if _queue.is_empty():
-			break
+	var start := Time.get_ticks_usec()
+	while not _queue.is_empty() and Time.get_ticks_usec() - start < BUILD_BUDGET_USEC:
 		_build_next()
 
 
@@ -146,6 +158,20 @@ func _wanted_lod(kind: String, key: String, d: float) -> int:
 	return 1 if d > switch_at else 0
 
 
+## Give a tile the corn canopy for its level of detail (or none, without corn).
+func _set_canopy(tile: MeshInstance3D, index: int, lod: int) -> void:
+	for child in tile.get_children():
+		child.queue_free()
+	var mesh := CornCanopy.build(route, fields, index, CANOPY_STEP[lod])
+	if mesh == null:
+		return
+	var canopy := MeshInstance3D.new()
+	canopy.mesh = mesh
+	canopy.material_override = canopy_material
+	canopy.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	tile.add_child(canopy)
+
+
 func _build_next() -> void:
 	var job: Array = _queue.pop_front()
 	var key: String = job[0]
@@ -175,6 +201,8 @@ func _build_next() -> void:
 			if not _warming_up:
 				nearest_pop_in[kind] = minf(nearest_pop_in[kind], d)
 		_meshes[key].set_meta("lod", lod)
+		if kind == "tile":
+			_set_canopy(_meshes[key], index, lod)
 	if kind != "far" and d <= COLLISION_RADII[0] and not _bodies.has(key):
 		var body := StaticBody3D.new()
 		body.collision_layer = 1 << (Car.WORLD_LAYER - 1)

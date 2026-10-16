@@ -19,7 +19,7 @@ const DRIFT_MAX_RECOVERY := 4.0
 ## The closest each kind of thing may appear (m from the car): past where the haze hides
 ## it, or (detailed tiles, props) where it's a speck replacing nothing much.
 const MIN_POP_IN := {"horizon": 3000.0, "road": 2400.0, "terrain": 1000.0, "props": 1000.0,
-	"corn": CornField.FADE_FAR, "traffic": 1800.0}
+	"corn": CornField.CLUMP_GONE, "traffic": 1800.0}
 const MIN_TRAFFIC_POP_OUT := 800.0
 ## Ticks of visible clipping allowed per kind (contacts can sink in a little for a tick).
 const MAX_CLIP_TICKS := 10

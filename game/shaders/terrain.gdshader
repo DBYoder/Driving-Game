@@ -2,7 +2,7 @@
 shader_type spatial;
 render_mode diffuse_lambert, specular_disabled;
 
-uniform vec3 corn : source_color = vec3(0.19, 0.36, 0.11);
+uniform vec3 corn : source_color = vec3(0.32, 0.43, 0.18);  // about corn_canopy's top from afar
 uniform vec3 soybeans : source_color = vec3(0.34, 0.50, 0.17);
 uniform vec3 hay : source_color = vec3(0.58, 0.60, 0.30);
 uniform vec3 pasture : source_color = vec3(0.42, 0.50, 0.24);

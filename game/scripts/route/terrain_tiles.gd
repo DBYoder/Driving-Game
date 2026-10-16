@@ -82,6 +82,25 @@ func road_distance_at(x: float, z: float) -> float:
 ## the lowest of its neighbors so it stays under the detailed ground (and the road)
 ## everywhere. Gaps where it meets a detailed tile show the horizon ground under it,
 ## which looks the same.
+## Meters from the road centerline at (x, z), interpolated between the 8 m grid points
+## (255 = far away or outside the corridor).
+func road_distance_smooth(x: float, z: float) -> float:
+	var c := Vector2i(floori(x / size), floori(z / size))
+	if not _by_coord.has(c):
+		return 255.0
+	var base: int = _by_coord[c] * grid * grid
+	var fx := (x - c.x * size) / step
+	var fz := (z - c.y * size) / step
+	var col := mini(int(fx), grid - 2)
+	var row := mini(int(fz), grid - 2)
+	fx -= col
+	fz -= row
+	var k := base + row * grid + col
+	var near := lerpf(road_distance[k], road_distance[k + 1], fx)
+	var far := lerpf(road_distance[k + grid], road_distance[k + grid + 1], fx)
+	return lerpf(near, far, fz)
+
+
 func build_mesh(i: int, lod := 0) -> ArrayMesh:
 	var skip := 1 << lod
 	var n := (grid - 1) / skip + 1

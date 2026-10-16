@@ -83,6 +83,7 @@ func _ready() -> void:
 	corn = CornField.new()
 	add_child(corn)
 	corn.setup(route, fields, car, run.score)
+	corn.canopy_material = streamer.canopy_material
 	traffic = Traffic.new()
 	add_child(traffic)
 	traffic.setup(route, car, run, int(args.get("seed", "1")))

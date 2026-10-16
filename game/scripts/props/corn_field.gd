@@ -1,23 +1,25 @@
 class_name CornField
 extends Node3D
-## Corn you can plow through. Clumps of corn (crossed quads) fill the real corn fields
-## along the road, from just past the ditch out to LATERAL_REACH, for RADIUS meters of
-## road either way. Each CHUNK_LENGTH stretch of road is one MultiMesh, built once when
-## it comes within range (a few milliseconds per physics tick, so driving never hitches)
-## and freed when it's left behind. The shader grows corn up out of the ground between
-## FADE_FAR and FADE_NEAR from the camera, so it never pops in.
+## Corn you can plow through. Up close it's real clumps (crossed quads with a leafy top)
+## in every corn field around the car, however deep into the field: built BLOCK meters
+## square at a time, a few milliseconds per physics tick so driving never hitches, and
+## freed once the car is far away. Past them the rest of each field is the corn canopy
+## that comes with the terrain (CornCanopy). The canopy sinks out of the way within
+## CornCanopy.CLEAR_INNER of the car, and the clumps sink into the ground between
+## CLUMP_FULL and CLUMP_GONE, where the canopy is already back up around them, so the
+## hand-off can't be seen.
 ##
 ## Driving into it flattens everything the car's body touches, slows you down and scores
 ## by the meter. Flattened corn stays flat for the rest of the run.
 
 const SPACING := 1.6  ## meters between clumps
-const VERGE := 17.0  ## corn starts this far from the road centerline
-const LATERAL_REACH := 55.0
-const CHUNK_LENGTH := 128.0  ## meters of road per chunk
-const RADIUS := 640.0  ## meters of road built either way of the car
-const FADE_FAR := 560.0  ## corn starts growing in this far from the camera...
-const FADE_NEAR := 480.0  ## ...and is full height by here
-const WALK := 1.0  ## sampling step when finding a chunk's cells (finer than SPACING)
+const VERGE := 26.0  ## corn starts this far from the road centerline, past the fence and a grass strip
+const CELLS_PER_BLOCK := 40
+const BLOCK := SPACING * CELLS_PER_BLOCK  ## meters per side of a square of clumps
+const BUILD_RADIUS := 120.0  ## blocks with any part this close to the car are built...
+const FREE_RADIUS := 150.0  ## ...and freed once every part of them is further than this
+const CLUMP_FULL := 90.0  ## clumps are full height out to here from the car...
+const CLUMP_GONE := 98.0  ## ...and down in the ground by here
 const POINTS_PER_METER := 5
 const DRAG := 700.0  ## N per m/s of speed while plowing
 const BUILD_BUDGET_USEC := 2000.0
@@ -29,15 +31,16 @@ var car: Car
 var score: ScoreKeeper
 var plowing := false
 var plowed_meters := 0.0
-## The closest a chunk has been to the car when it appeared, after the initial build
-## (checked by the QA drive: it has to be past FADE_FAR so it grows in unseen).
+## The closest a block's clumps have been to the car when they appeared, outside a
+## respawn (checked by the QA drive: past CLUMP_GONE they're still down in the ground).
 var nearest_pop_in := INF
+var canopy_material: ShaderMaterial  ## the terrain's corn canopy, told where the car is
 var _mesh: ArrayMesh
 var _material: ShaderMaterial
-var _chunks := {}  ## chunk -> MultiMeshInstance3D
-var _where := {}  ## Vector2i grid cell -> [chunk, instance index]
+var _blocks := {}  ## Vector2i block -> MultiMeshInstance3D
+var _where := {}  ## Vector2i grid cell -> [block, instance index]
 var _flattened := {}  ## Vector2i grid cell -> true, for the run
-var _job := {}  ## the chunk being built
+var _job := {}  ## the block being built
 var _warming_up := false
 var _meter_credit := 0.0
 var _fresh_entry := true
@@ -52,8 +55,8 @@ func setup(r: RouteData, f: Fields, c: Car, s: ScoreKeeper) -> void:
 	_mesh = _clump_mesh()
 	_material = ShaderMaterial.new()
 	_material.shader = preload("res://shaders/corn.gdshader")
-	_material.set_shader_parameter("fade_far", FADE_FAR)
-	_material.set_shader_parameter("fade_near", FADE_NEAR)
+	_material.set_shader_parameter("fade_far", CLUMP_GONE)
+	_material.set_shader_parameter("fade_near", CLUMP_FULL)
 	_leaves = _make_leaves()
 	add_child(_leaves)
 
@@ -63,27 +66,28 @@ func reset() -> void:
 	_flattened.clear()
 	plowed_meters = 0.0
 	_abandon_job()
-	for c in _chunks.keys():
-		_free_chunk(c)
+	for b in _blocks.keys():
+		_free_block(b)
 
 
 ## Build everything in range right now (at the start, or after the car is moved).
 func warm_up() -> void:
 	_abandon_job()
 	_warming_up = true
-	var wanted := _wanted_chunks()
-	for c in _chunks.keys():
-		if not c in wanted:
-			_free_chunk(c)
-	for c in wanted:
-		if not _chunks.has(c):
-			_start_chunk(c)
-			_continue_chunk(INF)
+	var wanted := _wanted_blocks()
+	for b in _blocks.keys():
+		if _block_distance(b) > FREE_RADIUS:
+			_free_block(b)
+	for b in wanted:
+		if not _blocks.has(b):
+			_start_block(b)
+			_continue_block(INF)
 	_warming_up = false
+	_update_materials()
 
 
-func chunk_count() -> int:
-	return _chunks.size()
+func block_count() -> int:
+	return _blocks.size()
 
 
 func clump_count() -> int:
@@ -105,7 +109,7 @@ func _physics_process(delta: float) -> void:
 	_stream()
 	_flatten_touching(delta)
 	var pos := car.global_position
-	var d := route.terrain.road_distance_at(pos.x, pos.z)
+	var d := route.terrain.road_distance_smooth(pos.x, pos.z)
 	var speed := car.linear_velocity.length()
 	plowing = d >= VERGE - 1.0 and speed > 2.0 and car.grounded_wheels() > 0 \
 		and fields.crop_at(pos.x, pos.z) == Fields.CORN
@@ -126,76 +130,83 @@ func _physics_process(delta: float) -> void:
 		_fresh_entry = false
 
 
-## Chunks within RADIUS of the car, nearest first.
-func _wanted_chunks() -> Array[int]:
-	var first := maxi(0, floori((car.station - RADIUS) / CHUNK_LENGTH))
-	var last := floori(minf(car.station + RADIUS, route.length - 1.0) / CHUNK_LENGTH)
-	var out: Array[int] = []
-	for c in range(first, last + 1):
-		out.append(c)
-	var here := car.station
-	out.sort_custom(func(a, b): return absf((a + 0.5) * CHUNK_LENGTH - here) < absf((b + 0.5) * CHUNK_LENGTH - here))
+## Blocks with any part within BUILD_RADIUS of the car, nearest first.
+func _wanted_blocks() -> Array[Vector2i]:
+	var here := Vector2i(floori(car.global_position.x / BLOCK), floori(car.global_position.z / BLOCK))
+	var reach := ceili(BUILD_RADIUS / BLOCK) + 1
+	var out: Array[Vector2i] = []
+	for dx in range(-reach, reach + 1):
+		for dz in range(-reach, reach + 1):
+			var b := here + Vector2i(dx, dz)
+			if _block_distance(b) <= BUILD_RADIUS:
+				out.append(b)
+	out.sort_custom(func(a, b): return _block_distance(a) < _block_distance(b))
 	return out
 
 
-## Free chunks that fell out of range and keep building the ones that came into it.
+## Distance from the car to the nearest point of a block, on the ground.
+func _block_distance(b: Vector2i) -> float:
+	var p := Vector2(car.global_position.x, car.global_position.z)
+	var lo := Vector2(b) * BLOCK
+	var nearest := p.clamp(lo, lo + Vector2.ONE * BLOCK)
+	return nearest.distance_to(p)
+
+
+## Free blocks the car has left behind and keep building the ones it's coming up on.
 func _stream() -> void:
 	if _job.is_empty():
-		var wanted := _wanted_chunks()
-		for c in _chunks.keys():
-			if not c in wanted:
-				_free_chunk(c)
-		for c in wanted:
-			if not _chunks.has(c):
-				_start_chunk(c)
+		for b in _blocks.keys():
+			if _block_distance(b) > FREE_RADIUS:
+				_free_block(b)
+		for b in _wanted_blocks():
+			if not _blocks.has(b):
+				_start_block(b)
 				break
 	if not _job.is_empty():
-		_continue_chunk(BUILD_BUDGET_USEC)
+		_continue_block(BUILD_BUDGET_USEC)
 
 
-func _start_chunk(c: int) -> void:
-	_job = {"chunk": c, "s": c * CHUNK_LENGTH, "end": minf((c + 1) * CHUNK_LENGTH, route.length),
-		"cells": [] as Array[Vector2i], "buffer": PackedFloat32Array(), "nearest": INF}
+func _start_block(b: Vector2i) -> void:
+	_job = {"block": b, "col": 0, "cells": [] as Array[Vector2i], "buffer": PackedFloat32Array(), "nearest": INF}
+	# Most blocks are nowhere near corn: a block is far smaller than a field, so if no
+	# corner is in a corn field, none of it is.
+	var lo := Vector2(b) * BLOCK
+	var any_corn := false
+	for corner: Vector2 in [lo, lo + Vector2(BLOCK, 0), lo + Vector2(0, BLOCK), lo + Vector2.ONE * BLOCK]:
+		any_corn = any_corn or fields.crop_at(corner.x, corner.y) == Fields.CORN
+	if not any_corn:
+		_job.col = CELLS_PER_BLOCK
 
 
-## Walk the chunk's stretch of road in WALK steps, across both verges, and collect the
-## corn cells it passes over. A cell already claimed by a neighboring chunk stays there.
-func _continue_chunk(budget_usec: float) -> void:
+## Scan the block's grid a column at a time for cells in corn past the verge.
+func _continue_block(budget_usec: float) -> void:
 	var start := Time.get_ticks_usec()
-	var c: int = _job.chunk
+	var b: Vector2i = _job.block
 	var cells: Array[Vector2i] = _job.cells
 	var buffer: PackedFloat32Array = _job.buffer
 	var car_pos := car.global_position
-	while _job.s < _job.end:
-		var s: float = _job.s
-		var center := route.position_at(s)
-		var right := route.right_at(s)
-		for side: float in [-1.0, 1.0]:
-			var offset := VERGE - WALK
-			while offset <= LATERAL_REACH + WALK:
-				var p := center + right * (side * offset)
-				offset += WALK
-				var cell := Vector2i(roundi(p.x / SPACING), roundi(p.z / SPACING))
-				if _where.has(cell):
-					continue
-				var x := cell.x * SPACING
-				var z := cell.y * SPACING
-				var d := route.terrain.road_distance_at(x, z)
-				if d < VERGE or d > LATERAL_REACH or fields.crop_at(x, z) != Fields.CORN:
-					continue
-				_where[cell] = [c, cells.size()]
-				cells.append(cell)
-				var xf := _clump_transform(cell)
-				_append_transform(buffer, xf)
-				_job.nearest = minf(_job.nearest, xf.origin.distance_to(car_pos))
-		_job.s = s + WALK
+	while _job.col < CELLS_PER_BLOCK:
+		var cx: int = b.x * CELLS_PER_BLOCK + _job.col
+		for row in CELLS_PER_BLOCK:
+			var cell := Vector2i(cx, b.y * CELLS_PER_BLOCK + row)
+			var x := cell.x * SPACING
+			var z := cell.y * SPACING
+			var d := route.terrain.road_distance_smooth(x, z)
+			if d < VERGE or d >= 255.0 or fields.crop_at(x, z) != Fields.CORN:
+				continue
+			_where[cell] = [b, cells.size()]
+			cells.append(cell)
+			var xf := _clump_transform(cell)
+			_append_transform(buffer, xf)
+			_job.nearest = minf(_job.nearest, Vector2(xf.origin.x - car_pos.x, xf.origin.z - car_pos.z).length())
+		_job.col += 1
 		if Time.get_ticks_usec() - start > budget_usec:
 			_job.buffer = buffer  # packed arrays are values; keep the progress
 			return
-	_finish_chunk(c, cells, buffer)
+	_finish_block(b, cells, buffer)
 
 
-func _finish_chunk(c: int, cells: Array[Vector2i], buffer: PackedFloat32Array) -> void:
+func _finish_block(b: Vector2i, cells: Array[Vector2i], buffer: PackedFloat32Array) -> void:
 	var multimesh := MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
 	multimesh.mesh = _mesh
@@ -206,16 +217,15 @@ func _finish_chunk(c: int, cells: Array[Vector2i], buffer: PackedFloat32Array) -
 	node.multimesh = multimesh
 	node.material_override = _material
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	node.visibility_range_end = FADE_FAR + CHUNK_LENGTH  # all of it is below ground by then
 	node.set_meta("cells", cells)
 	add_child(node)
-	_chunks[c] = node
+	_blocks[b] = node
 	if not cells.is_empty() and not _warming_up:
 		nearest_pop_in = minf(nearest_pop_in, _job.nearest)
 	_job = {}
 
 
-## Drop a half-built chunk, releasing the cells it claimed.
+## Drop a half-built block, releasing the cells it claimed.
 func _abandon_job() -> void:
 	if _job.is_empty():
 		return
@@ -224,12 +234,12 @@ func _abandon_job() -> void:
 	_job = {}
 
 
-func _free_chunk(c: int) -> void:
-	var node: MultiMeshInstance3D = _chunks[c]
+func _free_block(b: Vector2i) -> void:
+	var node: MultiMeshInstance3D = _blocks[b]
 	for cell: Vector2i in node.get_meta("cells"):
 		_where.erase(cell)
 	node.queue_free()
-	_chunks.erase(c)
+	_blocks.erase(b)
 
 
 ## MultiMesh buffers hold each transform as a 3x4 matrix, row by row.
@@ -247,7 +257,7 @@ func _flatten_touching(delta: float) -> void:
 			continue
 		_flattened[cell] = true
 		var at: Array = _where[cell]
-		var node: MultiMeshInstance3D = _chunks[at[0]]
+		var node: MultiMeshInstance3D = _blocks[at[0]]
 		node.multimesh.set_instance_transform(at[1], _clump_transform(cell))
 
 
@@ -265,7 +275,7 @@ func _cells_near(c: Car, ahead: float) -> Array[Vector2i]:
 	for dx in range(-span, span + 1):
 		for dz in range(-span, span + 1):
 			var cell := center + Vector2i(dx, dz)
-			if not _where.has(cell) or not _chunks.has(_where[cell][0]):
+			if not _where.has(cell) or not _blocks.has(_where[cell][0]):
 				continue
 			var local := inv * _stalk_position(cell)
 			if absf(local.y) > 2.5:
@@ -307,10 +317,12 @@ func _clump_transform(cell: Vector2i) -> Transform3D:
 	return Transform3D(basis, _stalk_position(cell))
 
 
-## Two crossed quads, 2.4 m wide, 2.5 m tall, standing on y = 0.
+## Two crossed quads, 2.4 m wide, 2.5 m tall, standing on y = 0, and a leafy top
+## (marked by vertex color) so a field of them looks full from above too.
 func _clump_mesh() -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_color(Color.BLACK)
 	for angle in [PI / 4.0, -PI / 4.0]:
 		var across := Vector3(cos(angle), 0.0, sin(angle)) * 1.2
 		var corners := [[-across, 0.0, 1.0], [across, 1.0, 1.0], [across + Vector3.UP * 2.5, 1.0, 0.0],
@@ -318,6 +330,13 @@ func _clump_mesh() -> ArrayMesh:
 		for i in [0, 1, 2, 0, 2, 3]:
 			st.set_uv(Vector2(corners[i][1], corners[i][2]))
 			st.add_vertex(corners[i][0])
+	st.set_color(Color.WHITE)
+	var h := 2.05
+	var top := [[Vector3(-0.95, h, -0.95), 0.0, 0.0], [Vector3(0.95, h, -0.95), 1.0, 0.0],
+		[Vector3(0.95, h, 0.95), 1.0, 1.0], [Vector3(-0.95, h, 0.95), 0.0, 1.0]]
+	for i in [0, 1, 2, 0, 2, 3]:
+		st.set_uv(Vector2(top[i][1], top[i][2]))
+		st.add_vertex(top[i][0])
 	return st.commit()
 
 
@@ -347,5 +366,16 @@ func _make_leaves() -> CPUParticles3D:
 
 
 func _process(_delta: float) -> void:
-	if car and _leaves.emitting:
+	if car == null:
+		return
+	_update_materials()
+	if _leaves.emitting:
 		_leaves.global_position = car.global_position
+
+
+## Tell the clumps and the canopy where the car is (they make room around it).
+func _update_materials() -> void:
+	var center := car.get_global_transform_interpolated().origin
+	_material.set_shader_parameter("clear_center", center)
+	if canopy_material:
+		canopy_material.set_shader_parameter("clear_center", center)
