@@ -1,6 +1,7 @@
 // A clump of corn on two crossed quads: leafy stalks with a jagged top and tassels,
 // swaying a little, growing up out of the ground at the edge of the drawn area so
-// there's no pop-in. UV.y is 0 at the top, 1 at the ground.
+// there's no pop-in, and ducking into it right next to the camera so the camera never
+// ends up inside a clump. UV.y is 0 at the top, 1 at the ground.
 shader_type spatial;
 render_mode unshaded, cull_disabled;
 
@@ -8,14 +9,17 @@ uniform vec3 leaf : source_color = vec3(0.20, 0.40, 0.12);
 uniform vec3 tassel : source_color = vec3(0.62, 0.58, 0.36);
 uniform float fade_far = 200.0;
 uniform float fade_near = 160.0;
+uniform float camera_clear = 3.0;  // meters around the camera kept clear of corn
 
 varying float height01;
 varying float seed;
 
 void vertex() {
 	vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	vec3 base = MODEL_MATRIX[3].xyz;  // the clump's foot, so the whole clump scales together
 	seed = fract(sin(dot(world.xz, vec2(12.9898, 78.233))) * 43758.5453);
-	float grow = smoothstep(fade_far, fade_near, distance(world.xz, CAMERA_POSITION_WORLD.xz));
+	float grow = smoothstep(fade_far, fade_near, distance(base.xz, CAMERA_POSITION_WORLD.xz))
+		* smoothstep(camera_clear * 0.5, camera_clear, distance(base, CAMERA_POSITION_WORLD));
 	VERTEX.y *= grow;
 	float sway = sin(TIME * 1.4 + world.x * 0.2 + world.z * 0.15) * 0.10;
 	VERTEX.xz += vec2(sway) * (1.0 - UV.y) * grow;

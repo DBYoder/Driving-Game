@@ -8,8 +8,8 @@ extends RigidBody3D
 
 const WORLD_LAYER := 1
 const CAR_LAYER := 2
-const DEBRIS_LAYER := 3
-const WRECK_LAYER := 4  ## crashed traffic: solid to the car, unlike flying mailboxes
+const DEBRIS_LAYER := 3  ## smashed props
+const WRECK_LAYER := 4  ## crashed traffic
 const GRAVITY := 9.8
 
 ## Something hit the car (or the car hit something) hard enough to do damage.
@@ -53,6 +53,7 @@ var lateral := 0.0  ## meters right of the centerline
 var wheels: Array[Wheel] = []
 var steer_angle := 0.0  ## radians, positive turns left
 var model: CarModel
+var body_shape: CollisionShape3D  ## the lower body's box
 var _rear_loose := 0.0  ## 0 = rear tires gripping, 1 = locked and sliding (handbrake)
 var health := 100.0
 var _last_velocity := Vector3.ZERO
@@ -74,14 +75,16 @@ func setup(car_stats: CarStats, r: RouteData) -> void:
 	angular_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
 	angular_damp = 0.4
 	collision_layer = 1 << (CAR_LAYER - 1)
-	collision_mask = (1 << (WORLD_LAYER - 1)) | (1 << (WRECK_LAYER - 1))
+	collision_mask = (1 << (WORLD_LAYER - 1)) | (1 << (DEBRIS_LAYER - 1)) | (1 << (WRECK_LAYER - 1))
 
+	# The lower body, from the bottom of the bumpers up to the beltline: what you see
+	# scrape on a hard landing is what touches the ground.
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(stats.body_size.x, 0.72, stats.body_size.z * 0.97)
-	var col := CollisionShape3D.new()
-	col.shape = shape
-	col.position = Vector3(0.0, 0.08, 0.0)
-	add_child(col)
+	shape.size = Vector3(stats.body_size.x, 0.84, stats.body_size.z * 0.97)
+	body_shape = CollisionShape3D.new()
+	body_shape.shape = shape
+	body_shape.position = Vector3(0.0, 0.02, 0.0)
+	add_child(body_shape)
 
 	var half_track := stats.track / 2.0
 	var half_base := stats.wheelbase / 2.0

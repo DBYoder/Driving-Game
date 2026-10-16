@@ -3,7 +3,7 @@ import shapely
 
 import config
 import geo
-from bake_route import base_name, carve, center_divided
+from bake_route import base_name, carve, center_divided, coarse_floor
 
 
 def test_carve_keeps_ground_under_the_road_and_untouched_far_away():
@@ -29,3 +29,22 @@ def test_center_divided_moves_into_the_median():
 def test_base_name_ignores_quadrant_suffix():
     assert base_name("Hazelwood Ave SW") == base_name("Hazelwood Ave")
     assert base_name("W H Ave") == "W H Ave"
+
+
+def test_coarse_floor_stays_under_the_fine_ground():
+    rng = np.random.default_rng(3)
+    k = 8
+    fine = np.cumsum(np.cumsum(rng.normal(size=(6 * k + 1, 9 * k + 1)), 0), 1) * 0.05
+    fine[3 * k:3 * k + 3, :] -= 4.0  # a narrow ditch the coarse grid could step over
+    coarse = coarse_floor(fine, k)
+    assert coarse.shape == (5, 8)
+    # Bilinear across each coarse cell, compared at every fine sample inside it.
+    for r in range(coarse.shape[0] - 1):
+        for c in range(coarse.shape[1] - 1):
+            t = np.linspace(0, 1, k + 1)
+            u, v = np.meshgrid(t, t)
+            q = coarse[r:r + 2, c:c + 2]
+            interp = (q[0, 0] * (1 - u) * (1 - v) + q[0, 1] * u * (1 - v)
+                      + q[1, 0] * (1 - u) * v + q[1, 1] * u * v)
+            under = fine[k + r * k:k + (r + 1) * k + 1, k + c * k:k + (c + 1) * k + 1]
+            assert (interp <= under + 1e-9).all()

@@ -78,8 +78,13 @@ jobs:
       - name: Smoke-test the exported build
         run: timeout 120 ./build/linux/HighwayOne.x86_64 --headless -- --smoke-test
 
+      # Both drives also fail if anything pops in where the haze doesn't hide it, or the
+      # car visibly clips into wrecks, debris, corn or the ground.
       - name: QA drive (autopilot drives all 15 miles)
         run: timeout 600 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive
+
+      - name: QA drive at 110 mph (streaming keeps up)
+        run: timeout 600 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive --autopilot-mph=110
 
       - name: QA drift (a handbrake turn slides at least 35 degrees and recovers)
         run: timeout 120 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drift
@@ -104,6 +109,7 @@ jobs:
           shoot mile-4-props 6150 2
           shoot mile-5-corn 8000 2
           shoot mile-7-drone 11500 3
+          shoot mile-9-long-view 14600 2 --no-traffic
 
       - uses: actions/upload-artifact@v6
         with:

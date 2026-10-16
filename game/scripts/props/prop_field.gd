@@ -7,9 +7,9 @@ extends Node3D
 ## physics debris.
 
 const CHUNK_LENGTH := 256.0
-const VISIBLE_RADIUS := 800.0  ## meters of road ahead/behind with props built
-const MAX_DEBRIS := 40
-const DEBRIS_LIFETIME := 25.0
+const VISIBLE_RADIUS := 1200.0  ## meters of road ahead/behind with props built (specks in the haze by then)
+const MAX_DEBRIS := 40  ## past this, the farthest piece goes
+const DEBRIS_RANGE := 600.0  ## debris further than this from the car is cleared away
 const MAILBOX_OFFSET := 7.3  ## just past the gravel shoulder
 const FENCE_OFFSET := 19.0  ## the right-of-way line, past the ditch
 const BALE_RADIUS := 0.85
@@ -40,8 +40,11 @@ var score: ScoreKeeper
 var _meshes := {}
 var _chunks := {}  ## chunk -> {"props": Array, "nodes": {kind: MultiMeshInstance3D}}
 var _smashed := {}  ## prop id -> true, for the current run
-var _debris: Array = []  ## [RigidBody3D, age]
+var _debris: Array[RigidBody3D] = []
 var _refresh_timer := 0.0
+## The closest a prop has been to the car when it appeared, outside of a respawn
+## (checked by the QA drive).
+var nearest_pop_in := INF
 
 
 func setup(r: RouteData, f: Fields, c: Car, s: ScoreKeeper) -> void:
@@ -56,19 +59,19 @@ func setup(r: RouteData, f: Fields, c: Car, s: ScoreKeeper) -> void:
 	}
 
 
-## Put everything back for a new run.
+## Put everything back for a new run (refresh() builds it again).
 func reset() -> void:
 	_smashed.clear()
 	for d in _debris:
-		d[0].queue_free()
+		d.queue_free()
 	_debris.clear()
 	for c in _chunks.keys():
 		_free_chunk(c)
-	refresh()
 
 
-## Build the stretches near the car and drop far ones.
-func refresh() -> void:
+## Build the stretches near the car and drop far ones. `streaming` is false when the
+## car has just been put somewhere new, and everything near it appears at once.
+func refresh(streaming := false) -> void:
 	var first := maxi(0, floori((car.station - VISIBLE_RADIUS) / CHUNK_LENGTH))
 	var last := floori(minf(car.station + VISIBLE_RADIUS, route.length) / CHUNK_LENGTH)
 	for c in _chunks.keys():
@@ -77,10 +80,18 @@ func refresh() -> void:
 	for c in range(first, last + 1):
 		if not _chunks.has(c):
 			_build_chunk(c)
+			if streaming:
+				for p in _chunks[c].props:
+					nearest_pop_in = minf(nearest_pop_in, p.position.distance_to(car.global_position))
 
 
 func smashed_count() -> int:
 	return _smashed.size()
+
+
+## Smashed props flying or lying around (physics bodies).
+func debris_bodies() -> Array[RigidBody3D]:
+	return _debris.duplicate()
 
 
 func _physics_process(delta: float) -> void:
@@ -89,9 +100,9 @@ func _physics_process(delta: float) -> void:
 	_refresh_timer -= delta
 	if _refresh_timer <= 0.0:
 		_refresh_timer = 0.5
-		refresh()
+		refresh(true)
 	_check_hits()
-	_age_debris(delta)
+	_clear_far_debris()
 
 
 ## Generate a stretch's props from its seed (the same every run).
@@ -266,11 +277,14 @@ func _smash(chunk: int, p: Prop) -> void:
 	_launch_debris(p, velocity, kind.mass)
 
 
+## The smashed prop becomes a physics body, solid to the car too: it starts just clear
+## of the car's body and moving at least as fast, and if the car catches it again it
+## shoves it rather than driving through it.
 func _launch_debris(p: Prop, velocity: Vector3, mass: float) -> void:
 	var body := RigidBody3D.new()
 	body.mass = mass
 	body.collision_layer = 1 << (Car.DEBRIS_LAYER - 1)
-	body.collision_mask = 1 << (Car.WORLD_LAYER - 1)
+	body.collision_mask = (1 << (Car.WORLD_LAYER - 1)) | (1 << (Car.CAR_LAYER - 1))
 	var mesh := MeshInstance3D.new()
 	mesh.mesh = _meshes[p.kind]
 	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -289,7 +303,7 @@ func _launch_debris(p: Prop, velocity: Vector3, mass: float) -> void:
 		shape.position = Vector3(0, 0.6, 0)
 	body.add_child(shape)
 	add_child(body)
-	body.global_transform = Transform3D(Basis(Vector3.UP, p.yaw), p.position)
+	body.global_transform = Transform3D(Basis(Vector3.UP, p.yaw), p.position + _clearance(p))
 	var light := mass < 100.0
 	var rng := RandomNumberGenerator.new()
 	rng.seed = p.id
@@ -298,16 +312,28 @@ func _launch_debris(p: Prop, velocity: Vector3, mass: float) -> void:
 		+ car.global_transform.basis.x * rng.randf_range(-3.0, 3.0)
 	body.angular_velocity = Vector3(rng.randf_range(-8, 8), rng.randf_range(-8, 8), rng.randf_range(-8, 8)) \
 		* (1.0 if light else 0.2)
-	_debris.append([body, 0.0])
-	while _debris.size() > MAX_DEBRIS:
-		_debris.pop_front()[0].queue_free()
+	_debris.append(body)
 
 
-func _age_debris(delta: float) -> void:
-	for i in range(_debris.size() - 1, -1, -1):
-		var d: Array = _debris[i]
-		d[1] += delta
-		var body: RigidBody3D = d[0]
-		if d[1] > DEBRIS_LIFETIME or body.global_position.distance_to(car.global_position) > 450.0:
-			body.queue_free()
-			_debris.remove_at(i)
+## How far to move a prop so its footprint is off the car's (it was hit because they overlap).
+func _clearance(p: Prop) -> Vector3:
+	var half := Vector2(BALE_RADIUS, BALE_WIDTH / 2.0) if p.kind == "bale" \
+		else (Vector2(0.15, 2.0) if p.kind == "fence" else Vector2(0.25, 0.15))
+	var car_fwd := -car.global_transform.basis.z
+	var prop_fwd := -Basis(Vector3.UP, p.yaw).z
+	var push := Traffic.push_apart(Vector2(car.global_position.x, car.global_position.z),
+		Vector2(car_fwd.x, car_fwd.z).normalized(), Vector2(car.stats.body_size.x, car.stats.body_size.z) / 2.0,
+		Vector2(p.position.x, p.position.z), Vector2(prop_fwd.x, prop_fwd.z), half)
+	if push == Vector2.ZERO:
+		return Vector3.ZERO
+	push += push.normalized() * 0.05
+	return Vector3(push.x, 0.0, push.y)
+
+
+## Debris stays where it lands until the car is far away (or there's too much of it, when
+## the farthest piece goes), so nothing vanishes in front of you.
+func _clear_far_debris() -> void:
+	var here := car.global_position
+	_debris.sort_custom(func(a, b): return a.global_position.distance_squared_to(here) < b.global_position.distance_squared_to(here))
+	while not _debris.is_empty() and (_debris.size() > MAX_DEBRIS or _debris[-1].global_position.distance_to(here) > DEBRIS_RANGE):
+		_debris.pop_back().queue_free()

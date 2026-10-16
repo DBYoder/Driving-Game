@@ -19,8 +19,8 @@ var _orbit := 0.0
 
 func setup(c: Car) -> void:
 	car = c
-	near = 0.1
-	far = 1500.0
+	near = 0.2
+	far = 3300.0  # just past where the fog is total
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	snap()
 

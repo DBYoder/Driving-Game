@@ -11,6 +11,7 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 | | |
 |---|---|
 | ![Traffic north of Kalona](docs/screenshots/mile-1-traffic.png) | ![Corn near mile 5](docs/screenshots/mile-5-corn.png) |
+| ![The long view down into the valley at mile 9](docs/screenshots/mile-9-long-view.png) | ![Drone view at mile 7](docs/screenshots/mile-7-drone.png) |
 
 ## Status
 
@@ -18,15 +19,16 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 the actual Highway 1: real curves, hills, crossroads, street names and passing zones from
 USGS data. Score attack from Kalona to the US-218 overpass: smash mailboxes, fences and
 hay bales, plow corn, get air, near-miss oncoming traffic, get around Amish buggies and
-tractors, and don't wreck. Low-poly, built to run on a potato. The three real cars are
-next; see the roadmap in PLAN.md.
+tractors, and don't wreck. Low-poly, built to run on a potato. v0.2.1 adds a long view
+(haze out to 3 km over the real terrain) with nothing popping in, and fixes clipping
+and oncoming traffic. The three real cars are next; see the roadmap in PLAN.md.
 
 ## Layout
 
 ```
 game/                  Godot 4.6.3 project (GL Compatibility renderer)
-  data/route/          baked road + terrain (generated, committed)
-  scripts/route/       RouteData, TerrainTiles: loading and querying the baked data
+  data/route/          baked road, terrain and horizon (generated, committed)
+  scripts/route/       RouteData, TerrainTiles, HorizonTerrain: loading and querying the baked data
   scripts/world/       road and terrain meshes and colliders, streaming, roadside signs
   scripts/car/         raycast car physics, CarStats tuning, model, drivers, engine sound
   scripts/game/        run rules, scoring and combos, timing and records, QA test drives
@@ -55,6 +57,7 @@ godot --path game -- --station=2400 --traffic-near        # start with traffic i
 godot --headless --fixed-fps 60 --path game -- --qa-drive            # autopilot, all 15 miles
 godot --headless --fixed-fps 60 --path game -- --qa-stress --seed=1  # hooligan inputs
 godot --headless --fixed-fps 60 --path game -- --qa-drift            # scripted handbrake turn
+godot --path game -- --benchmark                                      # fps, draw calls, triangles
 godot --path game -- --tune=handbrake_grip:0.5                        # try a CarStats tweak
 ```
 

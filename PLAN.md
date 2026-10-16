@@ -81,7 +81,7 @@ Still to come: crop data (`fetch_cdl.py`, Phase 5) and passing / no-passing zone
 - **Fields**: corn as instanced card rows (MultiMesh), with height and color varying by season; soybeans as low green rows; pasture with fences.
 - **Farmsteads**: procedural house, barn, silo, and machine shed, placed at OSM building clusters along the road.
 - **Signs**: real crossroad names and mile markers.
-- **Horizon**: Iowa haze fog at ~600–900 m hides streaming and suits the setting.
+- **Horizon**: coarse ground (64 m grid, from the same elevation data) reaches 4.4 km past the road on every side, under the detailed corridor. Summer haze thickens from 450 m and is total at 3 km, and everything streams in where the haze already hides it.
 
 ---
 
@@ -193,7 +193,8 @@ Keyboard and Xbox-style gamepad from day one, both handled natively by Godot. St
 - Compatibility (OpenGL 3.3) renderer. Flat-shaded low-poly models sharing one palette texture, so draw calls stay very low.
 - No real-time shadows by default (blob shadows under cars); shadows only on the "High" preset.
 - MultiMesh for corn, trees, fence posts, and mailboxes. A prop only becomes a physics body when the car gets close.
-- Fog hides streaming. Chunks load by route distance, not raw radius.
+- Fog hides streaming. Chunks load by route distance, not raw radius. Far-off terrain and road use lighter meshes, and signs past 1.1 km aren't drawn.
+- `--benchmark` drives for 40 s and prints fps, draw calls and triangles, to check a change (or a friend's computer) against the budget.
 - Low/Med/High presets plus a resolution-scale slider.
 
 ---
@@ -240,6 +241,27 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
   - **Traffic.** Buggies are common near Kalona (half of the slow traffic before mile 5). Traffic brakes for you, and crashed vehicles tumble away as physics wrecks.
   - **Passing zones.** Computed from real sight distance over crests and around bends (275 m, the MUTCD figure for 55 mph). About 29% of the road is no-passing in each direction, drawn as solid or dashed lines. The autopilot only passes on a dashed line.
   - **Tests.** The autopilot now completes the whole run with traffic, passing legally (16:29 at 70 mph, because it waits behind buggies). The hooligan stress test now meets traffic and gets wrecked by it.
+- **v0.2.1: sight distance and clipping (from playtest feedback).**
+  - **Seeing further.** The world used to stop about 1.3 km out, with the corn ending 200 m ahead and props 800 m out, and you could watch things appear. Now:
+    - Coarse horizon ground reaches 4.4 km past the road. It's baked to sit just under the detailed ground, so the two never fight.
+    - Haze is total at 3 km instead of 1.15 km.
+    - The road shows 2.7 km ahead. Corn lines the road 640 m either way, growing in from 560 m. Props are built 1.2 km out.
+    - Traffic appears 2–2.6 km ahead and leaves 900 m behind.
+    - The QA drives fail if anything pops in closer than where the haze hides it. Measured: horizon 3.6 km, road 2.7 km, detailed tiles 1.2 km, props 1.1 km, corn 625 m, traffic 1.8 km.
+  - **Clipping.** A probe in the QA drives measures overlap between the car's body and wrecks, debris, standing corn and the ground. Before:
+    - The car sat inside standing corn for up to 20 s per run.
+    - It sat 0.8 m into debris, because smashed props weren't solid to it.
+    - It sat up to 0.3 m into crashed traffic, which stayed non-solid for 0.6 s.
+
+    Now:
+    - Corn flattens wherever the body touches it.
+    - Debris starts clear of the car and is solid.
+    - A crashed vehicle is moved off the car before it turns into a solid wreck.
+    - The collision box reaches the bottom of the bumpers.
+    - Wrecks and debris no longer vanish on a timer, only once you're far away.
+    - CI fails on more than 10 ticks of visible clipping. The hooligan test now also drives the mailbox and fence lines and the fields.
+  - **Oncoming traffic was missing.** A sign error deleted oncoming vehicles the moment they spawned, so v0.2 only ever had the vehicles placed by `--traffic-near`. Oncoming traffic, near misses and head-ons are real now. The autopilot treats a line of slow vehicles (a car stuck behind a buggy) as one pass: it needs room for all of it and finishes past the last one. Waiting for real gaps, it now takes 19:34 at 70 mph and 18:18 at 110.
+  - **Performance.** On the software renderer CI uses, it's 19 fps against v0.2's 20, with the same 1% low and fewer triangles (91k vs 97k), while seeing 2–3× further. A real GPU won't notice.
 
 ### Phase 3: v0.3 "The three cars"
 - Low-poly Windstar, Tercel, and Legend models with per-car handling, durability, and multipliers.

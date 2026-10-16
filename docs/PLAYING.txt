@@ -55,9 +55,10 @@ Quit                          Esc
 
 WHAT'S IN THIS BUILD
 --------------------
-v0.2: one placeholder car on the real road, with things to smash, corn to plow,
-traffic, Amish buggies and tractors to get around, and real passing zones. The
-curves, hills, crossroads and street names come from USGS map and elevation data.
+v0.2.1: one placeholder car on the real road, with things to smash, corn to plow,
+traffic both ways, Amish buggies and tractors to get around, and real passing zones.
+The curves, hills, crossroads and street names come from USGS map and elevation data,
+and you can see the real countryside out to about 3 km.
 Coming next: the Windstar, Tercel and Legend, then cops and deer.
 
 

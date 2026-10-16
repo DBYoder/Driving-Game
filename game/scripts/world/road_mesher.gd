@@ -54,15 +54,21 @@ func chunk_center(c: int) -> Vector3:
 	return route.points[mid]
 
 
-func build_chunk(c: int) -> ArrayMesh:
+## A chunk's mesh, with a row of vertices every `step` route samples (1 up close, more
+## for far away). Every step includes the chunk's end rows, so neighbors always meet.
+func build_chunk(c: int, step := 1) -> ArrayMesh:
 	var i0 := c * CHUNK_SAMPLES
 	var i1 := mini(i0 + CHUNK_SAMPLES, route.points.size() - 1)
+	var rows: Array[int] = []
+	for i in range(i0, i1, step):
+		rows.append(i)
+	rows.append(i1)
 	var cols := SECTION.size()
 	var verts := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var lines := PackedVector2Array()  ## UV2: solid center line for (northbound, southbound)
 	var indices := PackedInt32Array()
-	for i in range(i0, i1 + 1):
+	for i in rows:
 		var station := i * route.spacing
 		var center := route.points[i]
 		var right := route.right_at(station)
@@ -71,7 +77,7 @@ func build_chunk(c: int) -> ArrayMesh:
 			verts.append(center + right * s[0] + Vector3.UP * s[1])
 			uvs.append(Vector2(s[0], station))
 			lines.append(solid)
-	for row in i1 - i0:
+	for row in rows.size() - 1:
 		for col in cols - 1:
 			var a := row * cols + col
 			var b := a + 1

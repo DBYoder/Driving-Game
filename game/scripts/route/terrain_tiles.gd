@@ -14,7 +14,7 @@ var stations := PackedFloat32Array()  ## station of the road point nearest each 
 var heights := PackedFloat32Array()
 var road_distance := PackedByteArray()  ## meters from the centerline, per vertex
 var _by_coord := {}
-var _indices := PackedInt32Array()
+var _indices := {}  ## vertices per side -> PackedInt32Array
 
 
 static func load_from(dir: String, desc: Dictionary) -> TerrainTiles:
@@ -78,9 +78,14 @@ func road_distance_at(x: float, z: float) -> float:
 	return road_distance[_by_coord[c] * grid * grid + row * grid + col]
 
 
-func build_mesh(i: int) -> ArrayMesh:
-	var n := grid
-	var base := i * n * n
+## A tile's mesh. `lod` 1 is the far-away version: every other vertex, each lowered to
+## the lowest of its neighbors so it stays under the detailed ground (and the road)
+## everywhere. Gaps where it meets a detailed tile show the horizon ground under it,
+## which looks the same.
+func build_mesh(i: int, lod := 0) -> ArrayMesh:
+	var skip := 1 << lod
+	var n := (grid - 1) / skip + 1
+	var base := i * grid * grid
 	var ox := coords[i].x * size
 	var oz := coords[i].y * size
 	var verts := PackedVector3Array()
@@ -89,28 +94,36 @@ func build_mesh(i: int) -> ArrayMesh:
 	uvs.resize(n * n)
 	for row in n:
 		for col in n:
-			var k := row * n + col
-			verts[k] = Vector3(ox + col * step, heights[base + k], oz + row * step)
-			uvs[k] = Vector2(road_distance[base + k], 0.0)
+			var fr := row * skip
+			var fc := col * skip
+			var h := heights[base + fr * grid + fc]
+			if lod > 0:
+				for dr in range(maxi(fr - skip, 0), mini(fr + skip + 1, grid)):
+					for dc in range(maxi(fc - skip, 0), mini(fc + skip + 1, grid)):
+						h = minf(h, heights[base + dr * grid + dc])
+			verts[row * n + col] = Vector3(ox + fc * step, h, oz + fr * step)
+			uvs[row * n + col] = Vector2(road_distance[base + fr * grid + fc], 0.0)
 
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
-	arrays[Mesh.ARRAY_INDEX] = _grid_indices()
+	arrays[Mesh.ARRAY_INDEX] = _grid_indices(n)
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
 
 
 ## Two clockwise triangles per cell, split along the (row, col) -> (row+1, col+1) diagonal.
-func _grid_indices() -> PackedInt32Array:
-	if _indices.is_empty():
-		for row in grid - 1:
-			for col in grid - 1:
-				var a := row * grid + col
+func _grid_indices(n: int) -> PackedInt32Array:
+	if not _indices.has(n):
+		var indices := PackedInt32Array()
+		for row in n - 1:
+			for col in n - 1:
+				var a := row * n + col
 				var b := a + 1
-				var c := a + grid
+				var c := a + n
 				var d := c + 1
-				_indices.append_array([a, b, d, a, d, c])
-	return _indices
+				indices.append_array([a, b, d, a, d, c])
+		_indices[n] = indices
+	return _indices[n]

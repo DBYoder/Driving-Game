@@ -17,6 +17,7 @@ var points := PackedVector3Array()
 var crossroads: Array = []  ## Dictionaries: station, name, route, kind, side
 var bridges: Array = []  ## [from_station, to_station] pairs
 var terrain: TerrainTiles
+var horizon: HorizonTerrain
 var _no_pass_north := PackedByteArray()  ## per sample: 1 = solid line for northbound
 var _no_pass_south := PackedByteArray()
 
@@ -45,7 +46,8 @@ static func load_from(dir: String) -> RouteData:
 	r._no_pass_north = r._flags(d.no_passing.northbound)
 	r._no_pass_south = r._flags(d.no_passing.southbound)
 	r.terrain = TerrainTiles.load_from(dir, d.terrain)
-	if r.terrain == null:
+	r.horizon = HorizonTerrain.load_from(dir, d.horizon)
+	if r.terrain == null or r.horizon == null:
 		return null
 	return r
 

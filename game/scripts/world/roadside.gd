@@ -4,6 +4,7 @@ extends Node3D
 
 const SIGN_GREEN := Color(0.05, 0.40, 0.18)
 const POST_GRAY := Color(0.55, 0.55, 0.57)
+const SIGN_RANGE := 1100.0  ## signs further than this are a pixel or two in the haze: not drawn
 
 var route: RouteData
 
@@ -46,6 +47,7 @@ func _add_sign(station: float, offset: float, text: String, face: Material, post
 	_box(holder, Vector3(width, 0.38 * lines, 0.04), Vector3(0, 2.5, 0), face)
 	var label := _label(text, 40)
 	label.position = Vector3(0, 2.5, 0.03)
+	label.visibility_range_end = SIGN_RANGE
 	holder.add_child(label)
 
 
@@ -55,6 +57,7 @@ func _add_marker(station: float, mile: int, face: Material, post: Material) -> v
 	_box(holder, Vector3(0.45, 0.6, 0.03), Vector3(0, 1.3, 0), face)
 	var label := _label(str(mile), 56)
 	label.position = Vector3(0, 1.3, 0.02)
+	label.visibility_range_end = SIGN_RANGE
 	holder.add_child(label)
 
 
@@ -85,6 +88,7 @@ func _box(parent: Node3D, size: Vector3, pos: Vector3, material: Material) -> vo
 	node.material_override = material
 	node.position = pos
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.visibility_range_end = SIGN_RANGE
 	parent.add_child(node)
 
 

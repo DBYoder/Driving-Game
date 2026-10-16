@@ -1,8 +1,12 @@
 class_name StressDriver
 extends RefCounted
-## Drives like a hooligan: cruises fast on autopilot, then throws in bursts of full-lock
+## Drives like a hooligan: cruises fast on autopilot, sometimes down the mailbox line,
+## the fence line or out through the fields, then throws in bursts of full-lock
 ## steering, handbrake turns and panic braking. Used by the stress test to shake out
-## physics blow-ups at the speeds people will actually drive.
+## physics blow-ups (and clipping) at the speeds people will actually drive.
+
+## Where it cruises besides its lane: mailboxes, fences, and out in the fields.
+const VERGE_LINES := [PropField.MAILBOX_OFFSET, PropField.FENCE_OFFSET, 30.0]
 
 var _rng := RandomNumberGenerator.new()
 var _autopilot := Autopilot.new()
@@ -31,6 +35,11 @@ func update(car: Car, delta: float) -> void:
 		else:
 			_hold = _rng.randf_range(3.0, 10.0)
 			_autopilot.target_speed = _rng.randf_range(40.0, 50.0)  # 90-110 mph
+			_autopilot.cruise_lane = Autopilot.LANE_OFFSET
+			if _rng.randf() < 0.35:
+				var side := 1.0 if _rng.randf() < 0.5 else -1.0
+				_autopilot.cruise_lane = side * VERGE_LINES[_rng.randi() % VERGE_LINES.size()]
+				_autopilot.target_speed = _rng.randf_range(20.0, 35.0)  # 45-80 mph off the road
 	if _chaos:
 		car.throttle = _throttle
 		car.brake = _brake

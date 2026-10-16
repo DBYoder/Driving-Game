@@ -15,11 +15,14 @@ extends Node3D
 ##                        (--seed=<n> picks the random sequence; run the QA modes
 ##                        headless with --fixed-fps 60 to go faster than real time)
 ##   --smoke-test         load everything, drop the car on the road, check it, exit 0/1
+##   --benchmark          autopilot at 70 mph for 40 s, print fps, draw calls, triangles
 ##   --screenshot=<path>  let the car settle, save a PNG, exit
 
 const ROUTE_DIR := "res://data/route"
 const SPAWN_BEHIND_START := 25.0
 const LOST_SECONDS := 2.0  ## off the edge of the world this long -> towed back
+const FOG_BEGIN := 450.0
+const FOG_END := 3000.0  ## nothing past this is visible
 
 var route: RouteData
 var fields: Fields
@@ -96,8 +99,6 @@ func _ready() -> void:
 		_spawn_station = route.start_station + 1.5 * RouteData.MILE_M  # the long straight north of Kalona
 	_spawn(_spawn_station)
 	camera.setup(car)
-	props.refresh()
-	corn.rebuild()
 	if args.has("traffic-near"):
 		traffic.populate_near()
 
@@ -116,6 +117,8 @@ func _ready() -> void:
 		add_child(qa)
 	elif args.has("screenshot"):
 		_screenshot(args.screenshot)
+	elif args.has("benchmark"):
+		add_child(Benchmark.new())
 
 
 ## Who's driving. Returns the drift script when that's the test being run.
@@ -128,7 +131,7 @@ func _pick_driver(args: Dictionary) -> DriftDriver:
 		drift.pull_time = float(args.get("drift-pull", drift.pull_time))
 		drift.countersteer = float(args.get("drift-counter", drift.countersteer))
 		_driver = drift
-	elif args.has("autopilot") or args.has("qa-drive"):
+	elif args.has("autopilot") or args.has("qa-drive") or args.has("benchmark"):
 		var autopilot := Autopilot.new()
 		if args.has("autopilot-mph"):
 			autopilot.target_speed = float(args["autopilot-mph"]) / Hud.MPH
@@ -168,10 +171,10 @@ func restart() -> void:
 	car.repair()
 	car.driver = _driver
 	camera.crash_cam = false
-	_spawn(_spawn_station)
 	props.reset()
 	traffic.reset()
 	corn.reset()
+	_spawn(_spawn_station)
 
 
 func _on_wrecked(_reason: String) -> void:
@@ -190,9 +193,12 @@ func _tow() -> void:
 	_spawn(clampf(car.station, 0.0, route.length - 10.0))
 
 
+## Put the car on the road and build everything around it right away.
 func _spawn(station: float) -> void:
 	streamer.warm_up(route.position_at(station))
 	car.place_at(station)
+	props.refresh()
+	corn.warm_up()
 	if camera.car:
 		camera.snap()
 
@@ -215,12 +221,13 @@ func _add_environment() -> void:
 	env.ambient_light_color = Color(0.82, 0.82, 0.78)
 	env.ambient_light_energy = 0.55
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	# Summer haze: hides the edge of the world and the tiles streaming in.
+	# Summer haze: a long view over the fields that fades out before the world ends
+	# (the coarse horizon ground reaches ~4 km past the road) and hides things arriving.
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_DEPTH
 	env.fog_light_color = Color(0.76, 0.81, 0.85)
-	env.fog_depth_begin = 250.0
-	env.fog_depth_end = 1150.0
+	env.fog_depth_begin = FOG_BEGIN
+	env.fog_depth_end = FOG_END
 	env.fog_sky_affect = 0.25
 
 	var world_env := WorldEnvironment.new()

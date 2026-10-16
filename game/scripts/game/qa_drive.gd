@@ -5,7 +5,9 @@ extends Node
 ##   HighwayOne --headless --fixed-fps 60 -- --qa-stress   random inputs for 4 minutes
 ##   HighwayOne --headless --fixed-fps 60 -- --qa-drift    a scripted handbrake turn
 ## Watches for the car falling through the world, leaving its lane (autopilot only),
-## flipping (autopilot only), or the physics blowing up. Prints a report and exits 0/1.
+## flipping (autopilot only), or the physics blowing up; for things popping into or out
+## of view where the haze doesn't hide it; and for the car's body visibly sitting inside
+## wrecks, debris, standing corn or the ground. Prints a report and exits 0/1.
 
 const ROUTE_TIME_LIMIT := 1500.0
 const STRESS_TIME := 240.0
@@ -14,6 +16,13 @@ const MAX_LANE_ERROR := 3.0
 const DRIFT_MIN_SLIP := 35.0
 ## ...and the car should gather itself up within this long of straightening the wheel.
 const DRIFT_MAX_RECOVERY := 4.0
+## The closest each kind of thing may appear (m from the car): past where the haze hides
+## it, or (detailed tiles, props) where it's a speck replacing nothing much.
+const MIN_POP_IN := {"horizon": 3000.0, "road": 2400.0, "terrain": 1000.0, "props": 1000.0,
+	"corn": CornField.FADE_FAR, "traffic": 1800.0}
+const MIN_TRAFFIC_POP_OUT := 800.0
+## Ticks of visible clipping allowed per kind (contacts can sink in a little for a tick).
+const MAX_CLIP_TICKS := 10
 
 var car: Car
 var run: Run
@@ -37,6 +46,7 @@ var _peak_yaw_rate := 0.0
 var _recovery_time := -1.0
 var _start_heading := 0.0
 var _problems: Array[String] = []
+var _clips := ClipProbe.new()
 
 
 func _ready() -> void:
@@ -70,6 +80,7 @@ func _physics_process(delta: float) -> void:
 		_airborne_ticks += 1
 	var up_y := car.global_transform.basis.y.y
 	_lowest_up = minf(_lowest_up, up_y)
+	_clips.sample(get_parent(), car)
 
 	if stress:
 		_stress_tick(up_y, delta)
@@ -137,6 +148,10 @@ func _drift_tick() -> void:
 			_finish()
 
 
+static func _meters(d: float) -> String:
+	return "-" if is_inf(d) else "%.0f m" % d
+
+
 func _fail(problem: String) -> void:
 	if not problem in _problems:
 		_problems.append(problem)
@@ -165,6 +180,23 @@ func _finish() -> void:
 		car.peak_jolt, car.health / car.stats.durability * 100.0, get_parent().props.smashed_count()])
 	var labels := run.score.totals.keys()
 	labels.sort()
+	print("  clipping: %s" % _clips.report())
+	for kind in _clips.visible_ticks:
+		if _clips.visible_ticks[kind] > MAX_CLIP_TICKS:
+			_problems.append("car visibly inside %s for %d ticks (worst %.2f near mile %.2f)" % [
+				kind, _clips.visible_ticks[kind], _clips.worst[kind], _clips.worst_mile[kind]])
+	var main := get_parent()
+	var pop_in := {"horizon": main.streamer.nearest_pop_in.far, "road": main.streamer.nearest_pop_in.road,
+		"terrain": main.streamer.nearest_pop_in.tile, "props": main.props.nearest_pop_in,
+		"corn": main.corn.nearest_pop_in, "traffic": main.traffic.nearest_pop_in}
+	print("  nearest pop-in: %s; traffic gone at %s" % [
+		", ".join(pop_in.keys().map(func(k): return "%s %s" % [k, _meters(pop_in[k])])),
+		_meters(main.traffic.nearest_pop_out)])
+	for kind in pop_in:
+		if pop_in[kind] < MIN_POP_IN[kind]:
+			_problems.append("%s popped in %.0f m away (want %.0f+)" % [kind, pop_in[kind], MIN_POP_IN[kind]])
+	if main.traffic.nearest_pop_out < MIN_TRAFFIC_POP_OUT:
+		_problems.append("traffic vanished %.0f m away" % main.traffic.nearest_pop_out)
 	print("  scored: %s" % ", ".join(labels.map(func(l): return "%s %d" % [l, run.score.totals[l]])))
 	if _problems.is_empty():
 		print("QA OK")

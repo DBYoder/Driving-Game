@@ -7,15 +7,18 @@ extends Node3D
 ## Scores: a near miss with oncoming traffic, and a clean pass of anything in your lane.
 ## Hitting a vehicle is a real crash (damage, momentum, it tumbles away as a wreck);
 ## a head-on at speed or touching a buggy ends the run.
+##
+## Vehicles appear and disappear far enough away that the haze hides it.
 
 const LANE := 1.83
 const SHOULDER_LANE := 2.6  ## buggies and tractors hug the edge
-const SPAWN_AHEAD_MIN := 900.0
-const SPAWN_AHEAD_MAX := 1300.0
-const DESPAWN_BEHIND := 400.0
-const MAX_SAME_DIRECTION := 3
-const MAX_ONCOMING := 4
-const WRECK_LIFETIME := 30.0
+const SPAWN_AHEAD_MIN := 2000.0
+const SPAWN_AHEAD_MAX := 2600.0
+const DESPAWN_BEHIND := 900.0
+const MAX_SAME_DIRECTION := 6  ## ahead of the player
+const MAX_ONCOMING := 6  ## ahead of the player
+const MAX_WRECKS := 8  ## past this, the farthest goes
+const WRECK_RANGE := 900.0  ## wrecks further than this from the car are cleared away
 const HEAD_ON_SPEED := 25.0  ## closing speed (m/s) at which a head-on ends the run
 const NEAR_MISS_GAP := 1.2  ## meters between mirrors
 const NEAR_MISS_POINTS := 250
@@ -49,10 +52,14 @@ var car: Car
 var run: Run
 var enabled := true
 var vehicles: Array[Vehicle] = []
-var _wrecks: Array = []  ## [RigidBody3D, age]
+var _wrecks: Array[RigidBody3D] = []
 var _rng := RandomNumberGenerator.new()
 var _oncoming_timer := 0.0
 var _same_timer := 0.0
+## The closest a vehicle has been to the car when it appeared or disappeared (checked by
+## the QA drive).
+var nearest_pop_in := INF
+var nearest_pop_out := INF
 
 
 func setup(r: RouteData, c: Car, game_run: Run, seed_value := 1) -> void:
@@ -67,7 +74,7 @@ func reset() -> void:
 		v.node.queue_free()
 	vehicles.clear()
 	for w in _wrecks:
-		w[0].queue_free()
+		w.queue_free()
 	_wrecks.clear()
 	_oncoming_timer = 0.0
 	_same_timer = 0.0
@@ -80,7 +87,7 @@ func _physics_process(delta: float) -> void:
 	for v in vehicles:
 		_drive(v, delta)
 	_check_player()
-	_cleanup(delta)
+	_cleanup()
 
 
 ## The nearest vehicle ahead of `station` going `direction` (within `reach`), or null.
@@ -91,6 +98,11 @@ func leader(station: float, direction: float, reach: float) -> Vehicle:
 		if v.direction == direction and gap > 0.0 and gap < reach and (best == null or gap < (best.station - station) * direction):
 			best = v
 	return best
+
+
+## Crashed vehicles (physics bodies).
+func wreck_bodies() -> Array[RigidBody3D]:
+	return _wrecks.duplicate()
 
 
 ## True when no oncoming vehicle is within `distance` ahead of `station`.
@@ -116,8 +128,9 @@ func _spawn(delta: float) -> void:
 		_add("buggy" if roll < buggy_odds else ("tractor" if roll < buggy_odds + 0.3 else "car"), 1.0)
 
 
+## Vehicles going `direction` that are still ahead of the player.
 func _count(direction: float) -> int:
-	return vehicles.filter(func(v): return v.direction == direction).size()
+	return vehicles.filter(func(v): return v.direction == direction and v.station > car.station).size()
 
 
 ## Put a few vehicles right in view (for screenshots and demos).
@@ -131,7 +144,8 @@ func populate_near() -> void:
 
 
 func _add(kind: String, direction: float, station := -1.0) -> void:
-	if station < 0.0:
+	var streaming := station < 0.0
+	if streaming:
 		station = car.station + _rng.randf_range(SPAWN_AHEAD_MIN, SPAWN_AHEAD_MAX)
 	if station > route.length - 50.0:
 		return
@@ -156,6 +170,8 @@ func _add(kind: String, direction: float, station := -1.0) -> void:
 	vehicles.append(v)
 	_place(v)
 	v.node.reset_physics_interpolation()
+	if streaming:
+		nearest_pop_in = minf(nearest_pop_in, v.node.global_position.distance_to(car.global_position))
 
 
 func _drive(v: Vehicle, delta: float) -> void:
@@ -197,8 +213,9 @@ func _check_player() -> void:
 		var center: Vector2 = Vector2(v.node.global_position.x, v.node.global_position.z) - fwd * spec.center
 		var half := Vector2(spec.width, spec.length) / 2.0
 		var dy := absf(car.global_position.y - v.node.global_position.y)
-		if dy < 4.0 and overlaps(car_pos, car_fwd, car_half, center, fwd, half):
-			_collide(v)
+		var push := push_apart(car_pos, car_fwd, car_half, center, fwd, half)
+		if dy < 4.0 and push != Vector2.ZERO:
+			_collide(v, push)
 			continue
 		_score_pass(v, spec)
 
@@ -224,8 +241,9 @@ func _score_pass(v: Vehicle, spec: Dictionary) -> void:
 
 
 ## A crash with a vehicle: momentum, damage, maybe the end of the run, and the vehicle
-## leaves traffic as a physics wreck.
-func _collide(v: Vehicle) -> void:
+## leaves traffic as a physics wreck. `push` moves the vehicle's footprint off the car's:
+## at highway speeds the car is up to a meter into it by the time they're seen to touch.
+func _collide(v: Vehicle, push: Vector2) -> void:
 	var spec: Dictionary = KINDS[v.kind]
 	v.touched = true
 	var v_velocity := -v.node.global_transform.basis.z * v.speed
@@ -233,21 +251,16 @@ func _collide(v: Vehicle) -> void:
 	var m_car := car.stats.mass
 	var m_v: float = spec.mass
 	var shared := (car.linear_velocity * m_car + v_velocity * m_v) / (m_car + m_v)
-
-	if v.kind == "buggy":
-		run.wreck("You hit an Amish buggy")
-		car.bump(0.3, 0.0, false)
-		v.speed = 0.0
-		v.cruise = 0.0
-		return
 	var head_on := car.linear_velocity.dot(v_velocity) < 0.0 and closing > HEAD_ON_SPEED
 	var damage := closing * 2.2 * clampf(2.0 * m_v / (m_v + m_car), 0.3, 1.5)
-	# Both leave at the shared velocity, nudged apart so they don't start out overlapped.
-	var away := car.global_position - v.node.global_position
-	away.y = 0.0
-	away = away.normalized() * 2.5
+	# Start them just touching, then both leave at the shared velocity, nudged apart.
+	var apart := Vector3(push.x, 0.0, push.y)
+	v.node.global_position += apart + apart.normalized() * 0.05
+	var away := -apart.normalized() * 2.5
 	car.bump_to(shared + away, damage)
-	if head_on:
+	if v.kind == "buggy":
+		run.wreck("You hit an Amish buggy")
+	elif head_on:
 		run.wreck("Head-on with a %s" % v.kind)
 	_make_wreck(v, shared - away * m_car / m_v)
 
@@ -258,7 +271,7 @@ func _make_wreck(v: Vehicle, velocity: Vector3) -> void:
 	var body := RigidBody3D.new()
 	body.mass = spec.mass
 	body.collision_layer = 1 << (Car.WRECK_LAYER - 1)
-	body.collision_mask = 1 << (Car.WORLD_LAYER - 1)  # the car is added once they've separated
+	body.collision_mask = (1 << (Car.WORLD_LAYER - 1)) | (1 << (Car.CAR_LAYER - 1))
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
 	box.size = Vector3(spec.width, 1.6, spec.length)
@@ -267,38 +280,51 @@ func _make_wreck(v: Vehicle, velocity: Vector3) -> void:
 	body.add_child(shape)
 	add_child(body)
 	body.global_transform = v.node.global_transform
+	body.reset_physics_interpolation()
 	v.node.reparent(body)
 	body.linear_velocity = velocity + Vector3.UP * 1.5
 	body.angular_velocity = Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-3, 3), _rng.randf_range(-1, 1))
-	_wrecks.append([body, 0.0])
+	_wrecks.append(body)
 
 
-func _cleanup(delta: float) -> void:
+func _cleanup() -> void:
+	var here := car.global_position
 	for v: Vehicle in vehicles.duplicate():
-		var behind := (car.station - v.station) * v.direction
-		if behind > DESPAWN_BEHIND or v.station < 0.0 or v.station > route.length:
+		var left_behind := car.station - v.station > DESPAWN_BEHIND
+		if left_behind or v.station < 0.0 or v.station > route.length:  # or off the end of the map
+			if left_behind:
+				nearest_pop_out = minf(nearest_pop_out, v.node.global_position.distance_to(here))
 			v.node.queue_free()
 			vehicles.erase(v)
-	for i in range(_wrecks.size() - 1, -1, -1):
-		var w: Array = _wrecks[i]
-		w[1] += delta
-		var body: RigidBody3D = w[0]
-		if w[1] > 0.6:
-			body.collision_mask |= 1 << (Car.CAR_LAYER - 1)  # now solid to the player too
-		if w[1] > WRECK_LIFETIME or body.global_position.distance_to(car.global_position) > 600.0:
-			body.queue_free()
-			_wrecks.remove_at(i)
+	# Wrecks stay where they land until the car is far away (or there are too many, when
+	# the farthest goes), so nothing vanishes in front of you.
+	_wrecks.sort_custom(func(a, b): return a.global_position.distance_squared_to(here) < b.global_position.distance_squared_to(here))
+	while not _wrecks.is_empty() and (_wrecks.size() > MAX_WRECKS or _wrecks[-1].global_position.distance_to(here) > WRECK_RANGE):
+		_wrecks.pop_back().queue_free()
 
 
 ## Do two rectangles on the ground overlap? Each is a center, a unit forward direction
-## and half extents (half width, half length). Separating-axis test.
+## and half extents (half width, half length).
 static func overlaps(c1: Vector2, f1: Vector2, h1: Vector2, c2: Vector2, f2: Vector2, h2: Vector2) -> bool:
+	return push_apart(c1, f1, h1, c2, f2, h2) != Vector2.ZERO
+
+
+## The shortest move that takes rectangle 2 off rectangle 1 (rectangles as in
+## overlaps()), or Vector2.ZERO when they don't overlap. Separating-axis test.
+static func push_apart(c1: Vector2, f1: Vector2, h1: Vector2, c2: Vector2, f2: Vector2, h2: Vector2) -> Vector2:
 	var r1 := Vector2(-f1.y, f1.x)
 	var r2 := Vector2(-f2.y, f2.x)
 	var d := c2 - c1
-	for axis in [f1, r1, f2, r2]:
+	var push := Vector2.ZERO
+	var least := INF
+	for axis: Vector2 in [f1, r1, f2, r2]:
 		var reach1 := absf(f1.dot(axis)) * h1.y + absf(r1.dot(axis)) * h1.x
 		var reach2 := absf(f2.dot(axis)) * h2.y + absf(r2.dot(axis)) * h2.x
-		if absf(d.dot(axis)) > reach1 + reach2:
-			return false
-	return true
+		var along := d.dot(axis)
+		var depth := reach1 + reach2 - absf(along)
+		if depth <= 0.0:
+			return Vector2.ZERO
+		if depth < least:
+			least = depth
+			push = axis * (depth if along >= 0.0 else -depth)
+	return push

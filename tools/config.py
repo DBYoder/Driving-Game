@@ -45,6 +45,16 @@ CORRIDOR_HALF_WIDTH_M = 1200.0
 TILE_SIZE_M = 256.0
 TILE_GRID = 33  # vertices per tile side -> 8 m spacing
 
+# Low-detail ground out to the horizon, drawn under the corridor tiles so the world
+# doesn't end where they do. It's coarse, so each vertex takes the lowest ground around
+# it and then drops a little more: that keeps it under the detailed tiles and the road
+# everywhere, and the detailed ground always wins where both are drawn.
+HORIZON_REACH_M = 4400.0  # past the road in every direction (fog is total at ~3 km)
+HORIZON_STEP_M = 64.0     # vertex spacing, a multiple of the tiles' 8 m
+HORIZON_CHUNK = 16        # cells per chunk side -> 1024 m chunks
+HORIZON_DROP_M = 1.0
+HORIZON_DEM_RES_M = 16.0
+
 # Cross-section the terrain is carved around (distance from centerline, meters).
 # The game's road mesh covers the pavement, shoulders and the grass foreslope down to
 # the ditch 10 m out (game/scripts/world/road_mesher.gd). Under all of that the ground

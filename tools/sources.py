@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pyogrio
 import rasterio
+from affine import Affine
 import shapely
 from rasterio.warp import Resampling, reproject, transform_bounds
 from rasterio.transform import from_origin
@@ -67,13 +68,14 @@ def read_roads(bbox) -> list[Road]:
     return roads
 
 
-def dem_sampler(west: float, south: float, east: float, north: float) -> GridSampler:
+def dem_sampler(west: float, south: float, east: float, north: float,
+                res: float = config.DEM_RES_M, decimate: int = 1) -> GridSampler:
     """Elevation (meters) sampler over a UTM box, warped from the 1/3 arc-second 3DEP tile.
 
     Only the needed window is fetched over HTTP (the tile is a cloud-optimized GeoTIFF),
-    then cached as .npz so re-bakes are offline.
+    then cached as .npz so re-bakes are offline. `decimate` reads one of the file's
+    overviews instead of full resolution, for coarse output over big areas.
     """
-    res = config.DEM_RES_M
     west, south = np.floor(west / res) * res, np.floor(south / res) * res
     east, north = np.ceil(east / res) * res, np.ceil(north / res) * res
     cache = config.CACHE_DIR / f"dem_{int(west)}_{int(south)}_{int(east)}_{int(north)}_{res:g}.npz"
@@ -86,8 +88,10 @@ def dem_sampler(west: float, south: float, east: float, north: float) -> GridSam
     with rasterio.open("/vsicurl/" + config.DEM_URL) as ds:
         window = from_bounds(lon0 - 0.005, lat0 - 0.005, lon1 + 0.005, lat1 + 0.005, ds.transform)
         window = window.round_offsets().round_lengths()
-        src = ds.read(1, window=window).astype(np.float32)
-        src_transform = ds.window_transform(window)
+        shape = (int(window.height) // decimate, int(window.width) // decimate)
+        src = ds.read(1, window=window, out_shape=shape, resampling=Resampling.average).astype(np.float32)
+        src_transform = ds.window_transform(window) * Affine.scale(
+            window.width / shape[1], window.height / shape[0])
         src_crs = ds.crs
     cols, rows = int((east - west) / res), int((north - south) / res)
     dst = np.full((rows, cols), np.nan, dtype=np.float32)

@@ -18,6 +18,7 @@ from datetime import date
 import numpy as np
 import shapely
 from pyproj import Transformer
+from scipy.ndimage import minimum_filter
 from scipy.spatial import cKDTree
 from shapely.ops import substring
 
@@ -234,6 +235,53 @@ def bake_terrain(xy, profile, dem, origin):
     return tiles, heights, road_dist
 
 
+def bake_horizon(xy, tiles, heights, dem, origin):
+    """Coarse ground out to the horizon around the whole route, kept under the corridor.
+
+    Returns the grid's corner in game coordinates, its heights (rows along z) and each
+    vertex's distance from the road.
+    """
+    e0, n0, h0 = origin
+    step = config.HORIZON_STEP_M
+    fine = config.TILE_SIZE_M / (config.TILE_GRID - 1)
+    k = round(step / fine)
+    chunk_m = step * config.HORIZON_CHUNK
+    gx, gz = xy[:, 0] - e0, -(xy[:, 1] - n0)
+    reach = config.HORIZON_REACH_M
+    x0 = math.floor((gx.min() - reach) / chunk_m) * chunk_m
+    z0 = math.floor((gz.min() - reach) / chunk_m) * chunk_m
+    cols = math.ceil((gx.max() + reach - x0) / chunk_m) * config.HORIZON_CHUNK + 1
+    rows = math.ceil((gz.max() + reach - z0) / chunk_m) * config.HORIZON_CHUNK + 1
+
+    # The ground on the tiles' 8 m grid, with a coarse cell of padding all round: natural
+    # elevation, except where the corridor tiles (with the road carved in) say otherwise.
+    fx = x0 - step + np.arange((cols + 1) * k + 1) * fine
+    fz = z0 - step + np.arange((rows + 1) * k + 1) * fine
+    ground = np.empty((len(fz), len(fx)), dtype=np.float32)
+    for r in range(0, len(fz), 256):
+        xx, zz = np.meshgrid(fx, fz[r:r + 256])
+        ground[r:r + 256] = (dem(e0 + xx.ravel(), n0 - zz.ravel()) - h0).reshape(xx.shape)
+    g = config.TILE_GRID
+    for t, (a, b, _) in enumerate(tiles):
+        c = round((a * config.TILE_SIZE_M - fx[0]) / fine)
+        r = round((b * config.TILE_SIZE_M - fz[0]) / fine)
+        ground[r:r + g, c:c + g] = heights[t]
+
+    horizon = coarse_floor(ground, k) - config.HORIZON_DROP_M
+    cx, cz = np.meshgrid(x0 + np.arange(cols) * step, z0 + np.arange(rows) * step)
+    d, _ = cKDTree(np.column_stack([gx, gz])).query(np.column_stack([cx.ravel(), cz.ravel()]))
+    road_dist = np.clip(np.round(d), 0, 255).astype(np.uint8).reshape(rows, cols)
+    return (x0, z0), horizon.astype(np.float32), road_dist
+
+
+def coarse_floor(fine, k):
+    """Every k-th sample of a fine height grid that has k samples of padding all round,
+    each lowered to the lowest fine sample within k of it. Any mesh interpolating these
+    stays on or under the fine ground."""
+    low = minimum_filter(fine, size=2 * k + 1, mode="nearest")
+    return low[k:-k:k, k:-k:k]
+
+
 def smoothstep(e0, e1, x):
     t = np.clip((x - e0) / (e1 - e0), 0, 1)
     return t * t * (3 - 2 * t)
@@ -267,6 +315,10 @@ def main():
     junctions = find_junctions(roads, raw_line, hwy, xy)
     no_pass = passing_zones(xy, profile, start_s, finish_s)
     tiles, heights, road_dist = bake_terrain(xy, profile, dem, origin)
+    far = config.HORIZON_REACH_M + config.HORIZON_STEP_M * (config.HORIZON_CHUNK + 2)
+    far_dem = dem_sampler(xy[:, 0].min() - far, xy[:, 1].min() - far, xy[:, 0].max() + far,
+                          xy[:, 1].max() + far, res=config.HORIZON_DEM_RES_M, decimate=2)
+    horizon_corner, horizon, horizon_dist = bake_horizon(xy, tiles, heights, far_dem, origin)
 
     points = np.column_stack([xy[:, 0] - e0, profile - h0, -(xy[:, 1] - n0)])
     grade = np.diff(profile) / config.SPACING_M
@@ -296,12 +348,23 @@ def main():
             "grid": config.TILE_GRID,
             "tiles": tiles,                     # [ix, iz, station of nearest road point]
         },
+        "horizon": {
+            "file": "horizon.bin",              # float32 heights, rows along z
+            "distance_file": "horizon_dist.bin",  # uint8 meters from the road centerline
+            "corner": [horizon_corner[0], horizon_corner[1]],
+            "step_m": config.HORIZON_STEP_M,
+            "cols": horizon.shape[1],
+            "rows": horizon.shape[0],
+            "chunk": config.HORIZON_CHUNK,
+        },
     }
 
     config.OUT_DIR.mkdir(parents=True, exist_ok=True)
     (config.OUT_DIR / "route.json").write_text(json.dumps(route, separators=(",", ":")))
     heights.astype("<f4").tofile(config.OUT_DIR / "terrain.bin")
     road_dist.tofile(config.OUT_DIR / "terrain_dist.bin")
+    horizon.astype("<f4").tofile(config.OUT_DIR / "horizon.bin")
+    horizon_dist.tofile(config.OUT_DIR / "horizon_dist.bin")
 
     drive_m = finish_s - start_s
     print(f"route: {len(xy)} samples, {route['length_m'] / 1000:.2f} km total")
@@ -319,6 +382,8 @@ def main():
         print(f"  mile {(j['station'] - start_s) / MILE_M:5.2f}  {j['side']:5}  {j['kind']:7}  {j['name']}")
     size_mb = heights.nbytes / 1e6
     print(f"terrain: {len(tiles)} tiles, {size_mb:.1f} MB")
+    km = (np.array(horizon.shape) - 1) * config.HORIZON_STEP_M / 1000
+    print(f"horizon: {km[1]:.1f} x {km[0]:.1f} km at {config.HORIZON_STEP_M:g} m, {horizon.nbytes / 1e6:.1f} MB")
 
 
 if __name__ == "__main__":
