@@ -10,6 +10,7 @@ const WORLD_LAYER := 1
 const CAR_LAYER := 2
 const DEBRIS_LAYER := 3  ## smashed props
 const WRECK_LAYER := 4  ## crashed traffic
+const COP_LAYER := 5  ## police cruisers (physics cars like the player's)
 const GRAVITY := 9.8
 
 ## Something hit the car (or the car hit something) hard enough to do damage.
@@ -79,7 +80,12 @@ func setup(car_stats: CarStats, r: RouteData) -> void:
 	angular_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
 	angular_damp = 0.4
 	collision_layer = 1 << (CAR_LAYER - 1)
-	collision_mask = (1 << (WORLD_LAYER - 1)) | (1 << (DEBRIS_LAYER - 1)) | (1 << (WRECK_LAYER - 1))
+	collision_mask = (1 << (WORLD_LAYER - 1)) | (1 << (DEBRIS_LAYER - 1)) | (1 << (WRECK_LAYER - 1)) \
+		| (1 << (COP_LAYER - 1))
+	if stats.style == "cruiser":
+		collision_layer = 1 << (COP_LAYER - 1)
+		collision_mask = (1 << (WORLD_LAYER - 1)) | (1 << (CAR_LAYER - 1)) | (1 << (DEBRIS_LAYER - 1)) \
+			| (1 << (WRECK_LAYER - 1))
 
 	# The lower body, from the bottom of the bumpers up to the beltline: what you see
 	# scrape on a hard landing is what touches the ground.
@@ -241,6 +247,11 @@ func _check_impact(delta: float) -> void:
 	var change := linear_velocity - _last_velocity
 	var jolt := change.length()
 	_last_velocity = linear_velocity
+	if freeze:
+		# Moved around by script (a far-off cruiser on rails): no collisions to feel, and a
+		# moment's grace once it's let go.
+		_impact_grace = 0.5
+		return
 	_impact_grace = maxf(_impact_grace - delta, 0.0)
 	if _impact_grace > 0.0:
 		return

@@ -7,9 +7,9 @@ extends RefCounted
 const VISIBLE_OVERLAP := 0.3  ## meters of overlap you'd notice at a glance
 const VISIBLE_SINK := 0.15  ## meters of body below the ground surface
 
-var worst := {"wreck": 0.0, "debris": 0.0, "corn": 0.0, "ground": 0.0}
-var worst_mile := {"wreck": 0.0, "debris": 0.0, "corn": 0.0, "ground": 0.0}
-var visible_ticks := {"wreck": 0, "debris": 0, "corn": 0, "ground": 0}
+var worst := {"wreck": 0.0, "cop": 0.0, "debris": 0.0, "corn": 0.0, "ground": 0.0}
+var worst_mile := {"wreck": 0.0, "cop": 0.0, "debris": 0.0, "corn": 0.0, "ground": 0.0}
+var visible_ticks := {"wreck": 0, "cop": 0, "debris": 0, "corn": 0, "ground": 0}
 
 
 func sample(main: Node, car: Car) -> void:
@@ -18,6 +18,10 @@ func sample(main: Node, car: Car) -> void:
 	for body: RigidBody3D in main.traffic.wreck_bodies():
 		deepest = maxf(deepest, _overlap(car, body))
 	_record("wreck", deepest, VISIBLE_OVERLAP, mile)
+	deepest = 0.0
+	for cop: Car in main.cops.cop_cars():
+		deepest = maxf(deepest, _overlap(car, cop))
+	_record("cop", deepest, VISIBLE_OVERLAP, mile)
 	deepest = 0.0
 	for body: RigidBody3D in main.props.debris_bodies():
 		if not body.has_meta("car_part"):  # the car's own hubcaps can't hit it anyway
@@ -28,8 +32,8 @@ func sample(main: Node, car: Car) -> void:
 
 
 func report() -> String:
-	return "worst overlap with wrecks %.2f m (%d ticks visible), debris %.2f m (%d), standing corn %d clumps (%d), body below ground %.2f m (%d)" % [
-		worst.wreck, visible_ticks.wreck, worst.debris, visible_ticks.debris,
+	return "worst overlap with wrecks %.2f m (%d ticks visible), cruisers %.2f m (%d), debris %.2f m (%d), standing corn %d clumps (%d), body below ground %.2f m (%d)" % [
+		worst.wreck, visible_ticks.wreck, worst.cop, visible_ticks.cop, worst.debris, visible_ticks.debris,
 		worst.corn, visible_ticks.corn, worst.ground, visible_ticks.ground]
 
 

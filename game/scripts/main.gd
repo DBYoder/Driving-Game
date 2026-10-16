@@ -10,12 +10,22 @@ extends Node3D
 ##   --garage             open the car-select screen even with other options
 ##   --damage=<0..1>      start with the car beaten up (for looking at the damage)
 ##   --orbit              circle the car with the camera (for screenshots)
+##   --chase              start with a deputy on your tail
+##   --deer[=<m>]         send a herd of deer across the road just ahead (45 m)
+##   --seed=<n>           fix where the speed traps and deer are (random each run
+##                        otherwise; tests and screenshots default to 1)
 ##   --tune=<k:v,...>     override CarStats values, e.g. --tune=handbrake_grip:0.2
 ##   --no-traffic         an empty road
+##   --no-cops            no speed traps
+##   --no-deer            no deer
 ##   --traffic-near       start with a buggy, a tractor and oncoming traffic in view
 ##   --qa-drive           autopilot the whole route, check for problems, exit 0/1
 ##   --qa-stress          random inputs for 4 minutes, check the physics holds up, exit 0/1
 ##   --qa-drift           a scripted handbrake turn; checks it slides and recovers, exit 0/1
+##   --qa-cops=bust|line  speed past a speed trap: then stop and get busted, or run for
+##                        the county line; checks the chase plays out, exit 0/1
+##   --qa-deer            drive through a herd of deer (one freezes in the lane), then
+##                        hit one; checks they miss, then that the hit does what it should
 ##                        (--seed=<n> picks the random sequence; run the QA modes
 ##                        headless with --fixed-fps 60 to go faster than real time)
 ##   --smoke-test         load everything, drop the car on the road, check it, exit 0/1
@@ -33,6 +43,8 @@ var fields: Fields
 var streamer: WorldStreamer
 var props: PropField
 var traffic: Traffic
+var cops: Cops
+var deer: Deer
 var corn: CornField
 var car: Car
 var camera: ChaseCamera
@@ -44,6 +56,7 @@ var _driver: Object
 var _testing := false
 var _spawn_station := 0.0
 var _lost_time := 0.0
+var _seed := 0  ## where the speed traps and deer are this run (fixed in tests, random otherwise)
 
 
 func _ready() -> void:
@@ -53,7 +66,8 @@ func _ready() -> void:
 		get_tree().quit(1)
 		return
 	fields = Fields.new(route)
-	_testing = args.has("qa-drive") or args.has("qa-stress") or args.has("qa-drift")
+	_testing = args.has("qa-drive") or args.has("qa-stress") or args.has("qa-drift") or args.has("qa-cops") \
+		or args.has("qa-deer")
 
 	_add_environment()
 	add_child(preload("res://scripts/game/pause_control.gd").new())
@@ -94,8 +108,19 @@ func _ready() -> void:
 	add_child(traffic)
 	traffic.setup(route, car, run, int(args.get("seed", "1")))
 	traffic.enabled = not args.has("no-traffic") and not args.has("qa-drift")
+	cops = Cops.new()
+	add_child(cops)
+	var fixed_seed: bool = _testing or args.has("seed") or args.has("screenshot")
+	_seed = int(args.get("seed", "1")) if fixed_seed else randi()
+	cops.setup(route, car, run, traffic, _seed)
+	cops.enabled = not args.has("no-cops") and not args.has("qa-drift") and not args.has("qa-deer")
+	deer = Deer.new()
+	add_child(deer)
+	deer.setup(route, car, run, props, traffic, _seed)
+	deer.enabled = not args.has("no-deer") and not args.has("qa-drift") and not args.has("qa-cops")
 	if _driver is Autopilot:
 		_driver.traffic = traffic
+		_driver.deer = deer
 
 	camera = ChaseCamera.new()
 	add_child(camera)
@@ -111,10 +136,16 @@ func _ready() -> void:
 	if args.has("damage"):
 		_beat_up(float(args.damage))
 	camera.showroom = args.has("orbit")
+	if args.has("chase"):
+		cops.chase_from_behind()
+	if args.has("deer"):
+		deer.cross_now(45.0 if args.deer is bool else float(args.deer))
 
 	hud = Hud.new()
 	add_child(hud)
 	hud.setup(route, car, run, camera)
+	hud.cops = cops
+	cops.chase_started.connect(func(county): hud.banner("SPEED TRAP!\n%s County deputy" % county))
 	garage = CarSelect.new()
 	add_child(garage)
 	garage.setup("" if _testing else RunTracker.SAVE_PATH)
@@ -133,6 +164,8 @@ func _ready() -> void:
 		qa.run = run
 		qa.stress = args.has("qa-stress")
 		qa.drift = drift
+		qa.cop_scenario = args.get("qa-cops", "")
+		qa.deer_scenario = args.has("qa-deer")
 		add_child(qa)
 	elif args.has("screenshot"):
 		_screenshot(args.screenshot)
@@ -153,7 +186,8 @@ func _pick_driver(args: Dictionary) -> DriftDriver:
 		if args.has("drift-mph"):
 			drift.set_entry_speed(float(args["drift-mph"]) / Hud.MPH)
 		_driver = drift
-	elif args.has("autopilot") or args.has("qa-drive") or args.has("benchmark"):
+	elif args.has("autopilot") or args.has("qa-drive") or args.has("qa-cops") or args.has("qa-deer") \
+			or args.has("benchmark"):
 		var autopilot := Autopilot.new()
 		if args.has("autopilot-mph"):
 			autopilot.target_speed = float(args["autopilot-mph"]) / Hud.MPH
@@ -201,6 +235,9 @@ func restart() -> void:
 	props.reset()
 	traffic.reset()
 	corn.reset()
+	_seed += 1
+	cops.reset(_seed)
+	deer.reset(_seed)
 	_spawn(_spawn_station)
 
 
@@ -248,6 +285,9 @@ func _on_wrecked(_reason: String) -> void:
 ## once the clock is running.
 func _tow() -> void:
 	if tracker.state == RunTracker.State.WRECKED:
+		return
+	if cops.chasing():
+		cops.bust()  # calling a tow truck with a deputy on your tail: busted
 		return
 	_lost_time = 0.0
 	run.tow()

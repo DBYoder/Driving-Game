@@ -5,6 +5,7 @@ extends Resource
 ## makes the three real cars from it.
 
 const CARS := ["windstar", "tercel", "legend"]
+const COUNTIES := ["Washington", "Johnson"]  ## whose sheriff's cruisers there are
 
 @export var id := "placeholder"
 @export var display_name := "Placeholder sedan"
@@ -177,6 +178,29 @@ static func preset(car_id: String) -> CarStats:
 			s.steer_rate = 2.8
 			s.engine_note = 1.05
 			s.engine_rasp = 0.2
+		"cruiser_washington", "cruiser_johnson":
+			# A Crown Victoria Police Interceptor: big, heavy, and faster than all but the Legend.
+			var washington := car_id == "cruiser_washington"
+			s.display_name = "%s County deputy" % ("Washington" if washington else "Johnson")
+			s.paints = [["Sheriff", Color(0.90, 0.90, 0.88) if washington else Color(0.07, 0.07, 0.08)]]
+			s.style = "cruiser"
+			s.mass = 1800.0
+			s.durability = 150.0
+			s.body_size = Vector3(1.98, 1.46, 5.39)
+			s.center_of_mass_y = -0.30
+			s.wheel_radius = 0.34
+			s.track = 1.60
+			s.wheelbase = 2.90
+			s.spring = 60000.0 * s.mass / base.mass
+			s.damper = 5800.0 * s.mass / base.mass
+			s.anti_roll = 19000.0
+			s.wheel_power = 150000.0  # 4.6 L V8, 250 hp
+			s.max_drive_force = 7600.0
+			s.top_speed = 58.0  # ~130 mph
+			s.grip = 1.08
+			s.drag = 0.40
+			s.brake_force = 16000.0
+			s.steer_rate = 2.6
 		_:
 			push_error("no car called '%s'" % car_id)
 			return base

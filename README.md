@@ -13,19 +13,26 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 | ![Traffic north of Kalona](docs/screenshots/mile-1-traffic.png) | ![Corn near mile 5](docs/screenshots/mile-5-corn.png) |
 | ![The long view down into the valley at mile 9](docs/screenshots/mile-9-long-view.png) | ![Drone view at mile 7](docs/screenshots/mile-7-drone.png) |
 | ![The garage](docs/screenshots/garage.png) | ![A beat-up Legend](docs/screenshots/legend-beat-up.png) |
+| ![A Johnson County deputy on a Windstar's tail](docs/screenshots/speed-trap-chase.png) | ![Deer crossing near the creek at mile 4](docs/screenshots/deer-crossing.png) |
 
 ## Status
 
-**v0.3: the three cars.** A 1998 Windstar, a Tercel and an Acura Legend, each with its
+**v0.4: cops and deer.** Sheriff's deputies run speed traps (one in Washington County,
+three in Johnson County, in different spots every run). Blow past one and they chase
+you. Stop and you're busted; lose them, or drag the Washington County deputy over the
+county line, for points. Deer bolt across near the creeks: hold your line and they
+miss you, or don't and they won't.
+
+The cars (since v0.3) are a 1998 Windstar, a Tercel and an Acura Legend. Each has its
 own handling, toughness and points multiplier, plus dents and signature parts that fly
-off. You pick one (and a paint color) in the garage. They drive the actual Highway 1:
+off; you pick one and a paint color in the garage. They drive the actual Highway 1:
 real curves, hills, crossroads, street names and passing zones from USGS data, with a
 long view (haze out to 3 km) and deep corn fields.
 
 It's a score attack from Kalona to the US-218 overpass: smash mailboxes, fences and hay
 bales, plow corn, get air, near-miss oncoming traffic, get around Amish buggies and
-tractors, and don't wreck. Low-poly, built to run on a potato. Cops and deer are next;
-see the roadmap in PLAN.md.
+tractors, and don't wreck. Low-poly, built to run on a potato. See the roadmap in
+PLAN.md for what's next.
 
 ## Layout
 
@@ -39,6 +46,8 @@ game/                  Godot 4.6.3 project (GL Compatibility renderer)
   scripts/game/        run rules, scoring and combos, timing and records, QA test drives
   scripts/props/       mailboxes, fences, hay bales, corn clumps and the corn canopy
   scripts/traffic/     other road users and crashing into them
+  scripts/cops/        speed traps, chases and their rules, the deputies' driving, the siren
+  scripts/hazards/     deer
   scripts/ui/          the HUD, results and the garage (car select)
   shaders/             flat-shaded terrain and road paint
   tests/               headless GDScript tests
@@ -58,11 +67,15 @@ godot --headless --path game -s res://tests/run_tests.gd  # unit tests
 godot --path game -- --car=tercel --station=15000 --view=3  # skip the garage, mid-route, drone view
 godot --path game -- --autopilot --autopilot-mph=90       # watch the autopilot drive (and pass)
 godot --path game -- --station=2400 --traffic-near        # start with traffic in view
+godot --path game -- --car=windstar --station=6000 --chase  # a deputy already on your tail
+godot --path game -- --station=6600 --deer=25 --view=1     # deer crossing just ahead
 
 # Automated test drives, headless and ~25x faster than real time:
 godot --headless --fixed-fps 60 --path game -- --qa-drive            # autopilot, all 15 miles
 godot --headless --fixed-fps 60 --path game -- --qa-stress --seed=1  # hooligan inputs
 godot --headless --fixed-fps 60 --path game -- --qa-drift            # scripted handbrake turn
+godot --headless --fixed-fps 60 --path game -- --qa-cops=bust --no-traffic  # get busted (or =line)
+godot --headless --fixed-fps 60 --path game -- --qa-deer --no-traffic       # a herd, then a hit
 godot --path game -- --benchmark                                      # fps, draw calls, triangles
 godot --path game -- --car=legend --damage=0.7 --orbit                # look at the damage
 godot --path game -- --tune=handbrake_grip:0.5                        # try a CarStats tweak

@@ -78,8 +78,8 @@ jobs:
       - name: Smoke-test the exported build
         run: timeout 120 ./build/linux/HighwayOne.x86_64 --headless -- --smoke-test
 
-      # The drives also fail if anything pops in where the haze doesn't hide it, or the
-      # car visibly clips into wrecks, debris, corn or the ground.
+      # The drives also fail if anything pops in where the haze doesn't hide it, the car
+      # visibly clips into wrecks, cruisers, debris, corn or the ground, or it hits a deer.
       - name: QA drive (autopilot drives all 15 miles; Windstar and Tercel at 70, Legend at 110)
         run: |
           timeout 600 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive --car=windstar
@@ -97,6 +97,15 @@ jobs:
           timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-stress --seed=1 --car=windstar
           timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-stress --seed=2 --car=tercel
           timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-stress --seed=3 --car=legend
+
+      - name: QA speed traps (pull over and get busted; outrun a deputy to the county line)
+        run: |
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-cops=bust --no-traffic --car=legend
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-cops=line --no-traffic --car=legend
+
+      - name: QA deer (a herd crosses and misses a car holding its line; then one gets hit)
+        run: |
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-deer --no-traffic --car=legend
 
       - name: Screenshots (software rendering)
         run: |
@@ -117,6 +126,8 @@ jobs:
           shoot windstar 175 0 "--car=windstar --orbit --no-traffic"
           shoot tercel-beat-up 175 0 "--car=tercel --orbit --damage=0.7 --no-traffic"
           shoot legend-beat-up 175 0 "--car=legend --orbit --damage=0.7 --no-traffic"
+          shoot speed-trap-chase 6000 3 "--car=windstar --chase --no-traffic"
+          shoot deer-crossing 6600 0 "--car=windstar --deer=25 --no-traffic --no-cops"
 
       - uses: actions/upload-artifact@v6
         with:

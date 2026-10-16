@@ -8,7 +8,9 @@ extends Node3D
 ## Hitting a vehicle is a real crash (damage, momentum, it tumbles away as a wreck);
 ## a head-on at speed or touching a buggy ends the run.
 ##
-## Vehicles appear and disappear far enough away that the haze hides it.
+## Vehicles appear and disappear far enough away that the haze hides it. They pull
+## onto the shoulder and slow down for a cruiser with its lights on, and they can be
+## hit by one.
 
 const LANE := 1.83
 const SHOULDER_LANE := 2.6  ## buggies and tractors hug the edge
@@ -21,6 +23,8 @@ const MAX_WRECKS := 8  ## past this, the farthest goes
 const WRECK_RANGE := 900.0  ## wrecks further than this from the car are cleared away
 const HEAD_ON_SPEED := 25.0  ## closing speed (m/s) at which a head-on ends the run
 const NEAR_MISS_GAP := 1.2  ## meters between mirrors
+const YIELD_RANGE := 250.0  ## m: pull over for a siren coming up this close
+const YIELD_SHIFT := 2.4  ## m further out, onto the shoulder
 const NEAR_MISS_POINTS := 250
 
 ## length/width (m), mass (kg), speed range (m/s), footprint center along the vehicle
@@ -39,7 +43,9 @@ class Vehicle:
 	var node: MeshInstance3D
 	var station: float
 	var direction: float  ## +1 northbound (with the player), -1 oncoming
-	var offset: float  ## meters right of the centerline
+	var offset: float  ## meters right of the centerline, now
+	var lane: float  ## meters right of the centerline it normally keeps to
+	var yielding := false  ## pulled over for a siren
 	var cruise: float
 	var speed: float
 	var passed := false  ## scored (passed or near-missed) already
@@ -52,6 +58,8 @@ var car: Car
 var run: Run
 var enabled := true
 var vehicles: Array[Vehicle] = []
+var other_cars: Array[Car] = []  ## besides the player's: police cruisers, which can hit traffic too
+var sirens: Array[Car] = []  ## cruisers with their lights on
 var _wrecks: Array[RigidBody3D] = []
 var _rng := RandomNumberGenerator.new()
 var _oncoming_timer := 0.0
@@ -91,11 +99,14 @@ func _physics_process(delta: float) -> void:
 
 
 ## The nearest vehicle ahead of `station` going `direction` (within `reach`), or null.
-func leader(station: float, direction: float, reach: float) -> Vehicle:
+## Pulled-over vehicles count unless `include_yielding` is false (they're on the
+## shoulder, out of the lane).
+func leader(station: float, direction: float, reach: float, include_yielding := true) -> Vehicle:
 	var best: Vehicle = null
 	for v in vehicles:
 		var gap := (v.station - station) * direction
-		if v.direction == direction and gap > 0.0 and gap < reach and (best == null or gap < (best.station - station) * direction):
+		if v.direction == direction and gap > 0.0 and gap < reach and (best == null or gap < (best.station - station) * direction) \
+				and (include_yielding or not v.yielding):
 			best = v
 	return best
 
@@ -158,7 +169,8 @@ func _add(kind: String, direction: float, station := -1.0) -> void:
 	v.station = station
 	v.direction = direction
 	var slow := kind == "buggy" or kind == "tractor"
-	v.offset = (SHOULDER_LANE if slow else LANE) * direction
+	v.lane = (SHOULDER_LANE if slow else LANE) * direction
+	v.offset = v.lane
 	v.cruise = _rng.randf_range(spec.speed[0], spec.speed[1])
 	if direction > 0.0 and kind == "car":
 		v.cruise = _rng.randf_range(18.0, 21.0)  # the slowpoke you have to get around
@@ -187,6 +199,16 @@ func _drive(v: Vehicle, delta: float) -> void:
 	var in_lane := car.lateral * v.direction > 0.2
 	if in_lane and player_gap > 0.0 and player_gap < v.speed * 1.6 + 15.0:
 		wanted = 0.0
+	# A siren coming up: onto the shoulder and slow down until it's gone by.
+	v.yielding = false
+	for siren in sirens:
+		var behind := v.station - siren.station
+		if behind > -20.0 and behind < YIELD_RANGE:
+			v.yielding = true
+	if v.yielding:
+		wanted = minf(wanted, v.cruise * 0.35)
+	var lane_target := v.lane + signf(v.lane) * YIELD_SHIFT if v.yielding else v.lane
+	v.offset = move_toward(v.offset, lane_target, 1.5 * delta)
 	var rate := 2.0 if wanted > v.speed else 6.0
 	v.speed = move_toward(v.speed, wanted, rate * delta)
 	v.station += v.direction * v.speed * delta
@@ -203,21 +225,23 @@ func _place(v: Vehicle) -> void:
 
 
 func _check_player() -> void:
-	var car_pos := Vector2(car.global_position.x, car.global_position.z)
-	var car_fwd := Vector2(-car.global_transform.basis.z.x, -car.global_transform.basis.z.z).normalized()
-	var car_half := Vector2(car.stats.body_size.x, car.stats.body_size.z) / 2.0
-	for v: Vehicle in vehicles.duplicate():
-		var spec: Dictionary = KINDS[v.kind]
-		var fwd3: Vector3 = -v.node.global_transform.basis.z
-		var fwd := Vector2(fwd3.x, fwd3.z).normalized()
-		var center: Vector2 = Vector2(v.node.global_position.x, v.node.global_position.z) - fwd * spec.center
-		var half := Vector2(spec.width, spec.length) / 2.0
-		var dy := absf(car.global_position.y - v.node.global_position.y)
-		var push := push_apart(car_pos, car_fwd, car_half, center, fwd, half)
-		if dy < 4.0 and push != Vector2.ZERO:
-			_collide(v, push)
-			continue
-		_score_pass(v, spec)
+	for c: Car in [car] + other_cars:
+		var car_pos := Vector2(c.global_position.x, c.global_position.z)
+		var car_fwd := Vector2(-c.global_transform.basis.z.x, -c.global_transform.basis.z.z).normalized()
+		var car_half := Vector2(c.stats.body_size.x, c.stats.body_size.z) / 2.0
+		for v: Vehicle in vehicles.duplicate():
+			var spec: Dictionary = KINDS[v.kind]
+			var fwd3: Vector3 = -v.node.global_transform.basis.z
+			var fwd := Vector2(fwd3.x, fwd3.z).normalized()
+			var center: Vector2 = Vector2(v.node.global_position.x, v.node.global_position.z) - fwd * spec.center
+			var half := Vector2(spec.width, spec.length) / 2.0
+			var dy := absf(c.global_position.y - v.node.global_position.y)
+			var push := push_apart(car_pos, car_fwd, car_half, center, fwd, half)
+			if dy < 4.0 and push != Vector2.ZERO:
+				_collide(v, push, c)
+				continue
+			if c == car:
+				_score_pass(v, spec)
 
 
 func _score_pass(v: Vehicle, spec: Dictionary) -> void:
@@ -243,25 +267,26 @@ func _score_pass(v: Vehicle, spec: Dictionary) -> void:
 ## A crash with a vehicle: momentum, damage, maybe the end of the run, and the vehicle
 ## leaves traffic as a physics wreck. `push` moves the vehicle's footprint off the car's:
 ## at highway speeds the car is up to a meter into it by the time they're seen to touch.
-func _collide(v: Vehicle, push: Vector2) -> void:
+func _collide(v: Vehicle, push: Vector2, c: Car) -> void:
 	var spec: Dictionary = KINDS[v.kind]
 	v.touched = true
 	var v_velocity := -v.node.global_transform.basis.z * v.speed
-	var closing := (car.linear_velocity - v_velocity).length()
-	var m_car := car.stats.mass
+	var closing := (c.linear_velocity - v_velocity).length()
+	var m_car := c.stats.mass
 	var m_v: float = spec.mass
-	var shared := (car.linear_velocity * m_car + v_velocity * m_v) / (m_car + m_v)
-	var head_on := car.linear_velocity.dot(v_velocity) < 0.0 and closing > HEAD_ON_SPEED
+	var shared := (c.linear_velocity * m_car + v_velocity * m_v) / (m_car + m_v)
+	var head_on := c.linear_velocity.dot(v_velocity) < 0.0 and closing > HEAD_ON_SPEED
 	var damage := closing * 2.2 * clampf(2.0 * m_v / (m_v + m_car), 0.3, 1.5)
 	# Start them just touching, then both leave at the shared velocity, nudged apart.
 	var apart := Vector3(push.x, 0.0, push.y)
 	v.node.global_position += apart + apart.normalized() * 0.05
 	var away := -apart.normalized() * 2.5
-	car.bump_to(shared + away, damage)
-	if v.kind == "buggy":
-		run.wreck("You hit an Amish buggy")
-	elif head_on:
-		run.wreck("Head-on with a %s" % v.kind)
+	c.bump_to(shared + away, damage)
+	if c == car:
+		if v.kind == "buggy":
+			run.wreck("You hit an Amish buggy")
+		elif head_on:
+			run.wreck("Head-on with a %s" % v.kind)
 	_make_wreck(v, shared - away * m_car / m_v)
 
 

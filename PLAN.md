@@ -115,7 +115,8 @@ The stats below are approximate, for flavor; tuning is for fun.
 | Near-miss with oncoming traffic | 250 |
 | Clean pass: buggy / tractor / combine | 150 / 200 / 400 |
 | Escaping a cop | 1,000 |
-| Crossing the county line with the Washington County deputy on you (he gives up: "jurisdiction bonus") | 2,000 |
+| Crossing the county line with the Washington County deputy on you (the deputy gives up: "jurisdiction bonus") | 2,000 |
+| A deer in your path that you miss | 100 |
 
 - **Combo**: events chained within ~4 s raise a multiplier (up to ×5). Any hard hit resets it.
 - **Finish**: reaching the 218 interchange multiplies the whole run by ×1.5, plus a time bonus under par.
@@ -182,7 +183,7 @@ Driving-Game/
 - `RoadBuilder` / `TerrainChunk` / `PropPlacer`: procedural meshes, MultiMesh corn, fences, mailboxes.
 - `Vehicle` + `VehicleStats` + `DamageModel`: raycast car, per-car tuning, health, dents, detachable parts.
 - `TrafficDirector`: spawns and despawns AI ahead of and behind you along lane paths, capped at N active vehicles.
-- `CopAI`, `DeerSpawner`, `ScoreKeeper` (event bus), `RunManager` (start → driving → finish/wreck/bust), `HighScores` (saved to `%APPDATA%`).
+- `Cops` (traps and chases, with `Pursuit` for the rules and `CopDriver` at the wheel), `Deer`, `ScoreKeeper` (event bus), `RunManager` (start → driving → finish/wreck/bust), `HighScores` (saved to `%APPDATA%`).
 - `Conditions`: applies a condition's palette, fog, grip, and traffic mix.
 
 ### 5.3 Controls
@@ -295,6 +296,33 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
 
 ### Phase 4: v0.4 "Cops & deer"
 - Speed traps, chases, busted, the county-line jurisdiction bonus, deer.
+- **Built:**
+  - **Speed traps.** Each run hides one Washington County deputy (between Kalona and the county line at Johnson-Washington Rd, mile 1.75) and three Johnson County deputies. They park on the shoulder just past a crossroad, and the spots change every run.
+  - **Radar.** Pass within 130 m of a parked cruiser above 72 mph, or hit it, and the chase is on: a banner, lights, a siren. Traffic pulls over for the siren.
+  - **The cruisers** are physics cars like yours: white for Washington County, black for Johnson, with a light bar, a push bar and SHERIFF on the doors. The deputy runs you down at up to 130 mph, then sits about 10 m off your bumper. They don't ram. The HUD shows who's after you and how close.
+  - **How a chase ends:**
+
+    | What happens | Outcome | Points |
+    |---|---|---|
+    | You stop (under 10 mph) with the deputy within 15 m for 3 s | **Busted**: the run's over | none |
+    | You get 600 m clear for 4 s, or wreck the cruiser | Lost the cop | 1,000 |
+    | You cross into Johnson County with the Washington County deputy on you | Jurisdiction | 2,000 |
+    | It goes on for 2½ minutes | Outlasted the cop | 1,000 |
+
+    Calling the tow truck mid-chase counts as busted.
+  - **Deer.** About 8 crossings a run (5–10), mostly at the creeks where the road bridges them and a few anywhere. They change every run.
+    - Come up on one above 30 mph and a herd of one to three breaks out of the corn and bolts across. Each deer paces itself to cross ahead of you, each closer than the last.
+    - Sometimes the first one stops dead in your lane and stares, then bolts at the last moment, sometimes back the way it came.
+    - **It's fair:** hold your speed and line and they all miss you, if only just (QA checks it from both sides at 50, 70 and 110 mph). A deer that can't get across ahead of you in time (say you sped up after passing a buggy) stops at the roadside and crosses behind you. Speed up once they're on the road, or swerve the wrong way, and you'll hit one.
+    - A hit does about 1 health per m/s of closing speed (32 at 70 mph) and costs you the combo. The deer tumbles away (no gore). Traffic and cruisers can hit them too.
+    - A deer in your path that you miss scores "Deer dodged" (100).
+    - Deer come out in daylight for now. Dusk and night (the conditions in §4.6) come later.
+  - **Tests.** New QA scenarios run in CI:
+    - get busted at a Johnson County trap;
+    - outrun the Washington County deputy to the county line;
+    - drive through a herd (the first one freezes in the lane), then hit a deer standing in the road.
+
+    The full drives now run with cops and deer, and fail if the autopilot hits a deer. There are unit tests for the chase rules and where deer cross.
 
 ### Phase 5: v0.5 "It's *our* Highway 1"
 - Your landmarks, real crop placement, farmsteads, real signs.

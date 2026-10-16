@@ -36,6 +36,8 @@ Points:
   Mailbox 50 · fence 25 · hay bale 100 (heavy: it hurts) · plowing corn 5 a meter
   Air time 100 per half second · near miss with oncoming traffic 250
   Passing a car 100 · a buggy 150 · a tractor 200 · a semi 300
+  A deer in your path that you miss 100
+  Losing a cop 1,000 · dragging the Washington County deputy over the county line 2,000
 
 Chain things together within 4 seconds and the combo multiplier climbs to x5. When
 the combo runs out, its points are banked and safe. A hard hit, the tow truck, or a
@@ -49,7 +51,25 @@ The run is over if:
   - it's on its roof or side for 3 seconds
   - you hit an Amish buggy
   - you hit oncoming traffic head-on at speed
+  - you get busted
 Stuck in a ditch? T calls the tow truck: back on the road for 500 points.
+
+
+COPS AND DEER
+-------------
+Sheriff's deputies sit on the shoulder just past crossroads: one in Washington County
+(Kalona up to the county line at mile 1.75), three in Johnson County. They move every
+run. Go past one at over 72 mph, or hit one, and you've got a deputy on your tail.
+  - Stop with the deputy right behind you for 3 seconds: BUSTED, the run's over.
+    Calling the tow truck while they're after you counts as busted too.
+  - Get 600 m ahead and stay there, or wreck the cruiser: lost the cop, 1,000.
+  - The Washington County deputy stops at the county line: 2,000 if you drag them
+    over it.
+  - Keep it going for 2 and a half minutes and they give up: 1,000.
+
+Deer cross near the creeks, and anywhere else now and then, a few at a time. If you
+hold your speed and stay in your lane, they'll miss you, just. Speed up or swerve
+and you might hit one: it hurts the car and it costs you the combo.
 
 
 CONTROLS                      KEYBOARD            CONTROLLER
@@ -71,12 +91,13 @@ Quit                          Esc
 
 WHAT'S IN THIS BUILD
 --------------------
-v0.3: the Windstar, the Tercel and the Legend, each with its own handling, toughness,
-points and ways of falling apart, on the real road, with things to smash, deep corn
-fields to plow, traffic both ways, Amish buggies and tractors to get around, and real
-passing zones. The curves, hills, crossroads and street names come from USGS map and
-elevation data, and you can see the real countryside out to about 3 km.
-Coming next: cops and deer.
+v0.4: speed traps, chases and deer, added to the Windstar, the Tercel and the Legend
+(each with its own handling, toughness, points and ways of falling apart) on the real
+road. There are things to smash, deep corn fields to plow, traffic both ways, and Amish
+buggies and tractors to get around, with real passing zones. The curves, hills,
+crossroads and street names come from USGS map and elevation data, and you can see the
+real countryside out to about 3 km.
+Coming next: making it *our* Highway 1 (landmarks, real farmsteads and signs).
 
 
 IF IT WON'T START OR LOOKS BROKEN

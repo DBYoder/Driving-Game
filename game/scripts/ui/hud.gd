@@ -1,8 +1,8 @@
 class_name Hud
 extends CanvasLayer
-## Trip readout (top left), clock (top right), score and combo (top center),
-## speed and car health (bottom right), scoring popups, big messages, the results
-## screen, and control hints (bottom left).
+## Trip readout (top left), clock (top right), score and combo (top center), who's
+## chasing you (under the combo), speed and car health (bottom right), scoring popups,
+## big messages, the results screen, and control hints (bottom left).
 
 const MPH := 2.23694
 const RESULTS_DELAY := 2.5  ## seconds of crash cam before the results after a wreck
@@ -12,10 +12,14 @@ var car: Car
 var run: Run
 var tracker: RunTracker
 var camera: ChaseCamera
+var cops: Cops
 var _trip: Label
 var _clock: Label
 var _score: Label
 var _combo: Label
+var _chase: Label
+var _banner := ""
+var _banner_time := 0.0
 var _speed: Label
 var _health: ProgressBar
 var _message: Label
@@ -43,6 +47,8 @@ func setup(r: RouteData, c: Car, game_run: Run, cam: ChaseCamera) -> void:
 	_combo = _label(26, Control.PRESET_CENTER_TOP, Vector2(0, 62))
 	_combo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_combo.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	_chase = _label(24, Control.PRESET_CENTER_TOP, Vector2(0, 98))
+	_chase.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_speed = _label(52, Control.PRESET_BOTTOM_RIGHT, Vector2(-28, -20))
 	_speed.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_health = _health_bar()
@@ -85,6 +91,13 @@ func _process(delta: float) -> void:
 	_speed.text = "%d mph" % roundi(absf(car.forward_speed()) * MPH)
 	_health.value = car.health / car.stats.durability * 100.0
 
+	var chase := cops.status() if cops else ""
+	_chase.text = chase
+	if chase != "":
+		var flash := fmod(Time.get_ticks_msec() / 1000.0, 0.5) < 0.25
+		_chase.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3) if flash else Color(0.45, 0.6, 1.0))
+
+	_banner_time = maxf(_banner_time - delta, 0.0)
 	_go_flash = maxf(_go_flash - delta, 0.0)
 	_over_time = _over_time + delta if tracker.over() else 0.0
 	var show_results := tracker.state == RunTracker.State.FINISHED \
@@ -104,8 +117,16 @@ func _process(delta: float) -> void:
 		_show("", 40)
 	elif _go_flash > 0.0:
 		_show("GO!", 56)
+	elif _banner_time > 0.0:
+		_show(_banner, 48)
 	else:
 		_show("", 40)
+
+
+## A big message for a couple of seconds ("SPEED TRAP!").
+func banner(text: String, seconds := 2.0) -> void:
+	_banner = text
+	_banner_time = seconds
 
 
 func _on_scored(label: String, points: int) -> void:

@@ -41,6 +41,13 @@ const SHAPES := {
 		"cabin": [[0.27, 0.22, "glass"], [0.43, 0.74, "paint"], [0.70, 0.74, "glass"], [0.83, 0.24, "paint"]],
 		"roof_taper": 0.80,
 	},
+	"cruiser": {
+		"body": [[0.0, -0.30, "paint"], [0.0, 0.08, "paint"], [0.02, 0.16, "paint"], [0.31, 0.24, "paint"],
+			[0.72, 0.26, "paint"], [0.975, 0.24, "paint"], [1.0, 0.14, "paint"], [1.0, -0.30, "trim"],
+			[0.85, -0.37, "paint"], [0.15, -0.37, "trim"]],
+		"cabin": [[0.31, 0.24, "glass"], [0.43, 0.76, "paint"], [0.68, 0.76, "glass"], [0.80, 0.26, "paint"]],
+		"roof_taper": 0.82,
+	},
 	"sedan": {
 		"body": [[0.0, -0.30, "paint"], [0.0, 0.06, "paint"], [0.02, 0.13, "bay"], [0.31, 0.22, "paint"],
 			[0.72, 0.24, "bay"], [0.975, 0.22, "paint"], [1.0, 0.12, "paint"], [1.0, -0.30, "trim"],
@@ -64,6 +71,8 @@ var _wheel_pivots: Array[Node3D] = []
 var _wheel_spinners: Array[Node3D] = []
 var _shadow: MeshInstance3D
 var _smoke: CPUParticles3D
+var _beacons: Array[StandardMaterial3D] = []  ## a cruiser's red and blue lights
+var _beacons_on := false
 var _lean := Vector2.ZERO  ## smoothed (roll, pitch) in radians
 var _time := 0.0
 var _damage := 0.0
@@ -106,6 +115,8 @@ func build(stats: CarStats, wheels: Array) -> void:
 
 	_build_wheels(stats, wheels)
 	_build_parts(stats, w, l)
+	if stats.style == "cruiser":
+		_build_light_bar(stats, w, l)
 	_smoke = _make_smoke(l)
 	_body.add_child(_smoke)
 	_shadow = MeshInstance3D.new()
@@ -188,10 +199,51 @@ func update(wheels: Array, steer_angle: float, accel: Vector3, speed: float, del
 	target = target.clamp(Vector2.ONE * -0.15, Vector2.ONE * 0.15)
 	_lean = _lean.lerp(target, 1.0 - exp(-delta * 6.0))
 	_body.rotation = Vector3(_lean.y, 0.0, _lean.x)
+	if not _beacons.is_empty():
+		var flash := fmod(_time, 0.5) < 0.25
+		_beacons[0].albedo_color = Color(1.0, 0.1, 0.1) if _beacons_on and flash else Color(0.35, 0.05, 0.05)
+		_beacons[1].albedo_color = Color(0.15, 0.3, 1.0) if _beacons_on and not flash else Color(0.05, 0.08, 0.3)
 	for part in _parts:
 		if part.state == "open":
 			var flap: float = sin(_time * (7.0 + speed * 0.2) + part.at.z) * clampf(speed / 30.0, 0.0, 1.0)
 			part.node.rotation.x = part.open_angle * (0.75 + 0.25 * flap)
+
+
+## A cruiser's lights: flashing red and blue while it's chasing someone.
+func set_beacons(on: bool) -> void:
+	_beacons_on = on
+
+
+## The light bar on the roof and SHERIFF on the doors.
+func _build_light_bar(stats: CarStats, w: float, l: float) -> void:
+	var roof_y: float = SHAPES.cruiser.cabin[1][1]
+	var roof_z := -l / 2.0 + l * 0.52
+	var base := [PackedVector3Array(), PackedColorArray()]
+	_box(base, Vector3(w * 0.7, 0.06, 0.28), Vector3(0, roof_y + 0.03, roof_z), TRIM)
+	_body.add_child(_mesh_of(base, _flat(Color.WHITE)))
+	for side: float in [-1.0, 1.0]:
+		var lamp := [PackedVector3Array(), PackedColorArray()]
+		_box(lamp, Vector3(w * 0.32, 0.12, 0.24), Vector3(side * w * 0.17, roof_y + 0.12, roof_z), Color.WHITE)
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_beacons.append(m)
+		_body.add_child(_mesh_of(lamp, m))
+	var push_bar := [PackedVector3Array(), PackedColorArray()]
+	_box(push_bar, Vector3(w * 0.6, 0.35, 0.08), Vector3(0, -0.12, -l / 2.0 - 0.12), TRIM)
+	_body.add_child(_mesh_of(push_bar, _flat(Color.WHITE)))
+	var dark := stats.body_color.get_luminance() < 0.5
+	for side: float in [-1.0, 1.0]:
+		var label := Label3D.new()
+		label.text = "SHERIFF"
+		label.font_size = 64
+		label.pixel_size = 0.005
+		label.outline_size = 0
+		label.modulate = Color(0.95, 0.8, 0.3) if dark else Color(0.1, 0.3, 0.2)
+		label.double_sided = false
+		label.position = Vector3(side * (w / 2.0 + 0.01), 0.02, 0.1)
+		label.rotation.y = side * PI / 2.0
+		label.visibility_range_end = 120.0
+		_body.add_child(label)
 
 
 func _rebuild_body() -> void:
