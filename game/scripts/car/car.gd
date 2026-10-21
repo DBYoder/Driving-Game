@@ -57,6 +57,15 @@ var wheels: Array[Wheel] = []
 var steer_angle := 0.0  ## radians, positive turns left
 var model: CarModel
 var body_shape: CollisionShape3D  ## the lower body's box
+var grip_scale := 1.0  ## the weather's: wet or snowy roads grip less (Condition.grip)
+var ice := PackedFloat32Array()  ## [from, to] station pairs of black ice on the road
+var ice_grip := 1.0  ## grip on it
+var on_ice := false
+var headlights := false:  ## at night
+	set(value):
+		headlights = value
+		if model:
+			model.set_headlights(value)
 var _rear_loose := 0.0  ## 0 = rear tires gripping, 1 = locked and sliding (handbrake)
 var health := 100.0
 var _last_velocity := Vector3.ZERO
@@ -126,6 +135,7 @@ func repair() -> void:
 	add_child(model)
 	model.build(stats, wheels)
 	model.part_lost.connect(func(body): part_lost.emit(body))
+	model.set_headlights(headlights)
 
 
 ## Plowing through something: lose `velocity_scale` of the speed and take `damage`,
@@ -203,6 +213,11 @@ func _physics_process(delta: float) -> void:
 		steer = 0.0
 		handbrake = false
 	_track_route()
+	on_ice = false
+	for i in range(0, ice.size(), 2):
+		if station >= ice[i] and station <= ice[i + 1]:
+			on_ice = true
+			break
 	_check_impact(delta)
 
 	var xf := global_transform
@@ -367,7 +382,8 @@ func _tire(w: Wheel, forward: Vector3, up: Vector3, com: Vector3, drive: float, 
 	# Rubber grips best just before it lets go: a tire sliding sideways has less grip,
 	# which is what lets a drift keep going once it's started.
 	var sliding := lerpf(1.0, stats.slide_friction, smoothstep(2.0, 6.0, absf(v_lat)))
-	var limit: float = stats.grip * surface.grip * w.load * sliding * lerpf(1.0, stats.handbrake_friction, loose)
+	var weather := grip_scale * (ice_grip if on_ice and w.surface != "grass" else 1.0)
+	var limit: float = stats.grip * surface.grip * weather * w.load * sliding * lerpf(1.0, stats.handbrake_friction, loose)
 	var total := Vector2(f_long, f_lat).length()
 	if total > limit and total > 0.0:
 		f_long *= limit / total

@@ -22,7 +22,7 @@ const DRIFT_MAX_RECOVERY := 4.0
 ## The closest each kind of thing may appear (m from the car): past where the haze hides
 ## it, or (detailed tiles, props) where it's a speck replacing nothing much.
 const MIN_POP_IN := {"horizon": 3000.0, "road": 2400.0, "terrain": 1000.0, "props": 1000.0,
-	"corn": CornField.CLUMP_GONE, "traffic": 1800.0, "deer": 170.0}
+	"corn": CornField.CLUMP_GONE, "traffic": 1800.0, "deer": 170.0, "scenery": 1000.0}
 const MIN_TRAFFIC_POP_OUT := 800.0
 ## Ticks of visible clipping allowed per kind (contacts can sink in a little for a tick).
 const MAX_CLIP_TICKS := 10
@@ -37,6 +37,7 @@ var _sim_time := 0.0
 var _wall_start := 0
 var _worst_lane_error := 0.0
 var _worst_lane_station := 0.0
+var _worst_lane_note := ""  ## what was going on then
 var _lowest_up := 1.0
 var _top_speed := 0.0
 var _airborne_ticks := 0
@@ -126,10 +127,17 @@ func _physics_process(delta: float) -> void:
 		if lane_error > _worst_lane_error:
 			_worst_lane_error = lane_error
 			_worst_lane_station = car.station
+			var ap := car.driver as Autopilot
+			_worst_lane_note = "%.0f mph, %.1f m right of center aiming for %.1f%s%s" % [
+				car.forward_speed() * Hud.MPH, car.lateral, aim,
+				", passing" if ap and ap.passing else "", ", on ice" if car.on_ice else ""]
 	if _lowest_up < 0.3:
 		_fail("car rolled over near mile %.2f" % car.route.mile_at(car.station))
 	elif run.tracker.state == RunTracker.State.WRECKED:
-		_fail("wrecked (%s) near mile %.2f" % [run.tracker.wreck_reason, car.route.mile_at(car.station)])
+		var ap := car.driver as Autopilot
+		_fail("wrecked (%s) near mile %.2f at %.0f mph, %.1f m right of center%s%s" % [
+			run.tracker.wreck_reason, car.route.mile_at(car.station), car.forward_speed() * Hud.MPH, car.lateral,
+			" (passing)" if ap and ap.passing else "", " on ice" if car.on_ice else ""])
 	elif run.tracker.state == RunTracker.State.FINISHED:
 		_finish()
 	elif _sim_time > ROUTE_TIME_LIMIT:
@@ -301,7 +309,8 @@ func _finish() -> void:
 		_problems.append("drifted %.1f m out of the lane near mile %.2f" % [
 			_worst_lane_error, car.route.mile_at(_worst_lane_station)])
 	var wall := (Time.get_ticks_msec() - _wall_start) / 1000.0
-	var what := "QA drive: %s run time, score %d" % [RunTracker.format_time(run.tracker.elapsed), run.score.banked]
+	var what := "QA drive (%s): %s run time, score %d" % [get_parent().condition.display_name,
+		RunTracker.format_time(run.tracker.elapsed), run.score.banked]
 	if stress:
 		what = "QA stress: reached mile %.1f, %d flips recovered, %d wrecks %s" % [
 			car.route.mile_at(_furthest), _flips, _wrecks, _wreck_reasons]
@@ -309,12 +318,13 @@ func _finish() -> void:
 		what = "QA drift"
 	print("%s, %.1f s simulated in %.1f s wall (%.1fx real time)" % [
 		what, _sim_time, wall, _sim_time / maxf(wall, 0.001)])
-	var lane := "" if stress else ", worst lane error %.2f m (mile %.2f)" % [
-		_worst_lane_error, car.route.mile_at(_worst_lane_station)]
+	var lane := "" if stress else ", worst lane error %.2f m (mile %.2f: %s)" % [
+		_worst_lane_error, car.route.mile_at(_worst_lane_station), _worst_lane_note]
 	print("  0-60 mph %.1f s, top speed %.0f mph%s, min uprightness %.2f, airborne %.1f s" % [
 		_zero_to_sixty, _top_speed * Hud.MPH, lane, _lowest_up, _airborne_ticks * get_physics_process_delta_time()])
-	print("  biggest one-tick jolt %.2f m/s, car health %.0f%%, props smashed %d" % [
-		car.peak_jolt, car.health / car.stats.durability * 100.0, get_parent().props.smashed_count()])
+	print("  biggest one-tick jolt %.2f m/s, car health %.0f%%, props smashed %d%s" % [
+		car.peak_jolt, car.health / car.stats.durability * 100.0, get_parent().props.smashed_count(),
+		", backed out of a jam %d times" % car.driver.unstuck_count if car.driver is Autopilot and car.driver.unstuck_count > 0 else ""])
 	var labels := run.score.totals.keys()
 	labels.sort()
 	print("  clipping: %s" % _clips.report())
@@ -326,7 +336,7 @@ func _finish() -> void:
 	var pop_in := {"horizon": main.streamer.nearest_pop_in.far, "road": main.streamer.nearest_pop_in.road,
 		"terrain": main.streamer.nearest_pop_in.tile, "props": main.props.nearest_pop_in,
 		"corn": main.corn.nearest_pop_in, "traffic": main.traffic.nearest_pop_in,
-		"deer": main.deer.nearest_pop_in}
+		"deer": main.deer.nearest_pop_in, "scenery": main.scenery.nearest_pop_in}
 	print("  nearest pop-in: %s; traffic gone at %s" % [
 		", ".join(pop_in.keys().map(func(k): return "%s %s" % [k, _meters(pop_in[k])])),
 		_meters(main.traffic.nearest_pop_out)])

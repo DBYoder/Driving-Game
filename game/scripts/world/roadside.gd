@@ -1,10 +1,17 @@
 class_name Roadside
 extends Node3D
-## Street-name signs at the real crossroads, green mile markers, and the start and finish banners.
+## Street-name signs at the real crossroads, green mile markers, and the start and finish
+## banners. From the map data (tools/bake_places.py): the names of the creeks at their
+## bridges, the county line and the Iowa City limit with its population. And the usual:
+## 55 mph once out of Kalona, IOWA 1 route markers.
 
 const SIGN_GREEN := Color(0.05, 0.40, 0.18)
 const POST_GRAY := Color(0.55, 0.55, 0.57)
 const SIGN_RANGE := 1100.0  ## signs further than this are a pixel or two in the haze: not drawn
+const WHITE := Color(0.95, 0.95, 0.93)
+const BLACK := Color(0.08, 0.08, 0.08)
+const SPEED_LIMIT_EVERY := 4.0 * RouteData.MILE_M  ## a 55 sign about this often...
+const CLEAR_OF_CROSSROADS := 120.0  ## ...but not crowding a crossroad's own signs
 
 var route: RouteData
 
@@ -30,6 +37,24 @@ func setup(r: RouteData) -> void:
 	_add_banner(route.start_station, "KALONA\nSTART")
 	_add_banner(route.finish_station, "IOWA CITY\nFINISH")
 
+	var white := _material(WHITE)
+	for c: Dictionary in route.places.creeks:
+		_add_sign(_bridge_start(c.station) - 20.0, 7.6, String(c.name).to_upper(), green, gray)
+	for c: Dictionary in route.places.counties:
+		_add_sign(c.station, 8.5, "%s\nCOUNTY" % String(c.entering).to_upper(), green, gray)
+	var leave_town := route.start_station
+	for c: Dictionary in route.places.cities:
+		if c.entering:
+			_add_sign(c.station, 8.5, "%s\nPOP %s" % [String(c.name).to_upper(), _thousands(int(c.population))], green, gray)
+		elif c.station > route.start_station and c.station < route.start_station + RouteData.MILE_M:
+			leave_town = c.station
+	var s := leave_town + 150.0
+	while s < route.finish_station - RouteData.MILE_M:
+		s = _clear_spot(s)
+		_add_plate(s, 7.6, "SPEED\nLIMIT\n55", Vector2(0.75, 0.95), white, BLACK, gray)
+		_add_route_marker(_clear_spot(s + 400.0), white, gray)
+		s += SPEED_LIMIT_EVERY
+
 
 func _material(color: Color) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
@@ -49,6 +74,64 @@ func _add_sign(station: float, offset: float, text: String, face: Material, post
 	label.position = Vector3(0, 2.5, 0.03)
 	label.visibility_range_end = SIGN_RANGE
 	holder.add_child(label)
+
+
+## A regulatory-style sign: `face` colored, dark text, a set size.
+func _add_plate(station: float, offset: float, text: String, size: Vector2, face: Material,
+		text_color: Color, post: Material) -> void:
+	var holder := _place(station, offset)
+	_box(holder, Vector3(0.08, 2.4, 0.08), Vector3(0, 1.2, 0), post)
+	_box(holder, Vector3(size.x, size.y, 0.04), Vector3(0, 2.1, 0), face)
+	_box(holder, Vector3(size.x - 0.06, size.y - 0.06, 0.042), Vector3(0, 2.1, 0), _material(text_color))
+	_box(holder, Vector3(size.x - 0.1, size.y - 0.1, 0.044), Vector3(0, 2.1, 0), face)
+	var label := _label(text, 44)
+	label.modulate = text_color
+	label.position = Vector3(0, 2.1, 0.03)
+	label.visibility_range_end = SIGN_RANGE
+	holder.add_child(label)
+
+
+## Iowa's route marker (IOWA over a big 1 in a black-rimmed white square) under a NORTH plate.
+func _add_route_marker(station: float, white: Material, post: Material) -> void:
+	var holder := _place(station, 7.6)
+	var black := _material(BLACK)
+	_box(holder, Vector3(0.08, 2.9, 0.08), Vector3(0, 1.45, 0), post)
+	_box(holder, Vector3(0.62, 0.62, 0.04), Vector3(0, 2.3, 0), black)
+	_box(holder, Vector3(0.56, 0.56, 0.042), Vector3(0, 2.3, 0), white)
+	_box(holder, Vector3(0.62, 0.24, 0.04), Vector3(0, 2.78, 0), white)
+	var rows := [["NORTH", 26, 2.78], ["IOWA", 22, 2.47], ["1", 80, 2.24]]
+	for row: Array in rows:
+		var label := _label(row[0], row[1])
+		label.modulate = BLACK
+		label.position = Vector3(0, row[2], 0.03)
+		label.visibility_range_end = SIGN_RANGE
+		holder.add_child(label)
+
+
+## Where a creek's bridge starts (the bridge nearest the crossing), or the crossing.
+func _bridge_start(station: float) -> float:
+	for b: Array in route.bridges:
+		if station > float(b[0]) - 60.0 and station < float(b[1]) + 60.0:
+			return float(b[0])
+	return station
+
+
+## The first station from `s` on that isn't crowding a crossroad's signs.
+func _clear_spot(s: float) -> float:
+	for c in route.crossroads:
+		if absf(float(c.station) - s) < CLEAR_OF_CROSSROADS:
+			s = float(c.station) + CLEAR_OF_CROSSROADS
+	return s
+
+
+static func _thousands(n: int) -> String:
+	var digits := str(n)
+	var out := ""
+	for i in digits.length():
+		if i > 0 and (digits.length() - i) % 3 == 0:
+			out += ","
+		out += digits[i]
+	return out
 
 
 func _add_marker(station: float, mile: int, face: Material, post: Material) -> void:

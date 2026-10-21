@@ -156,7 +156,7 @@ func generate(chunk: int) -> Array:
 
 func _hay_ground(p: Vector3) -> bool:
 	var crop := fields.crop_at(p.x, p.z)
-	return crop == Fields.HAY or crop == Fields.PASTURE
+	return (crop == Fields.HAY or crop == Fields.PASTURE) and route.terrain.yard_distance_smooth(p.x, p.z) > 15.0
 
 
 func _weighted(rng: RandomNumberGenerator, weights: Array) -> int:

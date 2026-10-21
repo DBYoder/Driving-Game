@@ -16,6 +16,9 @@ var bindings := {
 	"pause": [KEY_P, {"button": JOY_BUTTON_START}],
 	"restart": [KEY_R, {"button": JOY_BUTTON_BACK}],
 	"mute": [KEY_M],
+	"radio_next": [KEY_N, {"button": JOY_BUTTON_DPAD_RIGHT}],
+	"radio_power": [KEY_B, {"button": JOY_BUTTON_DPAD_LEFT}],
+	"scenery_detail": [KEY_F2],
 	"quit": [KEY_ESCAPE],
 	# The car-select screen.
 	"menu_left": [KEY_A, KEY_LEFT, {"button": JOY_BUTTON_DPAD_LEFT}, {"axis": JOY_AXIS_LEFT_X, "value": -1.0}],

@@ -15,7 +15,7 @@ signal chase_ended(outcome: Pursuit.Outcome)
 
 const COUNTY_LINE_ROAD := "Johnson-Washington Rd SW"
 const TRAPS_PER_COUNTY := {"Washington": 1, "Johnson": 3}
-const PARK_OFFSET := 5.4  ## on the gravel shoulder
+const PARK_OFFSET := 6.0  ## out on the shoulder, clear of a combine's header
 const PARK_PAST := 15.0  ## m past the crossroad
 const TRAP_SPACING := 900.0  ## m at least between traps
 const SPAWN_AHEAD := 1300.0  ## parked cruisers exist this far up the road...
@@ -40,6 +40,7 @@ var player: Car
 var run: Run
 var traffic: Traffic
 var enabled := true
+var night := false  ## cruisers drive with their headlights on
 var county_line := 0.0  ## station: Washington County south of here, Johnson County north
 var traps: Array[Trap] = []
 var chase: Pursuit  ## the chase on now, or null
@@ -257,6 +258,7 @@ func _spawn_car(trap: Trap) -> void:
 	var car := Car.new()
 	add_child(car)
 	car.setup(CarStats.preset("cruiser_" + trap.county.to_lower()), route)
+	car.headlights = night
 	trap.driver = CopDriver.new()
 	car.driver = trap.driver
 	car.place_at(trap.station, PARK_OFFSET)

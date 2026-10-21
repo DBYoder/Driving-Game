@@ -51,9 +51,10 @@ A web build was rejected because you chose a Windows download, though Godot can 
 | Data | Source | Used for |
 |---|---|---|
 | Road centerline and crossroads | **USGS National Transportation Dataset** for Iowa (public domain, TIGER-based) | Exact curve geometry of Hwy 1 and the 29 crossroads on it, with names (Johnson-Washington Rd, 540th St, 500th St, Hazelwood Ave, Sharon Center Rd, Naples Ave, …). *Used instead of OpenStreetMap: it's reachable from the cloud dev environment and needs no API.* |
-| Buildings, creeks (later) | OpenStreetMap | Farmstead and building footprints for Phase 5; the USGS road data has no driveways |
+| Buildings and trees | **USGS 3DEP lidar** point clouds (the 2019 eastern Iowa flight, via the public `usgs-lidar-public` Entwine copy on AWS) | Every farmhouse, barn, machine shed, grain bin and tree line along the road, where it really stands, at its real size (`tools/bake_lidar.py`). *Used instead of OpenStreetMap, which is blocked here.* |
+| Creeks, city limits, county line | **USGS National Hydrography Dataset** and **Governmental Units** | The names on the creek, county-line and Iowa City signs (`tools/bake_places.py`) |
 | Elevation | **USGS 3DEP**: 1/3″ (~10 m) tile `n42w092` (covers the whole route; confirmed downloadable), plus 1 m lidar from the `IA_EasternIA_2019` project for the road profile | Rolling hills, crests you get air off, ditches, creek valleys |
-| What's growing where | **USDA Cropland Data Layer** (30 m) | Real corn fields vs. soybeans vs. pasture vs. woods, placed where they actually are |
+| What's growing where | **USDA Cropland Data Layer** (30 m) | Real corn fields vs. soybeans vs. pasture, placed where they actually are. *Not yet: its host is blocked here, so crops are still a made-up patchwork (§9).* |
 | Landmarks and "vibe" | **You**: a list, photos, and ideally a passenger-shot phone video of the drive | The "hey, that's ___" moments the data can't provide |
 | Eyeball reference only | Google Street View / Iowa aerial imagery | Checking sign placement, tree lines, and farm layouts. Never copied into the game (licensing). No dashcam video is coming, so Street View is the main reference for Phase 5. From the cloud environment it needs a Google Maps API key (§9). |
 
@@ -196,7 +197,15 @@ Keyboard and Xbox-style gamepad from day one, both handled natively by Godot. St
 - MultiMesh for corn, trees, fence posts, and mailboxes. A prop only becomes a physics body when the car gets close.
 - Fog hides streaming. Chunks load by route distance, not raw radius. Far-off terrain and road use lighter meshes, and signs past 1.1 km aren't drawn.
 - `--benchmark` drives for 40 s and prints fps, draw calls and triangles, to check a change (or a friend's computer) against the budget.
-- Low/Med/High presets plus a resolution-scale slider.
+- Low/Med/High presets plus a resolution-scale slider. *So far: **F2** cycles the scenery detail (all / half the trees / none), saved between runs.*
+- **The v0.5 scenery's cost** (`--benchmark` on CI's software renderer, same machine, same day):
+
+  | | v0.4 | v0.5 | v0.5, F2 half |
+  |---|---|---|---|
+  | Start, Kalona | 17 fps, 99k triangles | 15 fps, 144k | n/a |
+  | Mid-route woods (mile 6) | 22 fps, 84k | 12 fps, 186k | 15 fps, 136k |
+
+  A software renderer is the worst case: any real GPU draws 200k triangles without noticing. The real check is a friend's weakest PC (§9).
 
 ---
 
@@ -327,6 +336,46 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
 ### Phase 5: v0.5 "It's *our* Highway 1"
 - Your landmarks, real crop placement, farmsteads, real signs.
 - The five conditions and the radio folder.
+- **Built:**
+  - **Every real building and tree along the road, from lidar.** USGS flew all of eastern Iowa with lidar in spring 2019, and the point clouds are public. `tools/bake_lidar.py` reads them for 1 km either side of the road (~1.5 GB, cached) and finds:
+    - **2,355 buildings**: 1,258 houses, 151 barns, 878 sheds (machine sheds, hog buildings, shops) and 68 grain bins or silos. Each sits where it really stands, at its real footprint, height and angle.
+    - **82,410 trees**: the farmstead windbreaks, fence-line rows and creek woods.
+
+    The lidar only marks ground vs. everything else, so the bake tells them apart itself:
+    - A roof sends each laser pulse back once; a bare spring tree sends it back several times (twigs, branches, ground).
+    - Roofs are smooth on top, so evergreens (which also return once) don't pass as roofs.
+    - Power lines and fences are too thin to count, and anything on a road (bridges, overpasses) is dropped.
+    - Bins are round, or small, square and tall.
+  - **In the game** (`Scenery`): low-poly houses with gable roofs and windows, red gambrel barns, steel sheds, round bins with cone roofs, leafy trees and evergreens.
+    - They're drawn as GPU instances in 512 m blocks that stream with the terrain, with plainer models past 450 m. Blocks are worked out on a worker thread so there's no hitch.
+    - Every farmhouse gets a yard light on a pole.
+    - Near the car they're solid: crash into a barn or a tree and you'll know it.
+    - The corn stops 24 m short of any building, so every farmstead has a yard walled by corn, and hay bales stay out of yards. Deer don't cross where they'd have to run through a farmyard.
+    - **F2** cycles the detail (everything / half the trees / none) for slow machines; it's saved.
+  - **Real signs** (`tools/bake_places.py`, USGS hydrography and boundaries):
+    - **DIRTY FACE CREEK** and **OLD WOMANS CREEK** at their bridges.
+    - **JOHNSON COUNTY** at the real county line (mile 1.75).
+    - **IOWA CITY, POP 74,828** at the real city limit (mile 14.66).
+    - 55 mph signs every four miles once out of Kalona, and IOWA 1 route markers.
+  - **The five conditions** (`Condition`), picked in the garage on a new row (▲ ▼ picks car / paint / conditions, ◀ ▶ changes it). Each has its own records per car (summer keeps the old ones).
+
+    | Condition | What changes |
+    |---|---|
+    | Summer afternoon | As before |
+    | Harvest dusk | Low orange sun. Brown corn, and about 45% of the corn fields already cut to stubble. Fall-colored trees. Combines (wider than a lane, header over the shoulder) and grain trucks. Deer ×1.6 |
+    | Night | Dark; your headlights (and every other vehicle's head and tail lights, the buggies' lanterns, the cruisers'). Lit farmhouse windows and yard lights. Deer ×3 |
+    | Thunderstorm | Rain, wet roads (72% grip), lightning with thunder a moment later, and side gusts that push hardest on tall cars: bad news for the Windstar |
+    | Winter | Snow on the fields, roofs and trees; the corn's all in; whiteout fog. 82% grip, and **black ice** (30%) on the bridges and wherever real trees shade the road, drawn as a dark glaze you can see coming. Snowplows |
+
+  - **The radio** (`Radio`): any `.mp3` or `.ogg` in a `radio/` folder next to the game plays, shuffled. **N** skips, **B** turns it off/on (D-pad right/left); the song's name shows at the bottom left. The zip ships with the folder and a note in it.
+  - **The autopilot** (and so the QA drives) drives the conditions the way a careful driver would. It leaves more room and slows earlier on a wet or snowy road, slows to 50 mph for ice it can see, and passes a line of slow vehicles whole if there's no room to stop between them.
+  - **Tests.**
+    - CI runs a full QA drive in every condition: Windstar summer, Tercel harvest, Legend night at 110, Windstar storm, Tercel winter.
+    - A new clip-probe category checks the car never sits inside a building.
+    - Pipeline tests cover the lidar classification (roofs vs. trees, power lines, oriented footprints, bins, yards) and the creek and city crossings. Unit tests cover the conditions, harvested fields, the traffic mix and the radio.
+  - **Not done:**
+    - **Real crop placement:** its host is still blocked (§9 Q6).
+    - **Your landmarks:** still waiting on your list (§9 Q1).
 
 ### Phase 6: Polish (pick and choose)
 - Engine and crash audio, menus, graphics presets, controller rumble, practice mode, a title screen, and anything that makes your friends laugh.
@@ -357,7 +406,7 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
 3. ~~A phone video of the drive.~~ Not available, so Street View stands in. It needs a **Google Maps API key** saved as a secret in this cloud environment; the free monthly allowance easily covers a few hundred reference frames. Without one, I'll rely on your landmark list and the map data. Needed before Phase 5.
 4. **A gamepad?** It plays fine on keyboard, but tell me if everyone will use controllers.
 5. **A name.** Working title: *Highway 1*.
-6. **Network access for this cloud environment.** Not needed for Phase 0, since the road now comes from USGS. OpenStreetMap (`overpass-api.de`, `download.geofabrik.de`) and the crop data (`nassgeodata.gmu.edu`) are still blocked here. They only matter in Phase 5, so allow those hosts in the environment's network settings before then.
+6. **Network access for this cloud environment.** The buildings and trees came from USGS lidar instead of OpenStreetMap, so OSM isn't needed any more. The one thing still blocked that matters is the **crop data** (`nassgeodata.gmu.edu`): allow that host in the environment's network settings and I'll put the real corn and bean fields where they are.
 7. **Set `main` as the repo's default branch** (GitHub → Settings → General → Default branch). It's currently a feature branch.
 
 ### Where access to your Windows PC would help

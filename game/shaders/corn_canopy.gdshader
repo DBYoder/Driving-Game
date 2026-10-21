@@ -7,6 +7,7 @@ render_mode unshaded, cull_disabled;
 
 uniform vec3 leaf : source_color = vec3(0.20, 0.40, 0.12);
 uniform vec3 tassel : source_color = vec3(0.62, 0.58, 0.36);
+uniform vec3 light = vec3(1.0);  // unshaded, so the condition says how lit it is (Condition.corn_light)
 uniform vec2 field_offset = vec2(0.0);
 uniform float field_size = 402.336;
 uniform float verge = 26.0;
@@ -23,7 +24,8 @@ varying float along;
 varying float kind;
 varying float height01;
 
-// Must match Fields.cell_hash() (and terrain.gdshader): corn is a hash under 0.45.
+// Must match Fields.cell_hash() (and terrain.gdshader): corn is a hash under 0.45, unless
+// the field's been cut (a second hash under `harvested`).
 float cell_hash(vec2 cell) {
 	uvec2 c = uvec2(ivec2(cell));
 	uint h = (c.x * 73856093u) ^ (c.y * 19349663u);
@@ -32,8 +34,11 @@ float cell_hash(vec2 cell) {
 	return float(h & 0xFFFFFFu) / 16777216.0;
 }
 
+uniform float harvested = 0.0;
+
 bool corn_at(vec2 xz) {
-	return cell_hash(floor((xz - field_offset) / field_size)) < 0.45;
+	vec2 cell = floor((xz - field_offset) / field_size);
+	return cell_hash(cell) < 0.45 && cell_hash(cell + vec2(57.0, 13.0)) >= harvested;
 }
 
 void vertex() {
@@ -64,7 +69,7 @@ void fragment() {
 		// Patches a few meters across keep it looking like a crop, not paint, further out.
 		float patch = fract(sin(dot(floor(xz / 5.0), vec2(39.3468, 11.135))) * 43758.5453);
 		float patchy = 1.0 - clamp(length(fwidth(xz)) * 0.15 - 0.3, 0.0, 1.0);
-		ALBEDO = mix(near_col, far_col, far) * (1.0 + (patch - 0.5) * 0.25 * patchy);
+		ALBEDO = mix(near_col, far_col, far) * (1.0 + (patch - 0.5) * 0.25 * patchy) * light;
 	} else {
 		vec2 n = normalize(wall_normal);
 		bool show = kind < 1.5 ? corn_at(xz + n * 0.8)
@@ -80,6 +85,6 @@ void fragment() {
 			discard;
 		}
 		vec3 col = height01 > top - 0.035 ? tassel : leaf * (0.95 + 0.15 * sin(floor(x) * 1.9));
-		ALBEDO = col * mix(0.5, 1.05, clamp(height01, 0.0, 1.0));
+		ALBEDO = col * mix(0.5, 1.05, clamp(height01, 0.0, 1.0)) * light;
 	}
 }

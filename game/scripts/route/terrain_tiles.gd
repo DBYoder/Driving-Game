@@ -13,6 +13,7 @@ var coords: Array[Vector2i] = []
 var stations := PackedFloat32Array()  ## station of the road point nearest each tile
 var heights := PackedFloat32Array()
 var road_distance := PackedByteArray()  ## meters from the centerline, per vertex
+var yard_distance := PackedByteArray()  ## meters from the nearest building, per vertex (may be empty)
 var _by_coord := {}
 var _indices := {}  ## vertices per side -> PackedInt32Array
 
@@ -33,7 +34,20 @@ static func load_from(dir: String, desc: Dictionary) -> TerrainTiles:
 	if t.heights.size() != expected or t.road_distance.size() != expected:
 		push_error("terrain data has %d heights, expected %d" % [t.heights.size(), expected])
 		return null
+	var yards := dir.path_join("yard_dist.bin")
+	if FileAccess.file_exists(yards):
+		t.yard_distance = FileAccess.get_file_as_bytes(yards)
+		if t.yard_distance.size() != expected:
+			push_error("yard_dist.bin doesn't match the terrain tiles; ignoring it")
+			t.yard_distance = PackedByteArray()
 	return t
+
+
+## Station of the road point nearest the tile under (x, z), or -1 off the corridor: a
+## hint for RouteData.nearest_station.
+func station_hint(x: float, z: float) -> float:
+	var c := Vector2i(floori(x / size), floori(z / size))
+	return stations[_by_coord[c]] if _by_coord.has(c) else -1.0
 
 
 func count() -> int:
@@ -85,6 +99,17 @@ func road_distance_at(x: float, z: float) -> float:
 ## Meters from the road centerline at (x, z), interpolated between the 8 m grid points
 ## (255 = far away or outside the corridor).
 func road_distance_smooth(x: float, z: float) -> float:
+	return _smooth(road_distance, x, z)
+
+
+## Meters from the nearest building (lidar footprints), the same way; 255 = none near.
+func yard_distance_smooth(x: float, z: float) -> float:
+	if yard_distance.is_empty():
+		return 255.0
+	return _smooth(yard_distance, x, z)
+
+
+func _smooth(values: PackedByteArray, x: float, z: float) -> float:
 	var c := Vector2i(floori(x / size), floori(z / size))
 	if not _by_coord.has(c):
 		return 255.0
@@ -96,8 +121,8 @@ func road_distance_smooth(x: float, z: float) -> float:
 	fx -= col
 	fz -= row
 	var k := base + row * grid + col
-	var near := lerpf(road_distance[k], road_distance[k + 1], fx)
-	var far := lerpf(road_distance[k + grid], road_distance[k + grid + 1], fx)
+	var near := lerpf(values[k], values[k + 1], fx)
+	var far := lerpf(values[k + grid], values[k + grid + 1], fx)
 	return lerpf(near, far, fz)
 
 

@@ -8,6 +8,7 @@ render_mode unshaded, cull_disabled;
 
 uniform vec3 leaf : source_color = vec3(0.20, 0.40, 0.12);
 uniform vec3 tassel : source_color = vec3(0.62, 0.58, 0.36);
+uniform vec3 light = vec3(1.0);  // unshaded, so the condition says how lit it is (Condition.corn_light)
 uniform vec3 clear_center;  // the car
 uniform float fade_far = 98.0;
 uniform float fade_near = 90.0;
@@ -38,7 +39,7 @@ void fragment() {
 		if (h < 0.3 || length(UV - 0.5) > 0.5) {
 			discard;
 		}
-		ALBEDO = (h > 0.88 ? tassel : leaf * (0.8 + 0.35 * h)) * 0.95;
+		ALBEDO = (h > 0.88 ? tassel : leaf * (0.8 + 0.35 * h)) * 0.95 * light;
 	} else {
 		// Stalks across the quad, each with a ragged leafy outline that thins out at the top.
 		float x = UV.x * 9.0 + seed * 3.0;
@@ -49,6 +50,6 @@ void fragment() {
 			discard;
 		}
 		vec3 col = height01 > top - 0.035 ? tassel : leaf * (0.95 + 0.15 * sin(floor(x) * 1.9));
-		ALBEDO = col * mix(0.5, 1.05, height01);
+		ALBEDO = col * mix(0.5, 1.05, height01) * light;
 	}
 }

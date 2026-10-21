@@ -9,7 +9,7 @@ enum Mode { PARKED, CHASING, GIVING_UP }
 
 const FOLLOW_GAP := 10.0  ## m behind the player while chasing
 const STOP_GAP := 7.0  ## m: close enough, stop here
-const SHOULDER := 5.4  ## m right of the centerline, where it pulls over
+const SHOULDER := 6.0  ## m right of the centerline, where it pulls over (Cops.PARK_OFFSET)
 
 var mode := Mode.PARKED
 var target: Car

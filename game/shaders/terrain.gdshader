@@ -3,6 +3,8 @@ shader_type spatial;
 render_mode diffuse_lambert, specular_disabled;
 
 uniform vec3 corn : source_color = vec3(0.32, 0.43, 0.18);  // about corn_canopy's top from afar
+uniform vec3 stubble : source_color = vec3(0.62, 0.55, 0.38);  // a corn field after harvest
+uniform float harvested = 0.0;  // share of corn fields cut (Fields.harvested)
 uniform vec3 soybeans : source_color = vec3(0.34, 0.50, 0.17);
 uniform vec3 hay : source_color = vec3(0.58, 0.60, 0.30);
 uniform vec3 pasture : source_color = vec3(0.42, 0.50, 0.24);
@@ -38,7 +40,10 @@ void fragment() {
 
 	vec2 cell = floor((world_pos.xz - field_offset) / field_size);
 	float h = cell_hash(cell);
-	vec3 crop = h < 0.45 ? corn : (h < 0.85 ? soybeans : (h < 0.93 ? hay : pasture));
+	// A cut field (see Fields.crop_at) is stubble in rows.
+	bool cut = cell_hash(cell + vec2(57.0, 13.0)) < harvested;
+	vec3 crop = h < 0.45 ? (cut ? stubble * (0.93 + 0.07 * step(0.5, fract(world_pos.x / 0.76))) : corn)
+		: (h < 0.85 ? soybeans : (h < 0.93 ? hay : pasture));
 	crop *= 0.94 + 0.12 * cell_hash(cell + vec2(17.0, 31.0));
 	ALBEDO = mix(verge, crop, smoothstep(verge_width - 3.0, verge_width + 3.0, road_dist));
 }

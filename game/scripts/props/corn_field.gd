@@ -14,6 +14,7 @@ extends Node3D
 
 const SPACING := 1.6  ## meters between clumps
 const VERGE := 26.0  ## corn starts this far from the road centerline, past the fence and a grass strip
+const YARD := 24.0  ## and this far from any building: farmyards and lawns
 const CELLS_PER_BLOCK := 40
 const BLOCK := SPACING * CELLS_PER_BLOCK  ## meters per side of a square of clumps
 const BUILD_RADIUS := 120.0  ## blocks with any part this close to the car are built...
@@ -61,6 +62,14 @@ func setup(r: RouteData, f: Fields, c: Car, s: ScoreKeeper) -> void:
 	add_child(_leaves)
 
 
+## The condition's corn colors (green, harvest brown). Which fields are cut is up to
+## Fields.harvested; blocks are rebuilt by reset() and warm_up() for that.
+func apply_condition(c: Condition) -> void:
+	_material.set_shader_parameter("leaf", c.corn_leaf)
+	_material.set_shader_parameter("tassel", c.corn_tassel)
+	_material.set_shader_parameter("light", c.corn_light())
+
+
 ## Stand all the corn back up for a new run (warm_up() builds it again).
 func reset() -> void:
 	_flattened.clear()
@@ -103,13 +112,24 @@ func standing_clumps_touching(c: Car) -> int:
 	return count
 
 
+## Meters from the road as far as the corn's concerned: it grows where this is VERGE or
+## more. Near a building it's cut short so the corn stops YARD meters from it, which
+## gives every farmstead a yard with walls of corn around it (CornCanopy builds its
+## walls on this line too).
+static func clearance(terrain: TerrainTiles, x: float, z: float) -> float:
+	var road := terrain.road_distance_smooth(x, z)
+	if road >= 255.0:
+		return road
+	return minf(road, VERGE + terrain.yard_distance_smooth(x, z) - YARD)
+
+
 func _physics_process(delta: float) -> void:
 	if car == null:
 		return
 	_stream()
 	_flatten_touching(delta)
 	var pos := car.global_position
-	var d := route.terrain.road_distance_smooth(pos.x, pos.z)
+	var d := clearance(route.terrain, pos.x, pos.z)
 	var speed := car.linear_velocity.length()
 	plowing = d >= VERGE - 1.0 and speed > 2.0 and car.grounded_wheels() > 0 \
 		and fields.crop_at(pos.x, pos.z) == Fields.CORN
@@ -191,7 +211,7 @@ func _continue_block(budget_usec: float) -> void:
 			var cell := Vector2i(cx, b.y * CELLS_PER_BLOCK + row)
 			var x := cell.x * SPACING
 			var z := cell.y * SPACING
-			var d := route.terrain.road_distance_smooth(x, z)
+			var d := clearance(route.terrain, x, z)
 			if d < VERGE or d >= 255.0 or fields.crop_at(x, z) != Fields.CORN:
 				continue
 			_where[cell] = [b, cells.size()]

@@ -15,10 +15,10 @@ HOW TO RUN
 
 HOW TO PLAY
 -----------
-Pick a car and a paint color in the garage, then get from Kalona to Iowa City causing
-as much chaos as you can. The clock and the scoring start when you cross the line at
+Pick a car, a paint color and the conditions in the garage, then get from Kalona to
+Iowa City causing as much chaos as you can. The clock and the scoring start when you cross the line at
 the IA-22 four-way stop in Kalona and stop at the US-218 overpass. Your best score and
-best time are saved for each car.
+best time are saved for each car in each of the conditions.
 
 
 THE CARS
@@ -55,6 +55,27 @@ The run is over if:
 Stuck in a ditch? T calls the tow truck: back on the road for 500 points.
 
 
+THE CONDITIONS
+--------------
+Summer afternoon    Tall green corn, full grip.
+Harvest dusk        Low sun, brown corn and cut fields. Combines (wider than a lane)
+                    and grain trucks. More deer.
+Night               Headlights only. Buggy lanterns, farm yard lights, three times
+                    the deer.
+Thunderstorm        Rain, slick roads, lightning, and gusts that shove tall cars
+                    around (hold on to that Windstar).
+Winter              Snow, whiteout fog, snowplows, and black ice on the bridges and
+                    wherever trees shade the road. You can see the ice: it's the dark,
+                    glassy patches. Ease off before you get there.
+
+
+THE RADIO
+---------
+Put your own .mp3 or .ogg files in the "radio" folder next to HighwayOne.exe and the
+car radio plays them, shuffled. N (or D-pad right) skips a song, B (or D-pad left)
+turns the radio off and on.
+
+
 COPS AND DEER
 -------------
 Sheriff's deputies sit on the shoulder just past crossroads: one in Washington County
@@ -83,21 +104,29 @@ Tow truck (-500)              T                   X
 Restart                       R                   Back
 Pause                         P                   Start
 Change car (paused or after)  Enter               LB
-In the garage: pick           arrows / WASD       D-pad or stick
+In the garage: choose a row   Up / Down, W / S    D-pad or stick
+In the garage: change it      Left / Right, A / D D-pad or stick
 In the garage: drive          Enter or Space      A
+Radio: next song / on-off     N / B               D-pad right / left
+Less scenery (slow PC)        F2
 Mute                          M
 Quit                          Esc
 
 
 WHAT'S IN THIS BUILD
 --------------------
-v0.4: speed traps, chases and deer, added to the Windstar, the Tercel and the Legend
-(each with its own handling, toughness, points and ways of falling apart) on the real
-road. There are things to smash, deep corn fields to plow, traffic both ways, and Amish
-buggies and tractors to get around, with real passing zones. The curves, hills,
-crossroads and street names come from USGS map and elevation data, and you can see the
-real countryside out to about 3 km.
-Coming next: making it *our* Highway 1 (landmarks, real farmsteads and signs).
+v0.5: our Highway 1. Every farmhouse, barn, machine shed, grain bin and tree line along
+the road is where it really is (found in USGS lidar), the creeks and the county line
+are signed with their real names, and there are five conditions to drive it in. Plus
+the radio.
+
+Before that: speed traps, chases and deer; the Windstar, the Tercel and the Legend,
+each with its own handling, toughness, points and ways of falling apart; things to
+smash, deep corn to plow, traffic both ways, Amish buggies and tractors to get around,
+with real passing zones. The curves, hills, crossroads and street names come from USGS
+map and elevation data, and you can see the real countryside out to about 3 km.
+
+Running slow? Press F2 to draw half the trees, or none.
 
 
 IF IT WON'T START OR LOOKS BROKEN

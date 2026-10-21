@@ -55,6 +55,17 @@ HORIZON_CHUNK = 16        # cells per chunk side -> 1024 m chunks
 HORIZON_DROP_M = 1.0
 HORIZON_DEM_RES_M = 16.0
 
+# Buildings and trees, found in the USGS 3DEP lidar (the 2019 eastern Iowa flight, leaf-off)
+# via its public Entwine copy on AWS. The points carry only ground/unclassified, so
+# buildings and trees are told apart here (see tools/bake_lidar.py).
+LIDAR_EPT_URL = "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/IA_Eastern_1_2019/"
+LIDAR_DEPTH = 11              # octree depth read: the full ~4.6 points per square meter
+LIDAR_HALF_WIDTH_M = 1000.0   # either side of the road
+LIDAR_TILE_M = 512.0          # processed in tiles this big...
+LIDAR_MARGIN_M = 48.0         # ...plus this much around each, so buildings on an edge are whole
+LIDAR_CELL_M = 1.0            # raster the points are sorted into
+LIDAR_GROUND_CELL_M = 2.0
+
 # Cross-section the terrain is carved around (distance from centerline, meters).
 # The game's road mesh covers the pavement, shoulders and the grass foreslope down to
 # the ditch 10 m out (game/scripts/world/road_mesher.gd). Under all of that the ground

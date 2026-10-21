@@ -7,7 +7,8 @@ extends RefCounted
 ## verge edges, and sinks it out of the way within CLEAR_INNER of the car, where the
 ## real clumps are (CornField).
 ##
-## Mesh attributes: UV.x = meters from the road centerline, UV.y = meters along a wall
+## Mesh attributes: UV.x = meters from the road centerline (shortened near buildings: see
+## CornField.clearance), UV.y = meters along a wall
 ## (for the stalk pattern), UV2.x = 0 for the top, 1 for a verge wall, 2 for a wall
 ## between fields, UV2.y = height above the ground. Wall normals point into the corn
 ## (verge walls) or across the field edge (field walls).
@@ -39,7 +40,7 @@ static func build(route: RouteData, fields: Fields, tile: int, step: float) -> A
 			var x := ox + minf(col * step, t.size - 0.01)
 			var z := oz + minf(row * step, t.size - 0.01)
 			points[k] = Vector3(ox + col * step, t.height_at(x, z), oz + row * step)
-			dist[k] = t.road_distance_smooth(x, z)
+			dist[k] = CornField.clearance(t, x, z)
 			corn[k] = int(fields.crop_at(x, z) == Fields.CORN)
 			any_corn = any_corn or corn[k] == 1
 	if not any_corn:
@@ -126,8 +127,8 @@ static func _field_walls(st: SurfaceTool, route: RouteData, fields: Fields, ox: 
 				var across := Vector2(1, 0) if axis == 0 else Vector2(0, 1)
 				var side_a := fields.crop_at(mid.x + across.x, mid.y + across.y) == Fields.CORN
 				var side_b := fields.crop_at(mid.x - across.x, mid.y - across.y) == Fields.CORN
-				var da := t.road_distance_smooth(a.x, a.y)
-				var db := t.road_distance_smooth(b.x, b.y)
+				var da := CornField.clearance(t, a.x, a.y)
+				var db := CornField.clearance(t, b.x, b.y)
 				if side_a != side_b and maxf(da, db) >= CornField.VERGE and da < 255.0:
 					var pa := Vector3(a.x, t.height_at(a.x, a.y), a.y)
 					var pb := Vector3(b.x, t.height_at(b.x, b.y), b.y)

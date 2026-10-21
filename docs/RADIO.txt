@@ -1,0 +1,12 @@
+THE RADIO
+=========
+
+Drop your own .mp3 or .ogg files in this folder (radio/, next to HighwayOne.exe) and
+the car radio plays them, shuffled, while you drive. Record your own fake local ads
+and DJ bits too: they're just more songs.
+
+    N or D-pad right    next song
+    B or D-pad left     radio off / on
+    M                   mute everything
+
+Nothing here? The radio stays quiet.

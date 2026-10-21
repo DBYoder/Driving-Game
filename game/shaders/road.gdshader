@@ -13,6 +13,9 @@ uniform vec3 white : source_color = vec3(0.92, 0.92, 0.92);
 uniform float lane_width = 3.66;
 uniform float paved_half_width = 4.26;
 uniform float gravel_half_width = 6.5;
+// Black ice (winter): 1 along the stations where it is, a texel per ICE_STEP meters.
+uniform sampler2D ice_mask : filter_linear, repeat_disable;
+uniform float ice_length = 1.0;  // meters the mask covers; 0 = no ice
 
 varying float lateral;
 varying float station;
@@ -46,5 +49,11 @@ void fragment() {
 	float edge_line = stripe(a, lane_width + 0.08, 0.075);
 	col = mix(col, yellow, center_lines);
 	col = mix(col, white, edge_line);
+	// Ice: a dark, glassy glaze over the pavement, easy to see if you're looking.
+	float ice = ice_length > 0.0 ? texture(ice_mask, vec2(station / ice_length, 0.5)).r : 0.0;
+	ice *= 1.0 - smoothstep(paved_half_width - 0.3, paved_half_width + 0.3, a);
+	col = mix(col, vec3(0.10, 0.12, 0.15), ice * 0.65);
 	ALBEDO = col;
+	ROUGHNESS = mix(1.0, 0.12, ice);
+	SPECULAR = mix(0.5, 0.9, ice);
 }

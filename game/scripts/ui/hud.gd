@@ -13,6 +13,7 @@ var run: Run
 var tracker: RunTracker
 var camera: ChaseCamera
 var cops: Cops
+var condition_name := ""
 var _trip: Label
 var _clock: Label
 var _score: Label
@@ -24,6 +25,8 @@ var _speed: Label
 var _health: ProgressBar
 var _message: Label
 var _hint: Label
+var _note: Label  ## a small line over the hints (the radio's song)
+var _note_time := 0.0
 var _results: PanelContainer
 var _results_grid: GridContainer
 var _popups: VBoxContainer
@@ -56,7 +59,8 @@ func setup(r: RouteData, c: Car, game_run: Run, cam: ChaseCamera) -> void:
 	_message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint = _label(15, Control.PRESET_BOTTOM_LEFT, Vector2(24, -16))
 	_hint.text = "W/S or triggers: gas/brake (hold S to reverse)    A/D or stick: steer    Space or A: handbrake\n" \
-		+ "C or Y: camera    T or X: tow truck (-500)    R or Back: restart    P or Start: pause    Esc: quit"
+		+ "C or Y: camera    T or X: tow truck (-500)    R or Back: restart    P or Start: pause    N / B: radio    F2: detail    Esc: quit"
+	_note = _label(20, Control.PRESET_BOTTOM_LEFT, Vector2(24, -66))
 	_popups = VBoxContainer.new()
 	add_child(_popups)
 	_popups.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
@@ -75,7 +79,8 @@ func _process(delta: float) -> void:
 	var s := car.station
 	var finish_mile := route.mile_at(route.finish_station)
 	var lines := ["HIGHWAY 1  ·  Kalona → Iowa City",
-		"%s  ·  points ×%s" % [car.stats.display_name, str(car.stats.score_multiplier)],
+		"%s  ·  points ×%s%s" % [car.stats.display_name, str(car.stats.score_multiplier),
+			"  ·  " + condition_name if condition_name != "" else ""],
 		"Mile %.1f of %.1f    %s view" % [clampf(route.mile_at(s), 0.0, finish_mile), finish_mile, camera.mode_name()]]
 	var next := route.next_crossroad(s)
 	if not next.is_empty() and s < route.finish_station:
@@ -98,6 +103,8 @@ func _process(delta: float) -> void:
 		_chase.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3) if flash else Color(0.45, 0.6, 1.0))
 
 	_banner_time = maxf(_banner_time - delta, 0.0)
+	_note_time = maxf(_note_time - delta, 0.0)
+	_note.modulate.a = clampf(_note_time, 0.0, 1.0)
 	_go_flash = maxf(_go_flash - delta, 0.0)
 	_over_time = _over_time + delta if tracker.over() else 0.0
 	var show_results := tracker.state == RunTracker.State.FINISHED \
@@ -124,6 +131,12 @@ func _process(delta: float) -> void:
 
 
 ## A big message for a couple of seconds ("SPEED TRAP!").
+## A small line at the bottom left for a few seconds (the radio's song).
+func note(text: String, seconds := 4.0) -> void:
+	_note.text = text
+	_note_time = seconds
+
+
 func banner(text: String, seconds := 2.0) -> void:
 	_banner = text
 	_banner_time = seconds

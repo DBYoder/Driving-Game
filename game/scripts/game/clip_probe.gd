@@ -7,9 +7,9 @@ extends RefCounted
 const VISIBLE_OVERLAP := 0.3  ## meters of overlap you'd notice at a glance
 const VISIBLE_SINK := 0.15  ## meters of body below the ground surface
 
-var worst := {"wreck": 0.0, "cop": 0.0, "debris": 0.0, "corn": 0.0, "ground": 0.0}
-var worst_mile := {"wreck": 0.0, "cop": 0.0, "debris": 0.0, "corn": 0.0, "ground": 0.0}
-var visible_ticks := {"wreck": 0, "cop": 0, "debris": 0, "corn": 0, "ground": 0}
+var worst := {"wreck": 0.0, "cop": 0.0, "debris": 0.0, "corn": 0.0, "ground": 0.0, "building": 0.0}
+var worst_mile := {"wreck": 0.0, "cop": 0.0, "debris": 0.0, "corn": 0.0, "ground": 0.0, "building": 0.0}
+var visible_ticks := {"wreck": 0, "cop": 0, "debris": 0, "corn": 0, "ground": 0, "building": 0}
 
 
 func sample(main: Node, car: Car) -> void:
@@ -28,13 +28,20 @@ func sample(main: Node, car: Car) -> void:
 			deepest = maxf(deepest, _overlap(car, body))
 	_record("debris", deepest, VISIBLE_OVERLAP, mile)
 	_record("corn", main.corn.standing_clumps_touching(car), 0.5, mile)
+	deepest = 0.0
+	var car_xf := car.body_shape.global_transform
+	var car_half := (car.body_shape.shape as BoxShape3D).size / 2.0
+	for box: Array in main.scenery.building_boxes(car.global_position, 40.0):
+		deepest = maxf(deepest, box_overlap(car_xf, car_half, box[0], box[1]))
+	_record("building", deepest, VISIBLE_OVERLAP, mile)
 	_record("ground", _sink(car), VISIBLE_SINK, mile)
 
 
 func report() -> String:
 	return "worst overlap with wrecks %.2f m (%d ticks visible), cruisers %.2f m (%d), debris %.2f m (%d), standing corn %d clumps (%d), body below ground %.2f m (%d)" % [
 		worst.wreck, visible_ticks.wreck, worst.cop, visible_ticks.cop, worst.debris, visible_ticks.debris,
-		worst.corn, visible_ticks.corn, worst.ground, visible_ticks.ground]
+		worst.corn, visible_ticks.corn, worst.ground, visible_ticks.ground] \
+		+ ", buildings %.2f m (%d)" % [worst.building, visible_ticks.building]
 
 
 func _record(what: String, value: float, visible: float, mile: float) -> void:

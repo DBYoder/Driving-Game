@@ -73,6 +73,7 @@ var _shadow: MeshInstance3D
 var _smoke: CPUParticles3D
 var _beacons: Array[StandardMaterial3D] = []  ## a cruiser's red and blue lights
 var _beacons_on := false
+var _headlights: Array[SpotLight3D] = []
 var _lean := Vector2.ZERO  ## smoothed (roll, pitch) in radians
 var _time := 0.0
 var _damage := 0.0
@@ -212,6 +213,29 @@ func update(wheels: Array, steer_angle: float, accel: Vector3, speed: float, del
 ## A cruiser's lights: flashing red and blue while it's chasing someone.
 func set_beacons(on: bool) -> void:
 	_beacons_on = on
+
+
+## Two headlight beams down the road (night).
+func set_headlights(on: bool) -> void:
+	for light in _headlights:
+		light.queue_free()
+	_headlights.clear()
+	if not on or _stats == null:
+		return
+	var w := _stats.body_size.x
+	var l := _stats.body_size.z
+	for side: float in [-1.0, 1.0]:
+		var beam := SpotLight3D.new()
+		beam.position = Vector3(side * w * 0.3, -0.05, -l / 2.0 - 0.05)
+		beam.rotation_degrees = Vector3(-3.5, 0, 0)
+		beam.spot_range = 110.0
+		beam.spot_angle = 30.0
+		beam.spot_attenuation = 0.6
+		beam.light_energy = 11.0
+		beam.light_color = Color(1.0, 0.95, 0.85)
+		beam.shadow_enabled = false
+		_body.add_child(beam)
+		_headlights.append(beam)
 
 
 ## The light bar on the roof and SHERIFF on the doors.

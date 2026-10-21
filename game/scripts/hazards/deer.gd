@@ -75,6 +75,8 @@ var run: Run
 var props: PropField
 var traffic: Traffic
 var enabled := true
+## More deer: harvest dusk 1.6, night 3 (Condition.deer_rate). More crossings, closer together.
+var rate := 1.0
 var spots: Array[Spot] = []
 var animals: Array[Animal] = []
 var crossings := 0  ## herds that broke cover this run
@@ -112,17 +114,37 @@ func reset(seed_value: int) -> void:
 	_rng.seed = seed_value * 7919 + 3
 	var candidates: Array[float] = []
 	for b: Array in route.bridges:
-		if _rng.randf() < CREEK_CHANCE:
+		if _rng.randf() < minf(CREEK_CHANCE * rate, 1.0):
 			candidates.append((float(b[0]) + float(b[1])) / 2.0)
-	for i in RANDOM_SPOTS:
+	for i in roundi(RANDOM_SPOTS * rate * rate):
 		candidates.append(_rng.randf_range(route.start_station + 600.0, route.finish_station - 400.0))
 	for s in candidates:
 		if s < route.start_station + 400.0 or s > route.finish_station - 200.0:
 			continue
-		if spots.any(func(o: Spot) -> bool: return absf(o.station - s) < SPOT_SPACING):
+		var spacing := maxf(SPOT_SPACING / rate, 250.0)
+		if spots.any(func(o: Spot) -> bool: return absf(o.station - s) < spacing):
 			continue
-		add_spot(s, 1.0 if _rng.randf() < 0.5 else -1.0, 1 + _rng.randi() % 3, _rng.randf() < FREEZE_CHANCE)
+		var side := 1.0 if _rng.randf() < 0.5 else -1.0
+		var herd := 1 + _rng.randi() % 3
+		var freeze := _rng.randf() < FREEZE_CHANCE
+		if _path_blocked(s, side):
+			continue  # they'd have to run through a farmyard
+		add_spot(s, side, herd, freeze)
 	spots.sort_custom(func(a: Spot, b: Spot) -> bool: return a.station < b.station)
+
+
+## Is there a building in the way of a herd running in from `side` and across at `station`?
+func _path_blocked(station: float, side: float) -> bool:
+	var start := route.position_at(station)
+	var across := route.right_at(station) * side
+	var a := Vector2(start.x, start.z) + Vector2(across.x, across.z) * (FIELD_START + 6.0)
+	var b := Vector2(start.x, start.z) - Vector2(across.x, across.z) * 60.0
+	for bl: Dictionary in route.buildings:
+		var p := Vector2(float(bl.x), float(bl.z))
+		var reach := maxf(float(bl.length), float(bl.width)) / 2.0 + 8.0
+		if Geometry2D.get_closest_point_to_segment(p, a, b).distance_to(p) < reach:
+			return true
+	return false
 
 
 func add_spot(station: float, side: float, herd: int, freeze: bool) -> Spot:

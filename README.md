@@ -10,18 +10,26 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 
 | | |
 |---|---|
+| ![Real farmsteads and tree lines at mile 2, from lidar](docs/screenshots/mile-2-farmsteads.png) | ![Night: headlights, lit windows, yard lights](docs/screenshots/night.png) |
+| ![Harvest dusk: stubble, brown corn, a combine](docs/screenshots/harvest-dusk.png) | ![Thunderstorm](docs/screenshots/thunderstorm.png) |
+| ![Winter near Iowa City](docs/screenshots/winter.png) | ![The garage](docs/screenshots/garage.png) |
 | ![Traffic north of Kalona](docs/screenshots/mile-1-traffic.png) | ![Corn near mile 5](docs/screenshots/mile-5-corn.png) |
-| ![The long view down into the valley at mile 9](docs/screenshots/mile-9-long-view.png) | ![Drone view at mile 7](docs/screenshots/mile-7-drone.png) |
-| ![The garage](docs/screenshots/garage.png) | ![A beat-up Legend](docs/screenshots/legend-beat-up.png) |
+| ![The long view](docs/screenshots/mile-7-drone.png) | ![A beat-up Legend](docs/screenshots/legend-beat-up.png) |
 | ![A Johnson County deputy on a Windstar's tail](docs/screenshots/speed-trap-chase.png) | ![Deer crossing near the creek at mile 4](docs/screenshots/deer-crossing.png) |
 
 ## Status
 
-**v0.4: cops and deer.** Sheriff's deputies run speed traps (one in Washington County,
-three in Johnson County, in different spots every run). Blow past one and they chase
-you. Stop and you're busted; lose them, or drag the Washington County deputy over the
-county line, for points. Deer bolt across near the creeks: hold your line and they
-miss you, or don't and they won't.
+**v0.5: it's *our* Highway 1.** Every farmhouse, barn, machine shed, grain bin and
+tree line along the road is where it really is, found in USGS lidar: 2,355 buildings
+and 82,000 trees. The creeks, the county line and the Iowa City limit are signed with
+their real names. Five conditions to drive it in, each with its own records: summer
+afternoon, harvest dusk (combines!), night (headlights, deer ×3), a thunderstorm (wet
+roads, gusts) and winter (black ice where the trees shade the road, snowplows). Drop
+your own music in the `radio/` folder and the car radio plays it.
+
+**Since v0.4:** sheriff's deputies run speed traps and chase you; get busted, lose them,
+or drag the Washington County deputy over the county line. Deer bolt across near the
+creeks: hold your line and they miss you.
 
 The cars (since v0.3) are a 1998 Windstar, a Tercel and an Acura Legend. Each has its
 own handling, toughness and points multiplier, plus dents and signature parts that fly
@@ -38,12 +46,13 @@ PLAN.md for what's next.
 
 ```
 game/                  Godot 4.6.3 project (GL Compatibility renderer)
-  data/route/          baked road, terrain and horizon (generated, committed)
+  data/route/          baked road, terrain, horizon, buildings, trees and names (generated, committed)
   scripts/route/       RouteData, TerrainTiles, HorizonTerrain: loading and querying the baked data
-  scripts/world/       road and terrain meshes and colliders, streaming, roadside signs
+  scripts/world/       road and terrain meshes and colliders, streaming, roadside signs,
+                       the lidar buildings and trees (Scenery), weather and black ice
   scripts/car/         raycast car physics, the three cars (CarStats), models and damage,
                        drivers, engine sound
-  scripts/game/        run rules, scoring and combos, timing and records, QA test drives
+  scripts/game/        run rules, scoring and combos, records, the conditions, the radio, QA drives
   scripts/props/       mailboxes, fences, hay bales, corn clumps and the corn canopy
   scripts/traffic/     other road users and crashing into them
   scripts/cops/        speed traps, chases and their rules, the deputies' driving, the siren
@@ -51,7 +60,7 @@ game/                  Godot 4.6.3 project (GL Compatibility renderer)
   scripts/ui/          the HUD, results and the garage (car select)
   shaders/             flat-shaded terrain and road paint
   tests/               headless GDScript tests
-tools/                 Python pipeline that bakes the road from USGS data
+tools/                 Python pipeline that bakes the road, buildings, trees and names from USGS data
 docs/                  route previews, screenshots, the README that ships in the zip
 .github/workflows/     CI: tests, Windows/Linux export, screenshots, releases
 ```
@@ -69,6 +78,8 @@ godot --path game -- --autopilot --autopilot-mph=90       # watch the autopilot 
 godot --path game -- --station=2400 --traffic-near        # start with traffic in view
 godot --path game -- --car=windstar --station=6000 --chase  # a deputy already on your tail
 godot --path game -- --station=6600 --deer=25 --view=1     # deer crossing just ahead
+godot --path game -- --condition=night --car=legend        # summer, harvest, night, storm, winter
+godot --path game -- --scenery=0.5                         # half the trees (F2 in the game)
 
 # Automated test drives, headless and ~25x faster than real time:
 godot --headless --fixed-fps 60 --path game -- --qa-drive            # autopilot, all 15 miles
@@ -86,6 +97,8 @@ godot --path game -- --tune=handbrake_grip:0.5                        # try a Ca
 ```sh
 pip install -r tools/requirements.txt
 python tools/bake_route.py     # downloads ~190 MB of USGS road data once, caches it in tools/.cache/
+python tools/bake_lidar.py     # buildings and trees from USGS lidar (~1.5 GB once, ~20 min)
+python tools/bake_places.py    # creek, county and city names for the signs
 python tools/preview_route.py  # writes docs/route-preview/*.png to eyeball the result
 python -m pytest tools/tests
 ```

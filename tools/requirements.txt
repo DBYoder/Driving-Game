@@ -7,3 +7,4 @@ pyogrio>=0.10
 networkx>=3.2
 matplotlib>=3.8
 pytest>=8.0
+laspy[lazrs]>=2.5

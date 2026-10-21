@@ -10,8 +10,12 @@ const CORN := "corn"
 const SOYBEANS := "soybeans"
 const HAY := "hay"
 const PASTURE := "pasture"
+const STUBBLE := "stubble"  ## a corn field after harvest
 
 var offset := Vector2.ZERO  ## world x/z of one section corner
+## Share of the corn fields already harvested (Condition.harvested). Which ones comes from
+## a second hash of the cell, the same in terrain.gdshader and corn_canopy.gdshader.
+var harvested := 0.0
 
 
 func _init(route: RouteData) -> void:
@@ -23,9 +27,11 @@ func _init(route: RouteData) -> void:
 
 
 func crop_at(x: float, z: float) -> String:
-	var h := cell_hash(floori((x - offset.x) / FIELD_SIZE), floori((z - offset.y) / FIELD_SIZE))
+	var cx := floori((x - offset.x) / FIELD_SIZE)
+	var cz := floori((z - offset.y) / FIELD_SIZE)
+	var h := cell_hash(cx, cz)
 	if h < 0.45:
-		return CORN
+		return STUBBLE if cell_hash(cx + 57, cz + 13) < harvested else CORN
 	if h < 0.85:
 		return SOYBEANS
 	if h < 0.93:

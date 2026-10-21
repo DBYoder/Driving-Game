@@ -23,7 +23,51 @@ static func build(kind: String, rng: RandomNumberGenerator) -> ArrayMesh:
 			_buggy(st)
 		"tractor":
 			_tractor(st)
+		"combine":
+			_combine(st, rng)
+		"grain_truck":
+			_grain_truck(st, PAINT[rng.randi() % PAINT.size()])
+		"snowplow":
+			_snowplow(st)
 	return MeshKit.finish(st)
+
+
+## Head and tail lights for night: white at the front, red at the back (a buggy's lantern
+## and red flashers instead), unshaded so they shine in the dark. `length`/`width` are
+## the vehicle's footprint; `center` where it sits along the model (Traffic.KINDS).
+static func lamps(kind: String, spec: Dictionary) -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var l: float = spec.length
+	var w: float = spec.width
+	var c: float = spec.center
+	var front := -l / 2.0 + c
+	var back := l / 2.0 + c
+	var white := Color(1.0, 0.97, 0.85)
+	var red := Color(0.95, 0.08, 0.05)
+	var amber := Color(1.0, 0.65, 0.15)
+	match kind:
+		"buggy":
+			MeshKit.box(st, Vector3(0.14, 0.14, 0.14), Vector3(0.82, 1.6, back - 1.8), amber)
+			MeshKit.box(st, Vector3(0.14, 0.14, 0.14), Vector3(-0.82, 1.6, back - 1.8), amber)
+			MeshKit.box(st, Vector3(0.12, 0.12, 0.05), Vector3(0.55, 1.2, back + 0.02), red)
+			MeshKit.box(st, Vector3(0.12, 0.12, 0.05), Vector3(-0.55, 1.2, back + 0.02), red)
+		_:
+			var y := 0.7 if kind == "car" else 1.0
+			for side: float in [-1.0, 1.0]:
+				MeshKit.box(st, Vector3(0.28, 0.14, 0.05), Vector3(side * (w / 2.0 - 0.3), y, front - 0.03), white)
+				MeshKit.box(st, Vector3(0.22, 0.14, 0.05), Vector3(side * (w / 2.0 - 0.25), y, back + 0.03), red)
+			if kind in ["combine", "snowplow", "tractor"]:
+				MeshKit.box(st, Vector3(0.5, 0.15, 0.25), Vector3(0, 3.6 if kind == "combine" else 3.2, front + 2.0), amber)
+	var mesh := st.commit()
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.vertex_color_use_as_albedo = true
+	mesh.surface_set_material(0, m)
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return node
 
 
 static func _wheels(st: SurfaceTool, half_track: float, zs: Array, radius: float, width := 0.22) -> void:
@@ -78,6 +122,46 @@ static func _buggy(st: SurfaceTool) -> void:
 	back.z += 0.01
 	MeshKit.tri(st, back + Vector3(-0.28, -0.22, 0), back + Vector3(0.28, -0.22, 0), back + Vector3(0, 0.26, 0),
 		Vector3.BACK, Color(1.0, 0.45, 0.05))
+
+
+static func _combine(st: SurfaceTool, rng: RandomNumberGenerator) -> void:
+	# A combine on the road: the header out front is wider than the lane.
+	var body := Color(0.13, 0.42, 0.14) if rng.randf() < 0.6 else Color(0.62, 0.08, 0.06)
+	var yellow := Color(0.85, 0.72, 0.12)
+	MeshKit.box(st, Vector3(4.2, 1.0, 1.6), Vector3(0, 1.0, -4.3), yellow)  # header
+	MeshKit.box(st, Vector3(1.2, 0.8, 1.6), Vector3(0, 1.3, -3.0), body)  # feeder
+	MeshKit.box(st, Vector3(3.0, 2.2, 5.6), Vector3(0, 2.1, 0.6), body)  # body
+	MeshKit.box(st, Vector3(1.9, 1.3, 1.6), Vector3(0, 3.6, -1.6), GLASS)  # cab
+	MeshKit.box(st, Vector3(2.0, 0.1, 1.7), Vector3(0, 4.3, -1.6), Color(0.9, 0.9, 0.88))
+	MeshKit.box(st, Vector3(2.8, 1.0, 2.4), Vector3(0, 3.7, 1.2), body)  # grain tank
+	MeshKit.cylinder(st, 0.18, 4.0, Vector3(-1.8, 3.8, 1.6), body, body, 6, Vector3(1, 0, -0.3).normalized())  # auger
+	MeshKit.cylinder(st, 0.9, 0.6, Vector3(-1.45, 0.9, -1.4), TIRE, yellow, 10)
+	MeshKit.cylinder(st, 0.9, 0.6, Vector3(1.45, 0.9, -1.4), TIRE, yellow, 10)
+	MeshKit.cylinder(st, 0.55, 0.4, Vector3(-1.3, 0.55, 2.8), TIRE, yellow, 8)
+	MeshKit.cylinder(st, 0.55, 0.4, Vector3(1.3, 0.55, 2.8), TIRE, yellow, 8)
+
+
+static func _grain_truck(st: SurfaceTool, paint: Color) -> void:
+	# A straight truck with a grain box and a rolled tarp.
+	MeshKit.box(st, Vector3(2.4, 1.4, 2.2), Vector3(0, 1.5, -3.6), paint)  # cab
+	MeshKit.box(st, Vector3(2.3, 0.9, 1.6), Vector3(0, 2.6, -3.4), GLASS)
+	MeshKit.box(st, Vector3(2.4, 0.8, 1.2), Vector3(0, 1.0, -4.9), paint.darkened(0.2))  # hood
+	MeshKit.box(st, Vector3(2.5, 1.5, 6.4), Vector3(0, 2.1, 1.4), Color(0.70, 0.12, 0.10))  # grain box
+	MeshKit.box(st, Vector3(2.52, 0.12, 6.4), Vector3(0, 2.9, 1.4), Color(0.25, 0.27, 0.22))  # tarp
+	_wheels(st, 1.0, [-3.8, 1.3, 2.7], 0.5, 0.35)
+
+
+static func _snowplow(st: SurfaceTool) -> void:
+	# A county plow truck: orange, angled blade in front, wing plow on the right.
+	var orange := Color(0.95, 0.45, 0.06)
+	var steel := Color(0.35, 0.36, 0.38)
+	MeshKit.box(st, Vector3(2.5, 1.5, 2.4), Vector3(0, 1.6, -2.8), orange)  # cab
+	MeshKit.box(st, Vector3(2.4, 0.9, 1.7), Vector3(0, 2.75, -2.6), GLASS)
+	MeshKit.box(st, Vector3(2.5, 0.9, 1.3), Vector3(0, 1.1, -4.2), orange)  # hood
+	MeshKit.box(st, Vector3(2.6, 1.6, 5.0), Vector3(0, 2.0, 1.9), orange)  # dump box (salt)
+	MeshKit.box(st, Vector3(3.4, 1.1, 0.2), Vector3(0, 0.75, -5.1), steel, 0.35)  # blade
+	MeshKit.box(st, Vector3(0.15, 0.7, 3.0), Vector3(1.6, 0.6, -0.5), steel)  # wing
+	_wheels(st, 1.0, [-3.6, 1.0, 2.6], 0.5, 0.35)
 
 
 static func _tractor(st: SurfaceTool) -> void:

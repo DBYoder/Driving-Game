@@ -35,7 +35,13 @@ const KINDS := {
 	"semi": {"length": 21.4, "width": 2.6, "mass": 30000.0, "speed": [23.0, 26.0], "center": -0.5, "pass": 300},
 	"buggy": {"length": 5.0, "width": 1.6, "mass": 700.0, "speed": [4.0, 5.0], "center": -0.65, "pass": 150},
 	"tractor": {"length": 9.2, "width": 2.4, "mass": 6000.0, "speed": [7.0, 9.0], "center": 0.0, "pass": 200},
+	"combine": {"length": 10.5, "width": 4.2, "mass": 15000.0, "speed": [6.0, 8.0], "center": -0.3, "pass": 400},
+	"grain_truck": {"length": 10.6, "width": 2.5, "mass": 14000.0, "speed": [20.0, 24.0], "center": -0.8, "pass": 150},
+	"snowplow": {"length": 10.6, "width": 3.4, "mass": 16000.0, "speed": [12.0, 15.0], "center": -0.5, "pass": 250},
 }
+## Where the slow ones drive: buggies and tractors hug the edge; a combine's header spills
+## onto the shoulder (and still nearly fills the lane).
+const LANES := {"buggy": SHOULDER_LANE, "tractor": SHOULDER_LANE, "combine": 2.6}
 
 
 class Vehicle:
@@ -59,6 +65,11 @@ var run: Run
 var enabled := true
 var vehicles: Array[Vehicle] = []
 var other_cars: Array[Car] = []  ## besides the player's: police cruisers, which can hit traffic too
+## What turns up after the buggies (absolute shares; the last takes the rest), set by the
+## condition: tractors and slowpokes in summer, combines and grain trucks at harvest...
+var same_mix := {"tractor": 0.3, "car": 0.7}
+var oncoming_mix := {"semi": 0.2, "pickup": 0.3, "car": 0.5}
+var night := false  ## head and tail lights on
 var sirens: Array[Car] = []  ## cruisers with their lights on
 var _wrecks: Array[RigidBody3D] = []
 var _rng := RandomNumberGenerator.new()
@@ -130,13 +141,32 @@ func _spawn(delta: float) -> void:
 	var mile := route.mile_at(car.station)
 	if _oncoming_timer <= 0.0 and _count(-1.0) < MAX_ONCOMING:
 		_oncoming_timer = _rng.randf_range(5.0, 12.0)
-		var roll := _rng.randf()
-		_add("semi" if roll < 0.2 else ("pickup" if roll < 0.5 else "car"), -1.0)
+		_add(_pick(oncoming_mix, _rng.randf(), 0.0), -1.0)
 	if _same_timer <= 0.0 and _count(1.0) < MAX_SAME_DIRECTION:
 		_same_timer = _rng.randf_range(8.0, 20.0)
 		var buggy_odds := 0.5 if mile < 5.0 else 0.15  # Kalona is Amish country
 		var roll := _rng.randf()
-		_add("buggy" if roll < buggy_odds else ("tractor" if roll < buggy_odds + 0.3 else "car"), 1.0)
+		_add("buggy" if roll < buggy_odds else _pick(same_mix, roll, buggy_odds), 1.0)
+
+
+## The kind a roll lands on, walking the shares up from `start`.
+static func _pick(mix: Dictionary, roll: float, start: float) -> String:
+	var acc := start
+	var last := ""
+	for kind: String in mix:
+		if float(mix[kind]) <= 0.0:
+			continue
+		acc += float(mix[kind])
+		last = kind
+		if roll < acc:
+			return kind
+	return last
+
+
+func apply_condition(c: Condition) -> void:
+	same_mix = c.same_direction
+	oncoming_mix = c.oncoming
+	night = c.night > 0.5
 
 
 ## Vehicles going `direction` that are still ahead of the player.
@@ -146,10 +176,14 @@ func _count(direction: float) -> int:
 
 ## Put a few vehicles right in view (for screenshots and demos).
 func populate_near() -> void:
+	var slow := "tractor"
+	for kind in ["combine", "snowplow"]:
+		if same_mix.has(kind):
+			slow = kind
 	_add("buggy", 1.0, car.station + 22.0)
-	_add("tractor", 1.0, car.station + 110.0)
+	_add(slow, 1.0, car.station + 110.0)
 	_add("car", -1.0, car.station + 60.0)
-	_add("semi", -1.0, car.station + 160.0)
+	_add("grain_truck" if oncoming_mix.has("grain_truck") else "semi", -1.0, car.station + 160.0)
 	_oncoming_timer = 20.0
 	_same_timer = 30.0
 
@@ -168,8 +202,7 @@ func _add(kind: String, direction: float, station := -1.0) -> void:
 	v.kind = kind
 	v.station = station
 	v.direction = direction
-	var slow := kind == "buggy" or kind == "tractor"
-	v.lane = (SHOULDER_LANE if slow else LANE) * direction
+	v.lane = float(LANES.get(kind, LANE)) * direction
 	v.offset = v.lane
 	v.cruise = _rng.randf_range(spec.speed[0], spec.speed[1])
 	if direction > 0.0 and kind == "car":
@@ -178,6 +211,8 @@ func _add(kind: String, direction: float, station := -1.0) -> void:
 	v.node = MeshInstance3D.new()
 	v.node.mesh = TrafficModels.build(kind, _rng)
 	v.node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if night:
+		v.node.add_child(TrafficModels.lamps(kind, spec))
 	add_child(v.node)
 	vehicles.append(v)
 	_place(v)

@@ -158,6 +158,45 @@ func _wanted_lod(kind: String, key: String, d: float) -> int:
 	return 1 if d > switch_at else 0
 
 
+## Paint the land for a condition: crop, grass and road colors, and which corn fields are
+## already cut (the corn canopies on loaded tiles are rebuilt when that changes).
+func apply_condition(c: Condition) -> void:
+	for pair: Array in [["corn", c.corn_ground], ["soybeans", c.soybeans], ["hay", c.hay], ["pasture", c.pasture],
+			["verge", c.verge], ["stubble", c.stubble]]:
+		_terrain_material.set_shader_parameter(pair[0], pair[1])
+	_terrain_material.set_shader_parameter("harvested", c.harvested)
+	canopy_material.set_shader_parameter("harvested", c.harvested)
+	canopy_material.set_shader_parameter("leaf", c.corn_leaf)
+	canopy_material.set_shader_parameter("tassel", c.corn_tassel)
+	canopy_material.set_shader_parameter("light", c.corn_light())
+	_road_material.set_shader_parameter("asphalt", c.asphalt)
+	_road_material.set_shader_parameter("gravel", c.gravel)
+	_road_material.set_shader_parameter("verge", c.road_verge)
+	if fields.harvested != c.harvested:
+		fields.harvested = c.harvested
+		for key: String in _meshes:
+			if key.begins_with("tile:"):
+				var node: MeshInstance3D = _meshes[key]
+				_set_canopy(node, int(key.split(":")[1]), node.get_meta("lod"))
+
+
+## Show black ice on the road at these [from, to] station pairs (none if empty).
+func set_ice(patches: PackedFloat32Array) -> void:
+	const STEP := 4.0
+	if patches.is_empty():
+		_road_material.set_shader_parameter("ice_length", 0.0)
+		return
+	var n := ceili(route.length / STEP) + 1
+	var mask := PackedByteArray()
+	mask.resize(n)
+	for i in range(0, patches.size(), 2):
+		for k in range(maxi(floori(patches[i] / STEP), 0), mini(ceili(patches[i + 1] / STEP), n - 1) + 1):
+			mask[k] = 255
+	var image := Image.create_from_data(n, 1, false, Image.FORMAT_R8, mask)
+	_road_material.set_shader_parameter("ice_mask", ImageTexture.create_from_image(image))
+	_road_material.set_shader_parameter("ice_length", n * STEP)
+
+
 ## Give a tile the corn canopy for its level of detail (or none, without corn).
 func _set_canopy(tile: MeshInstance3D, index: int, lod: int) -> void:
 	for child in tile.get_children():

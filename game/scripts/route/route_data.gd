@@ -18,6 +18,13 @@ var crossroads: Array = []  ## Dictionaries: station, name, route, kind, side
 var bridges: Array = []  ## [from_station, to_station] pairs
 var terrain: TerrainTiles
 var horizon: HorizonTerrain
+## Real buildings from the lidar (tools/bake_lidar.py): Dictionaries with x, z, length,
+## width, yaw, height, kind ("house", "barn", "shed", "bin"). Empty if not baked.
+var buildings: Array = []
+## Real trees from the lidar: 5 floats each (x, z, height, crown radius, conifer 0/1).
+var trees := PackedFloat32Array()
+## Named creeks, city limits and the county line (tools/bake_places.py).
+var places := {"creeks": [], "cities": [], "counties": []}
 var _no_pass_north := PackedByteArray()  ## per sample: 1 = solid line for northbound
 var _no_pass_south := PackedByteArray()
 
@@ -49,7 +56,22 @@ static func load_from(dir: String) -> RouteData:
 	r.horizon = HorizonTerrain.load_from(dir, d.horizon)
 	if r.terrain == null or r.horizon == null:
 		return null
+	var structures = _optional_json(dir.path_join("structures.json"))
+	if typeof(structures) == TYPE_DICTIONARY:
+		r.buildings = structures.buildings
+	if FileAccess.file_exists(dir.path_join("trees.bin")):
+		r.trees = FileAccess.get_file_as_bytes(dir.path_join("trees.bin")).to_float32_array()
+	var places = _optional_json(dir.path_join("places.json"))
+	if typeof(places) == TYPE_DICTIONARY:
+		r.places = places
 	return r
+
+
+## A data file that may not have been baked: its parsed JSON, or null.
+static func _optional_json(path: String) -> Variant:
+	if not FileAccess.file_exists(path):
+		return null
+	return JSON.parse_string(FileAccess.get_file_as_string(path))
 
 
 func position_at(station: float) -> Vector3:

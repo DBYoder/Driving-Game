@@ -4,13 +4,17 @@ extends CanvasLayer
 ## the start line with the camera circling it. Left/right picks the car, up/down the
 ## paint, Enter / Space / A drives. Remembers the last pick.
 
-signal browsed(car_id: String, paint: int)  ## the car or paint on show changed
-signal chosen(car_id: String, paint: int)  ## drive it
+signal browsed(car_id: String, paint: int, condition_id: String)  ## what's on show changed
+signal chosen(car_id: String, paint: int, condition_id: String)  ## drive it
+
+enum Row { CAR, PAINT, CONDITION }
 
 const SAVE_SECTION := "garage"
 
 var car_index := 0
 var paint_index := 0
+var condition_index := 0
+var row := Row.CAR  ## the line ◀ ▶ changes; ▲ ▼ moves between them
 var save_path := ""
 var _stats: CarStats
 var _panel: PanelContainer
@@ -19,6 +23,8 @@ var _tagline: Label
 var _bars := {}  ## stat -> ProgressBar
 var _multiplier: Label
 var _paint: Label
+var _condition: Label
+var _condition_tagline: Label
 var _records: Label
 
 
@@ -30,12 +36,17 @@ func setup(path: String) -> void:
 	if not path.is_empty() and cfg.load(path) == OK:
 		car_index = maxi(0, CarStats.CARS.find(cfg.get_value(SAVE_SECTION, "car", CarStats.CARS[0])))
 		paint_index = cfg.get_value(SAVE_SECTION, "paint", 0)
+		condition_index = maxi(0, Condition.IDS.find(cfg.get_value(SAVE_SECTION, "condition", "summer")))
 	_build()
 	visible = false
 
 
 func current_car() -> String:
 	return CarStats.CARS[car_index]
+
+
+func current_condition() -> String:
+	return Condition.IDS[condition_index]
 
 
 func open() -> void:
@@ -55,24 +66,27 @@ func set_records(best_score: int, best_time: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible:
 		return
-	if event.is_action_pressed("menu_left"):
-		car_index = posmod(car_index - 1, CarStats.CARS.size())
-		paint_index = 0
-		_show()
-	elif event.is_action_pressed("menu_right"):
-		car_index = posmod(car_index + 1, CarStats.CARS.size())
-		paint_index = 0
+	if event.is_action_pressed("menu_left") or event.is_action_pressed("menu_right"):
+		var step := -1 if event.is_action_pressed("menu_left") else 1
+		match row:
+			Row.CAR:
+				car_index = posmod(car_index + step, CarStats.CARS.size())
+				paint_index = 0
+			Row.PAINT:
+				paint_index = posmod(paint_index + step, _stats.paints.size())
+			Row.CONDITION:
+				condition_index = posmod(condition_index + step, Condition.IDS.size())
 		_show()
 	elif event.is_action_pressed("menu_up"):
-		paint_index = posmod(paint_index - 1, _stats.paints.size())
+		row = posmod(row - 1, 3) as Row
 		_show()
 	elif event.is_action_pressed("menu_down"):
-		paint_index = posmod(paint_index + 1, _stats.paints.size())
+		row = posmod(row + 1, 3) as Row
 		_show()
 	elif event.is_action_pressed("menu_accept"):
 		visible = false
 		_save()
-		chosen.emit(current_car(), paint_index)
+		chosen.emit(current_car(), paint_index, current_condition())
 	else:
 		return
 	get_viewport().set_input_as_handled()
@@ -81,7 +95,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _show() -> void:
 	_stats = CarStats.preset(current_car())
 	paint_index = clampi(paint_index, 0, _stats.paints.size() - 1)
-	_name.text = "◀  %s  ▶" % _stats.display_name
+	_name.text = _choice(_stats.display_name, row == Row.CAR)
 	_tagline.text = _stats.tagline
 	# Bars against the best of the three.
 	_bars.Speed.value = _stats.top_speed / 62.0
@@ -90,8 +104,16 @@ func _show() -> void:
 	_bars.Toughness.value = _stats.durability / 160.0
 	_multiplier.text = "Points ×%s%s" % [str(_stats.score_multiplier),
 		"   ·   can't be totaled" if not _stats.can_total else ""]
-	_paint.text = "▲  %s  ▼" % _stats.paints[paint_index][0]
-	browsed.emit(current_car(), paint_index)
+	_paint.text = _choice("Paint: " + _stats.paints[paint_index][0], row == Row.PAINT)
+	var c := Condition.preset(current_condition())
+	_condition.text = _choice(c.display_name, row == Row.CONDITION)
+	_condition_tagline.text = c.tagline
+	browsed.emit(current_car(), paint_index, current_condition())
+
+
+## A line you can change: arrows and highlighted when it's the selected one.
+func _choice(text: String, selected: bool) -> String:
+	return "◀  %s  ▶" % text if selected else text
 
 
 func _save() -> void:
@@ -101,6 +123,7 @@ func _save() -> void:
 	cfg.load(save_path)
 	cfg.set_value(SAVE_SECTION, "car", current_car())
 	cfg.set_value(SAVE_SECTION, "paint", paint_index)
+	cfg.set_value(SAVE_SECTION, "condition", current_condition())
 	cfg.save(save_path)
 
 
@@ -155,9 +178,13 @@ func _build() -> void:
 	column.add_child(_multiplier)
 	_paint = _label("", 20)
 	column.add_child(_paint)
+	_condition = _label("", 24, Color(0.75, 0.88, 1.0))
+	column.add_child(_condition)
+	_condition_tagline = _label("", 16, Color(0.85, 0.87, 0.9))
+	column.add_child(_condition_tagline)
 	_records = _label("", 16, Color(0.85, 0.87, 0.9))
 	column.add_child(_records)
-	column.add_child(_label("◀ ▶ car     ▲ ▼ paint     Enter / Space / A: drive     Esc: quit", 15,
+	column.add_child(_label("▲ ▼ car / paint / conditions     ◀ ▶ change     Enter / Space / A: drive     Esc: quit", 15,
 		Color(0.7, 0.72, 0.75)))
 
 

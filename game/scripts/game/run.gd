@@ -17,6 +17,7 @@ signal finished
 var car: Car
 var tracker: RunTracker
 var score := ScoreKeeper.new()
+var condition := Condition.preset("summer")  ## records are kept per car and condition
 var _air_time := 0.0
 var _rolled_time := 0.0
 
@@ -31,7 +32,7 @@ func setup(c: Car, t: RunTracker) -> void:
 ## After the car has been swapped for another (the car-select screen).
 func car_changed() -> void:
 	score.car_multiplier = car.stats.score_multiplier
-	tracker.set_car(car.stats.display_name)
+	tracker.set_car(condition.records_key(car.stats.display_name))
 
 
 func restart() -> void:

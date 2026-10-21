@@ -12,6 +12,8 @@ extends Node3D
 ##   --orbit              circle the car with the camera (for screenshots)
 ##   --chase              start with a deputy on your tail
 ##   --deer[=<m>]         send a herd of deer across the road just ahead (45 m)
+##   --condition=<id>     summer, harvest, night, storm or winter (default: the garage's pick)
+##   --scenery=<0..1>     how much of the buildings and trees to draw (F2 in the game)
 ##   --seed=<n>           fix where the speed traps and deer are (random each run
 ##                        otherwise; tests and screenshots default to 1)
 ##   --tune=<k:v,...>     override CarStats values, e.g. --tune=handbrake_grip:0.2
@@ -41,6 +43,13 @@ const FOG_END := 3000.0  ## nothing past this is visible
 var route: RouteData
 var fields: Fields
 var streamer: WorldStreamer
+var scenery: Scenery
+var weather: Weather
+var radio: Radio
+var condition: Condition
+var environment: Environment
+var sky_material: ProceduralSkyMaterial
+var sun: DirectionalLight3D
 var props: PropField
 var traffic: Traffic
 var cops: Cops
@@ -73,7 +82,16 @@ func _ready() -> void:
 	add_child(preload("res://scripts/game/pause_control.gd").new())
 	streamer = WorldStreamer.new()
 	streamer.setup(route)
+	streamer.fields = fields  # one patchwork, so harvest cuts the same fields everywhere
 	add_child(streamer)
+	scenery = Scenery.new()
+	add_child(scenery)
+	scenery.setup(route)
+	var settings := ConfigFile.new()
+	if not _testing and settings.load(RunTracker.SAVE_PATH) == OK:
+		scenery.density = float(settings.get_value("settings", "scenery", 1.0))
+	if args.has("scenery"):
+		scenery.density = float(args.scenery)
 	var roadside := Roadside.new()
 	add_child(roadside)
 	roadside.setup(route)
@@ -131,6 +149,30 @@ func _ready() -> void:
 		_spawn_station = route.start_station + 1.5 * RouteData.MILE_M  # the long straight north of Kalona
 	_spawn(_spawn_station)
 	camera.setup(car)
+
+	weather = Weather.new()
+	add_child(weather)
+	weather.setup(car, camera, environment, sky_material)
+	radio = Radio.new()
+	add_child(radio)
+
+	hud = Hud.new()
+	add_child(hud)
+	hud.setup(route, car, run, camera)
+	hud.cops = cops
+	radio.now_playing.connect(func(title): hud.note(title))
+	cops.chase_started.connect(func(county): hud.banner("SPEED TRAP!\n%s County deputy" % county))
+	garage = CarSelect.new()
+	add_child(garage)
+	garage.setup("" if _testing else RunTracker.SAVE_PATH)
+	garage.browsed.connect(_show_car)
+	garage.chosen.connect(_drive)
+	var condition_id: String = args.get("condition", "summer" if _testing else garage.current_condition())
+	if not condition_id in Condition.IDS:
+		push_error("unknown condition %s" % condition_id)
+		condition_id = "summer"
+	apply_condition(Condition.preset(condition_id))
+	# Dev and screenshot setups, now the condition's set (traffic mix, deer).
 	if args.has("traffic-near"):
 		traffic.populate_near()
 	if args.has("damage"):
@@ -140,21 +182,12 @@ func _ready() -> void:
 		cops.chase_from_behind()
 	if args.has("deer"):
 		deer.cross_now(45.0 if args.deer is bool else float(args.deer))
-
-	hud = Hud.new()
-	add_child(hud)
-	hud.setup(route, car, run, camera)
-	hud.cops = cops
-	cops.chase_started.connect(func(county): hud.banner("SPEED TRAP!\n%s County deputy" % county))
-	garage = CarSelect.new()
-	add_child(garage)
-	garage.setup("" if _testing else RunTracker.SAVE_PATH)
-	garage.browsed.connect(_show_car)
-	garage.chosen.connect(_drive)
 	var skip_garage := args.has("car") or _testing or args.has("smoke-test") or args.has("screenshot") \
 		or args.has("benchmark") or args.has("autopilot")
 	if args.has("garage") or not skip_garage:
 		open_garage()
+	elif not _testing and not args.has("smoke-test") and not args.has("screenshot") and not args.has("benchmark"):
+		radio.start()
 
 	if args.has("smoke-test"):
 		_smoke_test()
@@ -200,6 +233,7 @@ func _pick_driver(args: Dictionary) -> DriftDriver:
 
 func _physics_process(delta: float) -> void:
 	streamer.focus = car.global_position
+	scenery.focus = car.global_position
 	# Tow a car that's left the corridor or fallen out of the world.
 	var pos := car.global_position
 	var ground := route.terrain.height_at(pos.x, pos.z)
@@ -221,6 +255,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		restart()
 	elif event.is_action_pressed("recover"):
 		_tow()
+	elif event.is_action_pressed("scenery_detail"):
+		scenery.density = {1.0: 0.5, 0.5: 0.0, 0.0: 1.0}.get(scenery.density, 1.0)
+		hud.note({1.0: "Scenery: everything", 0.5: "Scenery: half the trees", 0.0: "Scenery: off (fastest)"}[scenery.density])
+		if not _testing:
+			var cfg := ConfigFile.new()
+			cfg.load(RunTracker.SAVE_PATH)
+			cfg.set_value("settings", "scenery", scenery.density)
+			cfg.save(RunTracker.SAVE_PATH)
 	elif event.is_action_pressed("mute"):
 		var master := AudioServer.get_bus_index("Master")
 		AudioServer.set_bus_mute(master, not AudioServer.is_bus_mute(master))
@@ -260,7 +302,9 @@ func open_garage() -> void:
 
 
 ## Show a car in the garage (it's swapped in for real, so it sits on the road).
-func _show_car(car_id: String, paint: int) -> void:
+func _show_car(car_id: String, paint: int, condition_id: String) -> void:
+	if condition == null or condition.id != condition_id:
+		apply_condition(Condition.preset(condition_id))
 	var stats := CarStats.preset(car_id)
 	stats.body_color = stats.paints[paint][1]
 	car.change(stats)
@@ -269,10 +313,48 @@ func _show_car(car_id: String, paint: int) -> void:
 	_spawn(_spawn_station)
 
 
-func _drive(_car_id: String, _paint: int) -> void:
+## Light, weather, land, traffic, deer and grip for one of the five conditions.
+func apply_condition(c: Condition) -> void:
+	var harvest_changed := condition == null or condition.harvested != c.harvested
+	condition = c
+	sky_material.sky_top_color = c.sky_top
+	sky_material.sky_horizon_color = c.sky_horizon
+	sky_material.ground_horizon_color = c.haze
+	sky_material.ground_bottom_color = c.haze
+	environment.ambient_light_color = c.ambient
+	environment.ambient_light_energy = c.ambient_energy
+	environment.fog_light_color = c.haze
+	environment.fog_depth_begin = c.fog_begin
+	environment.fog_depth_end = c.fog_end
+	sun.rotation_degrees = c.sun_rotation
+	sun.light_color = c.sun_color
+	sun.light_energy = c.sun_energy
+	streamer.apply_condition(c)
+	corn.apply_condition(c)
+	if harvest_changed:
+		corn.reset()
+		corn.warm_up()
+	scenery.set_look(c.leaf, c.snow, c.night)
+	weather.apply(c)
+	car.grip_scale = c.grip
+	car.ice_grip = c.ice_grip
+	car.ice = Weather.ice_patches(route) if c.ice_grip < 1.0 else PackedFloat32Array()
+	streamer.set_ice(car.ice)
+	car.headlights = c.night > 0.5
+	traffic.apply_condition(c)
+	cops.night = c.night > 0.5
+	deer.rate = c.deer_rate
+	deer.reset(_seed)
+	run.condition = c
+	run.car_changed()
+	hud.condition_name = c.display_name
+
+
+func _drive(_car_id: String, _paint: int, _condition_id: String) -> void:
 	camera.showroom = false
 	hud.visible = true
 	restart()
+	radio.start()
 
 
 func _on_wrecked(_reason: String) -> void:
@@ -297,6 +379,7 @@ func _tow() -> void:
 ## Put the car on the road and build everything around it right away.
 func _spawn(station: float) -> void:
 	streamer.warm_up(route.position_at(station))
+	scenery.warm_up(route.position_at(station))
 	car.place_at(station)
 	props.refresh()
 	corn.warm_up()
@@ -305,7 +388,7 @@ func _spawn(station: float) -> void:
 
 
 func _add_environment() -> void:
-	var sky_material := ProceduralSkyMaterial.new()
+	sky_material = ProceduralSkyMaterial.new()
 	sky_material.sky_top_color = Color(0.36, 0.55, 0.82)
 	sky_material.sky_horizon_color = Color(0.78, 0.83, 0.86)
 	# Below the horizon the sky only shows past the edge of the terrain; make it haze.
@@ -315,6 +398,7 @@ func _add_environment() -> void:
 	sky.sky_material = sky_material
 
 	var env := Environment.new()
+	environment = env
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	# Neutral fill light; sky-colored ambient turns the asphalt blue.
@@ -335,7 +419,7 @@ func _add_environment() -> void:
 	world_env.environment = env
 	add_child(world_env)
 
-	var sun := DirectionalLight3D.new()
+	sun = DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-48.0, -35.0, 0.0)
 	sun.light_energy = 1.1
 	sun.shadow_enabled = false
@@ -383,10 +467,15 @@ func _smoke_test() -> void:
 	if streamer.loaded_tile_count() < 20 or streamer.loaded_chunk_count() < 5:
 		problems.append("streaming loaded %d tiles, %d road chunks" % [
 			streamer.loaded_tile_count(), streamer.loaded_chunk_count()])
+	if route.buildings.size() < 500 or route.trees.size() / 5 < 5000:
+		problems.append("only %d buildings and %d trees in the data" % [route.buildings.size(), route.trees.size() / 5])
+	scenery.warm_up(route.position_at(route.length * 0.5))
+	if scenery.instance_count() < 100:
+		problems.append("only %d buildings and trees around mid-route" % scenery.instance_count())
 	if problems.is_empty():
-		print("SMOKE OK: %.2f mi, %d crossroads, %d terrain tiles, car settled on %s" % [
+		print("SMOKE OK: %.2f mi, %d crossroads, %d terrain tiles, %d buildings, %d trees, car settled on %s" % [
 			route.mile_at(route.finish_station), route.crossroads.size(), route.terrain.count(),
-			car.wheels[0].surface])
+			route.buildings.size(), route.trees.size() / 5, car.wheels[0].surface])
 		get_tree().quit(0)
 	else:
 		for p in problems:

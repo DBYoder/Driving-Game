@@ -1,0 +1,37 @@
+{
+ "sources": [
+  "USGS National Hydrography Dataset (NHD), public domain",
+  "USGS National Boundary Dataset (Governmental Units), public domain"
+ ],
+ "creeks": [
+  {
+   "station": 8474.1,
+   "name": "Dirty Face Creek"
+  },
+  {
+   "station": 17465.6,
+   "name": "Old Womans Creek"
+  }
+ ],
+ "cities": [
+  {
+   "station": 1407.3,
+   "name": "Kalona",
+   "population": 2630,
+   "entering": false
+  },
+  {
+   "station": 23797.7,
+   "name": "Iowa City",
+   "population": 74828,
+   "entering": true
+  }
+ ],
+ "counties": [
+  {
+   "station": 3023.9,
+   "entering": "Johnson",
+   "leaving": "Washington"
+  }
+ ]
+}
