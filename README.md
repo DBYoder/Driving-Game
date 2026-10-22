@@ -11,6 +11,7 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 
 | | |
 |---|---|
+| ![Behind the wheel of the Legend at harvest dusk: the dash, the gauges, the radio](docs/screenshots/in-car-legend.png) | ![The Windstar's dash at night, its gauges lit](docs/screenshots/in-car-night.png) |
 | ![Stopped at the four-way stop in Kalona, a buggy waiting its turn](docs/screenshots/kalona-4-way-stop.png) | ![The finish: the stop light at Mormon Trek Blvd](docs/screenshots/mormon-trek-finish.png) |
 | ![Kalona from above: streets, houses and lawns](docs/screenshots/kalona-from-above.png) | ![A gravel crossroad and the power line, mile 5.7](docs/screenshots/gravel-crossroad.png) |
 | ![The title screen](docs/screenshots/title.png) | ![Settings](docs/screenshots/settings.png) |
@@ -23,6 +24,8 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 | ![A Johnson County deputy on a Windstar's tail](docs/screenshots/speed-trap-chase.png) | ![Deer crossing near the creek at mile 4](docs/screenshots/deer-crossing.png) |
 
 ## Status
+
+**v0.7.2:** an in-car view with a working dash (speedometer, tachometer, fuel, temperature, odometer, warning lights, the radio's clock): press C or Y. And no more tires poking through the bodywork: every car has wheel arches now, and a test throws each one through every pose to make sure.
 
 **v0.7.1:** the engine and tires are audible now (screeching, gravel crunch, road and wind noise), on laptop and TV speakers too.
 
@@ -109,7 +112,7 @@ godot --path game -- --autopilot --autopilot-mph=90       # watch the autopilot 
 godot --path game -- --station=2400 --traffic-near        # start with traffic in view
 godot --path game -- --car=windstar --station=6000 --chase  # a deputy already on your tail
 godot --path game -- --car=windstar --station=6000 --chase --boost  # ...and a full boost burning
-godot --path game -- --station=6600 --deer=25 --view=1     # deer crossing just ahead
+godot --path game -- --station=6600 --deer=25 --view=1     # deer crossing just ahead, from the driver's seat
 godot --path game -- --condition=night --car=legend        # summer, harvest, night, storm, winter
 godot --path game -- --scenery=0.5                         # half the trees (F2 in the game)
 godot --path game -- --preset=low                          # a graphics preset, just for this run

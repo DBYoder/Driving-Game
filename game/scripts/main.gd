@@ -3,7 +3,7 @@ extends Node3D
 ##
 ## Command-line options (after `--`):
 ##   --station=<m>        start the car here instead of at the Kalona 4-way stop
-##   --view=<n>           camera: 0 chase, 1 hood, 2 far chase, 3 drone
+##   --view=<n>           camera: 0 chase, 1 in car, 2 far chase, 3 drone, 4 hood
 ##   --autopilot          let the autopilot drive (demo mode)
 ##   --autopilot-mph=<n>  the autopilot's cruising speed (default 70)
 ##   --car=<id>           windstar, tercel or legend (skips the car-select screen)
@@ -200,7 +200,7 @@ func _ready() -> void:
 
 	weather = Weather.new()
 	add_child(weather)
-	weather.setup(car, camera, environment, sky_material)
+	weather.setup(car, camera, environment, sky_material, _seed)
 	radio = Radio.new()
 	add_child(radio)
 	apply_settings()
@@ -212,7 +212,9 @@ func _ready() -> void:
 	hud.setup(route, car, run, camera)
 	hud.cops = cops
 	hud.deer = deer
-	radio.now_playing.connect(func(title): hud.note(title))
+	radio.now_playing.connect(func(title: String):
+		hud.note(title)
+		Cockpit.radio_text = title.trim_prefix("♪  ").to_upper())
 	cops.chase_started.connect(func(county):
 		hud.banner("SPEED TRAP!\n%s County deputy" % county)
 		hud.note("Near misses fill your boost: Shift or B to lose the deputy", 6.0))
@@ -492,6 +494,8 @@ func apply_settings() -> void:
 func apply_condition(c: Condition) -> void:
 	var harvest_changed := condition == null or condition.harvested != c.harvested
 	condition = c
+	Cockpit.clock_start = c.clock
+	Cockpit.clock_since = Time.get_ticks_msec()
 	for pair: Array in [["sky_top_color", c.sky_top], ["sky_horizon_color", c.sky_horizon],
 			["ground_horizon_color", c.haze], ["ground_bottom_color", c.haze], ["cloud_cover", c.cloud_cover],
 			["cloud_color", c.cloud_color], ["cloud_shade", c.cloud_shade], ["stars", c.stars]]:

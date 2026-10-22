@@ -102,6 +102,7 @@ func _process(delta: float) -> void:
 	var score_keeper := run.score
 	_combo.text = "+%s  x%d" % [_fmt(score_keeper.pot), score_keeper.multiplier] if score_keeper.multiplier > 0 else ""
 	_speed.text = "%d mph" % roundi(absf(car.forward_speed()) * MPH)
+	_speed.visible = camera.mode_name() != "In car"  # the speedometer's right there
 	_health.value = car.health / car.stats.durability * 100.0
 	_boost.value = car.boost.meter * 100.0
 	_boost_flash = maxf(_boost_flash - delta, 0.0)

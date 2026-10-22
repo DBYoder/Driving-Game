@@ -78,6 +78,11 @@ static func rpm_for(speed: float) -> float:
 	return 1.0
 
 
+## How hard the engine's revving: 0.15 idling .. 1 at the redline (the tachometer).
+func rpm_fraction() -> float:
+	return _rpm
+
+
 ## The firing frequency (Hz) now.
 func frequency() -> float:
 	return (IDLE_HZ + _rpm * (REDLINE_HZ - IDLE_HZ)) * car.stats.engine_note

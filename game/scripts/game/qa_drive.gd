@@ -25,8 +25,10 @@ const DRIFT_MAX_RECOVERY := 4.0
 const MIN_POP_IN := {"horizon": 3000.0, "road": 2400.0, "terrain": 1000.0, "streets": 1000.0, "props": 1000.0,
 	"corn": CornField.CLUMP_GONE, "traffic": 1800.0, "deer": 170.0, "scenery": 1000.0}
 const MIN_TRAFFIC_POP_OUT := 800.0
-## Ticks of visible clipping allowed per kind (contacts can sink in a little for a tick).
-const MAX_CLIP_TICKS := 10
+## Ticks of visible clipping allowed per kind: 10 (contacts can sink in a little for a
+## tick), but none for the tires through the car's own body.
+const MAX_CLIP_TICKS := {"tires": 0}
+const TIRE_CHECK_EVERY := {"drive": 60, "thrown": 3}  ## physics ticks between tire checks: cruising, or stress/drift
 
 var car: Car
 var run: Run
@@ -55,6 +57,7 @@ var _recovery_time := -1.0
 var _start_heading := 0.0
 var _problems: Array[String] = []
 var _clips := ClipProbe.new()
+var _ticks := 0
 var _chase_seen := false
 var _chase_started_at := -1.0
 var _closest_cop := INF
@@ -110,6 +113,9 @@ func _physics_process(delta: float) -> void:
 	var up_y := car.global_transform.basis.y.y
 	_lowest_up = minf(_lowest_up, up_y)
 	_clips.sample(get_parent(), car)
+	_ticks += 1
+	if _ticks % (TIRE_CHECK_EVERY.thrown if stress or drift else TIRE_CHECK_EVERY.drive) == 0:
+		_clips.sample_tires(car)
 	var deer: Deer = get_parent().deer
 	if deer.hits > _deer_hits:
 		_deer_hits = deer.hits
@@ -389,7 +395,7 @@ func _finish() -> void:
 	labels.sort()
 	print("  clipping: %s" % _clips.report())
 	for kind in _clips.visible_ticks:
-		if _clips.visible_ticks[kind] > MAX_CLIP_TICKS:
+		if _clips.visible_ticks[kind] > MAX_CLIP_TICKS.get(kind, 10):
 			_problems.append("car visibly inside %s for %d ticks (worst %.2f near mile %.2f)" % [
 				kind, _clips.visible_ticks[kind], _clips.worst[kind], _clips.worst_mile[kind]])
 	var main := get_parent()

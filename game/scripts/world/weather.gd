@@ -21,7 +21,8 @@ var gust := 0.0  ## side pressure right now, N/m² (QA and the HUD can read it)
 var flashes := 0
 var _rain: CPUParticles3D
 var _snow: CPUParticles3D
-var _rng := RandomNumberGenerator.new()
+var _rng := RandomNumberGenerator.new()  ## lightning and the rain's hiss: different every time
+var _gust_rng := RandomNumberGenerator.new()  ## the gusts: they shove the car, so they follow the run's seed
 var _next_gust := 3.0
 var _gust_t := -1.0
 var _gust_peak := 0.0
@@ -37,12 +38,13 @@ var _brown := 0.0
 var _hiss := 0.0
 
 
-func setup(c: Car, cam: Camera3D, environment: Environment, sky_material: ShaderMaterial) -> void:
+func setup(c: Car, cam: Camera3D, environment: Environment, sky_material: ShaderMaterial, seed_value := 1) -> void:
 	car = c
 	camera = cam
 	env = environment
 	sky = sky_material
 	_rng.randomize()
+	_gust_rng.seed = seed_value * 104729 + 7
 	_rain = _particles(900, 0.75, Vector3(26, 1, 26), Vector2(0.025, 0.8), Color(0.72, 0.78, 0.84, 0.35), true)
 	_snow = _particles(1400, 5.0, Vector3(32, 1, 32), Vector2(0.09, 0.09), Color(0.97, 0.98, 1.0, 0.95), false)
 	_audio = AudioStreamPlayer.new()
@@ -181,8 +183,8 @@ func _physics_process(delta: float) -> void:
 	_next_gust -= delta
 	if _next_gust <= 0.0 and _gust_t < 0.0:
 		_gust_t = 0.0
-		_gust_peak = condition.wind_gusts * _rng.randf_range(0.6, 1.0)
-		_next_gust = _rng.randf_range(GUST_SECONDS.x, GUST_SECONDS.y)
+		_gust_peak = condition.wind_gusts * _gust_rng.randf_range(0.6, 1.0)
+		_next_gust = _gust_rng.randf_range(GUST_SECONDS.x, GUST_SECONDS.y)
 	if _gust_t >= 0.0:
 		_gust_t += delta
 		gust = _gust_peak * sin(PI * clampf(_gust_t / GUST_LENGTH, 0.0, 1.0))
