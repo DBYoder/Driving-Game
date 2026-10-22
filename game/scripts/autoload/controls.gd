@@ -12,21 +12,22 @@ var bindings := {
 	"steer_right": [KEY_D, KEY_RIGHT, {"axis": JOY_AXIS_LEFT_X, "value": 1.0}],
 	"handbrake": [KEY_SPACE, {"button": JOY_BUTTON_A}],
 	"boost": [KEY_SHIFT, {"button": JOY_BUTTON_B}],
+	"horn": [KEY_H, {"button": JOY_BUTTON_RIGHT_SHOULDER}],
 	"camera_next": [KEY_C, {"button": JOY_BUTTON_Y}],
 	"recover": [KEY_T, {"button": JOY_BUTTON_X}],
-	"pause": [KEY_P, {"button": JOY_BUTTON_START}],
+	"pause": [KEY_P, KEY_ESCAPE, {"button": JOY_BUTTON_START}],  ## the pause menu
 	"restart": [KEY_R, {"button": JOY_BUTTON_BACK}],
 	"mute": [KEY_M],
 	"radio_next": [KEY_N, {"button": JOY_BUTTON_DPAD_RIGHT}],
 	"radio_power": [KEY_B, {"button": JOY_BUTTON_DPAD_LEFT}],
 	"scenery_detail": [KEY_F2],
-	"quit": [KEY_ESCAPE],
 	# The car-select screen.
 	"menu_left": [KEY_A, KEY_LEFT, {"button": JOY_BUTTON_DPAD_LEFT}, {"axis": JOY_AXIS_LEFT_X, "value": -1.0}],
 	"menu_right": [KEY_D, KEY_RIGHT, {"button": JOY_BUTTON_DPAD_RIGHT}, {"axis": JOY_AXIS_LEFT_X, "value": 1.0}],
 	"menu_up": [KEY_W, KEY_UP, {"button": JOY_BUTTON_DPAD_UP}, {"axis": JOY_AXIS_LEFT_Y, "value": -1.0}],
 	"menu_down": [KEY_S, KEY_DOWN, {"button": JOY_BUTTON_DPAD_DOWN}, {"axis": JOY_AXIS_LEFT_Y, "value": 1.0}],
 	"menu_accept": [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE, {"button": JOY_BUTTON_A}],
+	"menu_back": [KEY_ESCAPE, KEY_BACKSPACE, {"button": JOY_BUTTON_B}],
 	"change_car": [KEY_ENTER, KEY_KP_ENTER, {"button": JOY_BUTTON_LEFT_SHOULDER}],
 }
 

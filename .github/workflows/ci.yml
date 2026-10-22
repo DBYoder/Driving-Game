@@ -113,6 +113,10 @@ jobs:
         run: |
           timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-deer --no-traffic --car=legend
 
+      - name: QA menus (click through the title, settings, records, a practice run, pause and back)
+        run: |
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-menus
+
       - name: Screenshots (software rendering)
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q xvfb libgl1-mesa-dri
@@ -128,7 +132,12 @@ jobs:
           shoot mile-5-corn 8000 2
           shoot mile-7-drone 11500 3
           shoot mile-9-long-view 14600 2 --no-traffic
+          shoot title 175 0 --title
+          shoot settings 175 0 "--title --menu=settings"
+          shoot records 175 0 "--title --menu=records"
+          shoot pause-menu 3000 0 "--car=legend --no-traffic --menu=pause"
           shoot garage 175 0 --garage
+          shoot practice 175 0 "--garage --practice"
           shoot windstar 175 0 "--car=windstar --orbit --no-traffic"
           shoot tercel-beat-up 175 0 "--car=tercel --orbit --damage=0.7 --no-traffic"
           shoot legend-beat-up 175 0 "--car=legend --orbit --damage=0.7 --no-traffic"

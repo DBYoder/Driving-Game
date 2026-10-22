@@ -15,6 +15,9 @@ extends Node3D
 ##
 ## They break cover FIELD_START from the road with the car hundreds of meters back, out
 ## in the corn where you can't see them anyway.
+##
+## Lean on the horn and the deer up ahead spook: one standing in the road bolts for the
+## nearer ditch, ones on their way turn tail, ones already crossing hurry up.
 
 const FIELD_START := 140.0  ## m from the centerline where they break cover
 const RUN_SPEED := 12.0  ## m/s across the road
@@ -39,6 +42,7 @@ const MASS := 70.0
 const DAMAGE_PER_MS := 1.1  ## car health per m/s of closing speed
 const DODGE_POINTS := 100
 const GONE_RANGE := 450.0
+const HORN_RANGE := 160.0  ## m ahead of the car that a honk spooks deer
 
 
 class Animal:
@@ -59,6 +63,7 @@ class Animal:
 	var on_road_once := false
 	var threat := false  ## was in the car's path, close
 	var judged := false
+	var spooked := false  ## honked at: running for it
 
 
 class Spot:
@@ -83,6 +88,8 @@ var crossings := 0  ## herds that broke cover this run
 var hits := 0  ## deer the player hit
 var dodges := 0
 var froze := 0
+var honked_off := 0  ## deer spooked by the horn
+var _honking := false
 ## The closest a deer has been to the car when it appeared (checked by the QA drive).
 var nearest_pop_in := INF
 var _mesh: ArrayMesh
@@ -111,6 +118,7 @@ func reset(seed_value: int) -> void:
 	hits = 0
 	dodges = 0
 	froze = 0
+	honked_off = 0
 	_rng.seed = seed_value * 7919 + 3
 	var candidates: Array[float] = []
 	for b: Array in route.bridges:
@@ -199,6 +207,9 @@ func cross_now(distance := 45.0) -> void:
 func _physics_process(delta: float) -> void:
 	if car == null or not enabled:
 		return
+	if car.horn and not _honking:
+		spook(HORN_RANGE)
+	_honking = car.horn
 	var speed := car.linear_velocity.length()
 	if speed >= MIN_CAR_SPEED:
 		var run_time := (FIELD_START - RoadMesher.GRAVEL_HALF_WIDTH) / RUN_SPEED
@@ -272,7 +283,9 @@ func _move(a: Animal, delta: float) -> void:
 	var heading_in := a.dir.dot(route.right_at(a.station)) * lateral < 0.0
 	if absf(lateral) < RoadMesher.GRAVEL_HALF_WIDTH:
 		a.on_road_once = true
-	if not a.on_road_once and heading_in:
+	if a.spooked:
+		a.speed = BOLT_SPEED
+	elif not a.on_road_once and heading_in:
 		var to_road := absf(lateral) - RoadMesher.GRAVEL_HALF_WIDTH
 		var eta := _car_eta(a)
 		if car.station > a.station + car.stats.body_size.z:
@@ -305,6 +318,31 @@ func _move(a: Animal, delta: float) -> void:
 	a.phase += a.speed * delta * 1.3
 	_watch_car(a)
 	_place(a)
+
+
+## A honk: the deer within `reach` ahead of the car run for it. Returns how many.
+func spook(reach: float) -> int:
+	var count := 0
+	for a in animals:
+		var ahead := a.station - car.station
+		if a.spooked or a.stays or ahead < -5.0 or ahead > reach:
+			continue
+		a.spooked = true
+		a.will_freeze = false
+		a.delay = 0.0
+		var lateral := _lateral(a)
+		var right := route.right_at(a.station)
+		var heading_in := a.dir.dot(right) * lateral < 0.0
+		if a.frozen or absf(lateral) < RoadMesher.GRAVEL_HALF_WIDTH:
+			# On the road: off it the shortest way.
+			a.frozen = false
+			var away := right * (signf(lateral) if absf(lateral) > 0.3 else signf(a.dir.dot(right)))
+			a.dir = Vector3(away.x, 0.0, away.z).normalized()
+		elif heading_in and not a.on_road_once:
+			a.dir = -a.dir  # still in the field: back the way it came
+		count += 1
+	honked_off += count
+	return count
 
 
 ## Did it get in the car's way (and did the car miss it)?

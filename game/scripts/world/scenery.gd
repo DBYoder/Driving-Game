@@ -6,7 +6,7 @@ extends Node3D
 ##
 ## Drawn as GPU instances of a few low-poly models (SceneryMeshes), in BLOCK-sized
 ## squares that load and unload around the car at the same distances as the detailed
-## terrain under them, with plainer models past NEAR_LOD. A block's instances are worked
+## terrain under them, with plainer models past `near_lod`. A block's instances are worked
 ## out on a worker thread the first time it's needed (a wooded one has thousands of
 ## trees) and kept. Near the car they're solid: buildings as boxes (and cylinders for
 ## bins), trees as their trunks.
@@ -14,7 +14,7 @@ extends Node3D
 const BLOCK := 512.0
 const LOAD_RADIUS := 1250.0  ## the detailed terrain's (WorldStreamer.RADII.tile)
 const UNLOAD_RADIUS := 1550.0
-const NEAR_LOD := 450.0
+const NEAR_LOD := 450.0  ## the usual `near_lod` (the High preset pushes it out)
 const LOD_HYSTERESIS := 50.0
 const COLLIDE_RADIUS := 250.0
 const COLLIDE_UNLOAD := 400.0
@@ -58,6 +58,8 @@ var density := 1.0:
 			if block.node:
 				_apply_density(block)
 				_drop_body(block)  # rebuilt with only what's drawn
+## Detailed models within this of the car, plainer ones past it.
+var near_lod := NEAR_LOD
 ## The closest a block appeared to the focus while driving (QA checks it).
 var nearest_pop_in := INF
 var _blocks := {}  ## Vector2i -> Block
@@ -162,7 +164,7 @@ func _refresh_all() -> void:
 			_drop_body(block)
 		if d > LOAD_RADIUS:
 			continue
-		var lod := 0 if d < NEAR_LOD - (LOD_HYSTERESIS if block.lod == 1 else 0.0) else 1
+		var lod := 0 if d < near_lod - (LOD_HYSTERESIS if block.lod == 1 else 0.0) else 1
 		if block.node == null or block.lod != lod or (d < COLLIDE_RADIUS and not block.body.is_valid()):
 			wanted.append([d, block])
 	wanted.sort_custom(func(a, b): return a[0] < b[0])
@@ -174,7 +176,7 @@ func _build(block: Block) -> void:
 	var d := _distance(block)
 	if d > LOAD_RADIUS:
 		return
-	var lod := 0 if d < NEAR_LOD - (LOD_HYSTERESIS if block.lod == 1 else 0.0) else 1
+	var lod := 0 if d < near_lod - (LOD_HYSTERESIS if block.lod == 1 else 0.0) else 1
 	if block.node == null:
 		if block.task == -1 and block.buffers.is_empty():
 			if _warming_up:

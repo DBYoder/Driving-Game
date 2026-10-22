@@ -25,6 +25,8 @@ var combo_time_left := 0.0
 var finish_bonus := 0  ## extra from the x1.5
 var time_bonus := 0
 var totals := {}  ## label -> points banked, for the results screen
+var counts := {}  ## label -> how many times it scored (banked or not), for the run's title
+var raw := {}  ## label -> points before any multiplier (corn: 5 a meter; airtime: 100 a half second)
 var _pot_by_label := {}
 
 
@@ -36,12 +38,16 @@ func reset() -> void:
 	finish_bonus = 0
 	time_bonus = 0
 	totals.clear()
+	counts.clear()
+	raw.clear()
 	_pot_by_label.clear()
 
 
 ## Score something. `event` = false adds points without bumping the multiplier
 ## (for continuous things like plowing corn), but still keeps the combo alive.
 func add(label: String, points: int, event := true) -> void:
+	counts[label] = counts.get(label, 0) + 1
+	raw[label] = raw.get(label, 0) + points
 	points = roundi(points * car_multiplier)
 	if points <= 0:
 		return

@@ -10,6 +10,7 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 
 | | |
 |---|---|
+| ![The title screen](docs/screenshots/title.png) | ![Settings](docs/screenshots/settings.png) |
 | ![Kalona Cheese at 540th St, mile 3.9](docs/screenshots/kalona-cheese.png) | ![Boosting away from a Johnson County deputy](docs/screenshots/boost-escape.png) |
 | ![Real farmsteads and tree lines at mile 2, from lidar](docs/screenshots/mile-2-farmsteads.png) | ![Night: headlights, lit windows, yard lights](docs/screenshots/night.png) |
 | ![Harvest dusk: stubble, brown corn, a combine](docs/screenshots/harvest-dusk.png) | ![Thunderstorm](docs/screenshots/thunderstorm.png) |
@@ -19,6 +20,13 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 | ![A Johnson County deputy on a Windstar's tail](docs/screenshots/speed-trap-chase.png) | ![Deer crossing near the creek at mile 4](docs/screenshots/deer-crossing.png) |
 
 ## Status
+
+**v0.6: polish.**
+- **Menus:** a title screen (your last car cruising up the road), a pause menu on Esc, settings and a records table.
+- **Settings:** Low/Medium/High graphics, resolution, scenery, full screen, three volumes and controller rumble.
+- **Practice mode:** start at any mile; nothing's saved.
+- **Sound:** synthesized crashes, smashes, landings, tire squeal and a horn for each car (it scares deer off the road). The controller rumbles along.
+- **Results:** every run gets a title ("Minivan gymnastics: a perfect 10.").
 
 **v0.5.1, after the v0.5 playtest:**
 - **The boost.** Near misses fill a boost meter; hold Shift (or B) to burn it. It's the way to lose a cop now: deputies drive a little faster than your car can, and two full boosts leave them behind.
@@ -58,12 +66,14 @@ game/                  Godot 4.6.3 project (GL Compatibility renderer)
                        weather and black ice
   scripts/car/         raycast car physics, the three cars (CarStats), models and damage,
                        the boost, drivers, engine sound
-  scripts/game/        run rules, scoring and combos, records, the conditions, the radio, QA drives
+  scripts/game/        run rules, scoring and combos, records, the conditions, the radio, sound
+                       effects, run titles, QA drives
   scripts/props/       mailboxes, fences, hay bales, corn clumps and the corn canopy
   scripts/traffic/     other road users and crashing into them
   scripts/cops/        speed traps, chases and their rules, the deputies' driving, the siren
   scripts/hazards/     deer
-  scripts/ui/          the HUD, results and the garage (car select)
+  scripts/ui/          the HUD, results, the garage (car select), the title screen and menus
+  scripts/autoload/    the controls and the player's settings
   shaders/             flat-shaded terrain and road paint
   tests/               headless GDScript tests
 tools/                 Python pipeline that bakes the road, buildings, trees and names from USGS data
@@ -87,6 +97,9 @@ godot --path game -- --car=windstar --station=6000 --chase --boost  # ...and a f
 godot --path game -- --station=6600 --deer=25 --view=1     # deer crossing just ahead
 godot --path game -- --condition=night --car=legend        # summer, harvest, night, storm, winter
 godot --path game -- --scenery=0.5                         # half the trees (F2 in the game)
+godot --path game -- --preset=low                          # a graphics preset, just for this run
+godot --path game -- --title --menu=settings               # straight to a menu (settings, records, pause)
+godot --path game -- --garage --practice                   # the garage for a practice run
 
 # Automated test drives, headless and ~25x faster than real time:
 godot --headless --fixed-fps 60 --path game -- --qa-drive            # autopilot, all 15 miles
@@ -95,6 +108,7 @@ godot --headless --fixed-fps 60 --path game -- --qa-drift            # scripted 
 godot --headless --fixed-fps 60 --path game -- --qa-cops=bust --no-traffic  # get busted (or =line)
 godot --headless --fixed-fps 60 --path game -- --qa-cops=boost --no-traffic # boost away from a deputy
 godot --headless --fixed-fps 60 --path game -- --qa-deer --no-traffic       # a herd, then a hit
+godot --headless --fixed-fps 60 --path game -- --qa-menus                    # click through every menu
 godot --path game -- --benchmark                                      # fps, draw calls, triangles
 godot --path game -- --car=legend --damage=0.7 --orbit                # look at the damage
 godot --path game -- --tune=handbrake_grip:0.5                        # try a CarStats tweak

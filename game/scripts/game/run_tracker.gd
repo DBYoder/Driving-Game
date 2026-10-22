@@ -19,6 +19,7 @@ var best_time := 0.0  ## 0 = no record yet
 var best_score := 0
 var new_best := false  ## best time
 var new_best_score := false
+var practice := false  ## started somewhere up the road: nothing's saved
 
 
 func _init(start: float, finish: float, name_of_car: String, path := SAVE_PATH) -> void:
@@ -66,6 +67,8 @@ func update(station: float, delta: float) -> void:
 			elapsed += delta
 			if station >= finish_station:
 				state = State.FINISHED
+				if practice:
+					return
 				if best_time <= 0.0 or elapsed < best_time:
 					best_time = elapsed
 					new_best = true
@@ -81,6 +84,8 @@ func wreck(reason: String) -> void:
 
 ## Record the final score of a finished or wrecked run.
 func record_score(score: int) -> void:
+	if practice:
+		return
 	if score > best_score:
 		best_score = score
 		new_best_score = true
@@ -94,6 +99,15 @@ func _save(section: String, value) -> void:
 	cfg.load(save_path)
 	cfg.set_value(section, car_name, value)
 	cfg.save(save_path)
+
+
+## The best score and time saved for a car's records key (see Condition.records_key):
+## [score, seconds], zeros if there are none.
+static func saved_records(path: String, key: String) -> Array:
+	var cfg := ConfigFile.new()
+	if path.is_empty() or cfg.load(path) != OK:
+		return [0, 0.0]
+	return [int(cfg.get_value("best_scores", key, 0)), float(cfg.get_value("best_times", key, 0.0))]
 
 
 static func format_time(seconds: float) -> String:

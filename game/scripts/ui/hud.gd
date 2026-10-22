@@ -14,6 +14,8 @@ var tracker: RunTracker
 var camera: ChaseCamera
 var cops: Cops
 var condition_name := ""
+var practice := false  ## a practice run: nothing's saved
+var deer: Deer  ## for the run's title (deer honked off the road)
 var _trip: Label
 var _clock: Label
 var _score: Label
@@ -65,7 +67,7 @@ func setup(r: RouteData, c: Car, game_run: Run, cam: ChaseCamera) -> void:
 	_message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint = _label(15, Control.PRESET_BOTTOM_LEFT, Vector2(24, -16))
 	_hint.text = "W/S or triggers: gas/brake (hold S to reverse)    A/D or stick: steer    Space or A: handbrake    Shift or B: boost\n" \
-		+ "C or Y: camera    T or X: tow truck (-500)    R or Back: restart    P or Start: pause    N / B: radio    F2: detail    Esc: quit"
+		+ "H or RB: horn    C or Y: camera    T or X: tow truck (-500)    R or Back: restart    N / B: radio    Esc or Start: menu"
 	_note = _label(20, Control.PRESET_BOTTOM_LEFT, Vector2(24, -66))
 	_popups = VBoxContainer.new()
 	add_child(_popups)
@@ -84,7 +86,7 @@ func _process(delta: float) -> void:
 		return
 	var s := car.station
 	var finish_mile := route.mile_at(route.finish_station)
-	var lines := ["HIGHWAY 1  ·  Kalona → Iowa City",
+	var lines := ["PRACTICE  ·  nothing's saved" if practice else "HIGHWAY 1  ·  Kalona → Iowa City",
 		"%s  ·  points ×%s%s" % [car.stats.display_name, str(car.stats.score_multiplier),
 			"  ·  " + condition_name if condition_name != "" else ""],
 		"Mile %.1f of %.1f    %s view" % [clampf(route.mile_at(s), 0.0, finish_mile), finish_mile, camera.mode_name()]]
@@ -130,7 +132,7 @@ func _process(delta: float) -> void:
 	_results.visible = show_results
 
 	if get_tree().paused:
-		_show("PAUSED\nEnter / LB: change car", 40)
+		_show("", 40)  # the pause menu says so
 	elif tracker.state == RunTracker.State.READY:
 		_show("Cross the line in Kalona to start the clock", 26)
 		_go_flash = 1.2
@@ -183,7 +185,10 @@ func _fill_results() -> void:
 		child.free()
 	var score := run.score
 	var finished := tracker.state == RunTracker.State.FINISHED
-	_row("IOWA CITY!" if finished else "WRECKED: %s" % tracker.wreck_reason, "", 34)
+	_row(("PRACTICE: " if practice else "") + ("IOWA CITY!" if finished else "WRECKED: %s" % tracker.wreck_reason), "", 34)
+	_row(Awards.title_for({"finished": finished, "wreck": "" if finished else tracker.wreck_reason,
+		"car": car.stats.id, "seconds": tracker.elapsed, "score": score.banked, "counts": score.counts,
+		"raw": score.raw, "honked": deer.honked_off if deer else 0}), "", 24, Color(1.0, 0.85, 0.3))
 	var time_note := "  NEW BEST" if tracker.new_best else ""
 	_row("Time", RunTracker.format_time(tracker.elapsed) + time_note)
 	var labels := score.totals.keys()
@@ -196,16 +201,19 @@ func _fill_results() -> void:
 	else:
 		_row("Made it to Iowa City", "no")
 	_row("SCORE", _fmt(score.banked) + ("  NEW BEST" if tracker.new_best_score else ""), 30)
-	_row("Best score", _fmt(tracker.best_score))
-	_row("R: run it again", "Enter / LB: change car", 20)
+	if practice:
+		_row("Practice runs aren't saved", "")
+	else:
+		_row("Best score", _fmt(tracker.best_score))
+	_row("R: run it again", "Enter / LB: change car    Esc: menu", 20)
 
 
-func _row(left: String, right: String, size := 22) -> void:
+func _row(left: String, right: String, size := 22, color := Color(1, 1, 1)) -> void:
 	for text in [left, right]:
 		var label := Label.new()
 		label.text = text
 		label.add_theme_font_size_override("font_size", size)
-		label.add_theme_color_override("font_color", Color(1, 1, 1))
+		label.add_theme_color_override("font_color", color)
 		_results_grid.add_child(label)
 	_results_grid.get_child(_results_grid.get_child_count() - 1).horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 

@@ -20,6 +20,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS  # keeps playing on the pause screen
 	_rng.randomize()
 	_player = AudioStreamPlayer.new()
+	_player.bus = "Radio"
 	_player.volume_db = VOLUME_DB
 	_player.finished.connect(_next)
 	add_child(_player)

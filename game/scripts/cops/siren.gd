@@ -24,6 +24,7 @@ func _ready() -> void:
 	generator.mix_rate = MIX_RATE
 	generator.buffer_length = 0.1
 	stream = generator
+	bus = "Effects"
 	unit_size = 25.0
 	max_db = 3.0
 	volume_db = -4.0

@@ -46,6 +46,7 @@ func setup(c: Car, cam: Camera3D, environment: Environment, sky_material: Proced
 	_rain = _particles(900, 0.75, Vector3(26, 1, 26), Vector2(0.025, 0.8), Color(0.72, 0.78, 0.84, 0.35), true)
 	_snow = _particles(1400, 5.0, Vector3(32, 1, 32), Vector2(0.09, 0.09), Color(0.97, 0.98, 1.0, 0.95), false)
 	_audio = AudioStreamPlayer.new()
+	_audio.bus = "Effects"
 	var generator := AudioStreamGenerator.new()
 	generator.mix_rate = MIX_RATE
 	generator.buffer_length = 0.15
@@ -73,6 +74,12 @@ func apply(c: Condition) -> void:
 	elif not sound and _audio.playing:
 		_audio.stop()
 		_playback = null
+
+
+## How much rain and snow to draw (the graphics preset: Low halves it).
+func set_particle_scale(scale: float) -> void:
+	_rain.amount = maxi(int(900 * scale), 50)
+	_snow.amount = maxi(int(1400 * scale), 50)
 
 
 ## Stretches of black ice for a condition that has it: the bridges, and wherever trees

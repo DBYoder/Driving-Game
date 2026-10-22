@@ -22,6 +22,7 @@ func _ready() -> void:
 	generator.buffer_length = 0.1
 	stream = generator
 	volume_db = -10.0
+	bus = "Effects"
 	play()
 	_playback = get_stream_playback()
 

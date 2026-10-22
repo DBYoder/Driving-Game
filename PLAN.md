@@ -195,11 +195,11 @@ Keyboard and Xbox-style gamepad from day one, both handled natively by Godot. St
 ### 5.4 Potato performance budget
 - **Target: 60 fps at 720p on an Intel UHD 620-class laptop.**
 - Compatibility (OpenGL 3.3) renderer. Flat-shaded low-poly models sharing one palette texture, so draw calls stay very low.
-- No real-time shadows by default (blob shadows under cars); shadows only on the "High" preset.
+- No real-time shadows (blob shadows under cars). The plan was shadows on the "High" preset, but in the Compatibility renderer they wash out the lighting (Phase 6).
 - MultiMesh for corn, trees, fence posts, and mailboxes. A prop only becomes a physics body when the car gets close.
 - Fog hides streaming. Chunks load by route distance, not raw radius. Far-off terrain and road use lighter meshes, and signs past 1.1 km aren't drawn.
 - `--benchmark` drives for 40 s and prints fps, draw calls and triangles, to check a change (or a friend's computer) against the budget.
-- Low/Med/High presets plus a resolution-scale slider. *So far: **F2** cycles the scenery detail (all / half the trees / none), saved between runs.*
+- Low/Med/High presets plus a resolution-scale slider (Settings, v0.6; **F2** still cycles the scenery detail).
 - **The v0.5 scenery's cost** (`--benchmark` on CI's software renderer, same machine, same day):
 
   | | v0.4 | v0.5 | v0.5, F2 half |
@@ -411,10 +411,48 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
     - The stress test now boosts at random.
     - Unit tests cover the meter, the boosted top speeds, the deputies' speed, close passes, and where the landmark stands (clear of the road, nothing of the lidar's left inside it).
 
-### Phase 6: Polish (pick and choose)
+### Phase 6: v0.6 "Polish"
 - Engine and crash audio, menus, graphics presets, controller rumble, practice mode, a title screen, and anything that makes your friends laugh.
+- **Built:** all of it.
+  - **A title screen.** The car you drove last cruises up Highway 1 on its own, in the conditions you drove in, with the camera circling it and the radio on. The menu: Drive, Practice, Records, Settings, Quit.
+  - **Menus everywhere** (`Menu`, `Menus`). Keyboard, gamepad and mouse all work: ▲ ▼ picks, ◀ ▶ changes a setting, Enter / A chooses, Esc / B goes back.
+    - **Esc (or Start) opens the pause menu** instead of quitting: Resume, Restart the run, Change car, Settings, Quit to the title screen, Quit the game.
+    - **The garage** goes back to the title with Esc.
+  - **Settings**, saved as you change them (`Settings`, `user://settings.cfg`):
 
-**Scope-creep parking lot** (not planned; revisit after Phase 5): multiplayer, ghosts, a web build, steering wheels, extending into Iowa City, a southbound run.
+    | Setting | Choices |
+    |---|---|
+    | Graphics | Low (slow PCs) / Medium / High |
+    | Resolution | 50–100% of the window, for the 3D |
+    | Scenery | Everything / half the trees / off (still **F2** in a run) |
+    | Display | Window / full screen |
+    | Volume | Overall, car and effects, radio (0–100%) |
+    | Controller rumble | On / off |
+
+    The presets:
+    - **Low:** 75% resolution, half the trees, plainer models past 300 m, half the rain and snow.
+    - **Medium:** what every build so far has drawn.
+    - **High:** 2× anti-aliasing, and detailed buildings and trees out to 800 m (not 450).
+
+    No sun shadows after all: in the Compatibility renderer they wash the lighting out, and the cars have their blob shadows.
+  - **Practice mode.** Pick a car, conditions and where to start: Kalona or any mile up the road (named for the crossroad there). The clock and scoring run as usual, but nothing's saved, and the HUD and results say PRACTICE.
+  - **Records.** A table of your best score and time for every car in every condition.
+  - **Sound** (`Sfx`, `CarFeel`). All synthesized, no audio files:
+    - crashes (a thump, crumpling metal and bits falling, louder the harder);
+    - a clang for mailboxes, a crack for fence rails, a thud for hay bales and for landing a jump;
+    - a whoosh on a near miss;
+    - tires squealing in a slide on the asphalt (crunching on gravel and grass);
+    - a roar on the boost;
+    - **a horn** (H or RB) for each car: the Windstar's low, the Legend's in between, and the Tercel's a "meep".
+  - **Controller rumble:** crashes (by how hard), smashes, landings, near misses, and a buzz while boosting.
+  - **For laughs:**
+    - **The horn scares deer.** Lean on it and the deer up ahead spook: one frozen in the road bolts for the nearer ditch, ones on their way turn tail.
+    - **Every run gets a title** on the results screen, from how it ended and what happened. "The horse saw that coming." "Minivan gymnastics: a perfect 10." "Unlicensed combine operator: 420 m of corn." "Federal mailbox offender (9 counts)." "The Dukes of Washington County." "Hauling cheese curds." "Drove it like a rental."
+  - **Tests.**
+    - `--qa-menus` clicks through the whole flow the way a player would, and CI runs it. The flow: title, settings, records, a practice run from mile 4 (gas, horn), the pause menu, Change car, back to the title, a real run, pause, quit to the title.
+    - Unit tests cover the settings (presets, steps, saving), a menu's keys, practice runs saving nothing, the sounds, the horn spooking deer, and the run titles.
+
+**Scope-creep parking lot** (not planned; pick from here for what's next): multiplayer, ghosts, a web build, steering wheels, extending into Iowa City, a southbound run.
 
 ---
 

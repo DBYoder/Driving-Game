@@ -7,7 +7,9 @@ extends Node3D
 ##   --autopilot          let the autopilot drive (demo mode)
 ##   --autopilot-mph=<n>  the autopilot's cruising speed (default 70)
 ##   --car=<id>           windstar, tercel or legend (skips the car-select screen)
-##   --garage             open the car-select screen even with other options
+##   --garage             open the car-select screen even with other options (--practice: for a practice run)
+##   --title              open the title screen even with other options
+##   --menu=<id>          and open settings, records or pause (for screenshots)
 ##   --damage=<0..1>      start with the car beaten up (for looking at the damage)
 ##   --orbit              circle the car with the camera (for screenshots)
 ##   --chase              start with a deputy on your tail
@@ -15,6 +17,7 @@ extends Node3D
 ##   --deer[=<m>]         send a herd of deer across the road just ahead (45 m)
 ##   --condition=<id>     summer, harvest, night, storm or winter (default: the garage's pick)
 ##   --scenery=<0..1>     how much of the buildings and trees to draw (F2 in the game)
+##   --preset=<id>        graphics preset for this run: low, medium or high (not saved)
 ##   --seed=<n>           fix where the speed traps and deer are (random each run
 ##                        otherwise; tests and screenshots default to 1)
 ##   --tune=<k:v,...>     override CarStats values, e.g. --tune=handbrake_grip:0.2
@@ -27,6 +30,8 @@ extends Node3D
 ##   --qa-drift           a scripted handbrake turn; checks it slides and recovers, exit 0/1
 ##   --qa-cops=bust|line  speed past a speed trap: then stop and get busted, or run for
 ##                        the county line; checks the chase plays out, exit 0/1
+##   --qa-menus           click through the title screen, settings, records, practice,
+##                        the pause menu and back; checks each does what it should, exit 0/1
 ##   --qa-deer            drive through a herd of deer (one freezes in the lane), then
 ##                        hit one; checks they miss, then that the hit does what it should
 ##                        (--seed=<n> picks the random sequence; run the QA modes
@@ -74,7 +79,12 @@ var tracker: RunTracker
 var run: Run
 var hud: Hud
 var garage: CarSelect
+var menus: Menus
 var _driver: Object
+var _demo: Autopilot  ## drives the title screen's car
+var _demo_wait := 0.0
+var _practice := false  ## the garage was opened for a practice run
+var _default_spawn := 0.0  ## where a run starts (just behind the Kalona line, or --station)
 var _testing := false
 var _spawn_station := 0.0
 var _lost_time := 0.0
@@ -89,7 +99,7 @@ func _ready() -> void:
 		return
 	fields = Fields.new(route)
 	_testing = args.has("qa-drive") or args.has("qa-stress") or args.has("qa-drift") or args.has("qa-cops") \
-		or args.has("qa-deer")
+		or args.has("qa-deer") or args.has("qa-menus")
 
 	_add_environment()
 	add_child(preload("res://scripts/game/pause_control.gd").new())
@@ -103,11 +113,17 @@ func _ready() -> void:
 	landmarks = Landmarks.new()
 	add_child(landmarks)
 	landmarks.setup(route)
-	var settings := ConfigFile.new()
-	if not _testing and settings.load(RunTracker.SAVE_PATH) == OK:
-		scenery.density = float(settings.get_value("settings", "scenery", 1.0))
+	# The player's settings; tests and screenshots always use the defaults.
+	if _testing or args.has("smoke-test") or args.has("screenshot"):
+		Settings.save_path = ""
+		Settings.reset()
+	else:
+		Settings.load_file()
+	if args.has("preset") and args.preset in Settings.PRESETS:
+		Settings.set_preset(args.preset, false)
 	if args.has("scenery"):
-		scenery.density = float(args.scenery)
+		Settings.scenery = float(args.scenery)
+	scenery.density = Settings.scenery
 	var roadside := Roadside.new()
 	add_child(roadside)
 	roadside.setup(route)
@@ -129,6 +145,9 @@ func _ready() -> void:
 	add_child(run)
 	run.setup(car, tracker)
 	run.wrecked.connect(_on_wrecked)
+	var feel := CarFeel.new()
+	add_child(feel)
+	feel.setup(car, run)
 
 	props = PropField.new()
 	add_child(props)
@@ -163,6 +182,7 @@ func _ready() -> void:
 	_spawn_station = float(args.station) if args.has("station") else route.start_station - SPAWN_BEHIND_START
 	if drift:
 		_spawn_station = route.start_station + 1.5 * RouteData.MILE_M  # the long straight north of Kalona
+	_default_spawn = _spawn_station
 	_spawn(_spawn_station)
 	camera.setup(car)
 
@@ -171,11 +191,15 @@ func _ready() -> void:
 	weather.setup(car, camera, environment, sky_material)
 	radio = Radio.new()
 	add_child(radio)
+	apply_settings()
+	Settings.changed.connect(apply_settings)
+	Settings.apply_window()
 
 	hud = Hud.new()
 	add_child(hud)
 	hud.setup(route, car, run, camera)
 	hud.cops = cops
+	hud.deer = deer
 	radio.now_playing.connect(func(title): hud.note(title))
 	cops.chase_started.connect(func(county):
 		hud.banner("SPEED TRAP!\n%s County deputy" % county)
@@ -185,6 +209,23 @@ func _ready() -> void:
 	garage.setup("" if _testing else RunTracker.SAVE_PATH)
 	garage.browsed.connect(_show_car)
 	garage.chosen.connect(_drive)
+	garage.back.connect(open_title)
+	garage.starts = _practice_starts()
+	menus = Menus.new()
+	add_child(menus)
+	menus.setup("" if _testing else RunTracker.SAVE_PATH)
+	menus.drive.connect(open_garage)
+	menus.resume.connect(resume)
+	menus.restart.connect(func():
+		resume()
+		restart())
+	menus.garage.connect(func(): open_garage(_practice))
+	menus.to_title.connect(open_title)
+	menus.quit.connect(func(): get_tree().quit())
+	_demo = Autopilot.new()
+	_demo.traffic = traffic
+	_demo.deer = deer
+	_demo.target_speed = 55.0 / Hud.MPH
 	var condition_id: String = args.get("condition", "summer" if _testing else garage.current_condition())
 	if not condition_id in Condition.IDS:
 		push_error("unknown condition %s" % condition_id)
@@ -206,13 +247,26 @@ func _ready() -> void:
 		deer.cross_now(45.0 if args.deer is bool else float(args.deer))
 	var skip_garage := args.has("car") or _testing or args.has("smoke-test") or args.has("screenshot") \
 		or args.has("benchmark") or args.has("autopilot")
-	if args.has("garage") or not skip_garage:
-		open_garage()
+	if args.has("garage"):
+		open_garage(args.has("practice"))
+	elif args.has("title") or args.has("qa-menus") or not skip_garage:
+		open_title()
 	elif not _testing and not args.has("smoke-test") and not args.has("screenshot") and not args.has("benchmark"):
 		radio.start()
+	match args.get("menu", ""):
+		"settings":
+			menus.open_settings(menus.title if menus.title.visible else menus.pause)
+		"records":
+			menus.open_records(menus.title)
+		"pause":
+			toggle_pause()
 
 	if args.has("smoke-test"):
 		_smoke_test()
+	elif args.has("qa-menus"):
+		var walk := QaMenus.new()
+		walk.main = self
+		add_child(walk)
 	elif _testing:
 		var qa := QaDrive.new()
 		qa.car = car
@@ -256,6 +310,11 @@ func _pick_driver(args: Dictionary) -> DriftDriver:
 func _physics_process(delta: float) -> void:
 	streamer.focus = car.global_position
 	scenery.focus = car.global_position
+	# The title screen's car: off again from Kalona if it wrecks or gets to Iowa City.
+	if menus.title.visible and (tracker.over() or car.driver == null):
+		_demo_wait += delta
+		if _demo_wait > 3.0:
+			_start_demo()
 	# Tow a car that's left the corridor or fallen out of the world.
 	var pos := car.global_position
 	var ground := route.terrain.height_at(pos.x, pos.z)
@@ -268,33 +327,33 @@ func _physics_process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if garage.visible:
+	if garage.visible or menus.any_open():
 		return
 	if event.is_action_pressed("change_car") and tracker.over():
-		open_garage()
+		open_garage(_practice)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("restart"):
 		restart()
 	elif event.is_action_pressed("recover"):
 		_tow()
 	elif event.is_action_pressed("scenery_detail"):
-		scenery.density = {1.0: 0.5, 0.5: 0.0, 0.0: 1.0}.get(scenery.density, 1.0)
-		hud.note({1.0: "Scenery: everything", 0.5: "Scenery: half the trees", 0.0: "Scenery: off (fastest)"}[scenery.density])
-		if not _testing:
-			var cfg := ConfigFile.new()
-			cfg.load(RunTracker.SAVE_PATH)
-			cfg.set_value("settings", "scenery", scenery.density)
-			cfg.save(RunTracker.SAVE_PATH)
+		Settings.step("scenery", 1)
+		hud.note("Scenery: " + Settings.describe("scenery"))
 	elif event.is_action_pressed("mute"):
 		var master := AudioServer.get_bus_index("Master")
 		AudioServer.set_bus_mute(master, not AudioServer.is_bus_mute(master))
 
 
-## Back to Kalona with a fresh car and everything put back.
+## Back to the start (Kalona, or a practice run's mile) with a fresh car and everything
+## put back.
 func restart() -> void:
+	_reset_world()
+	car.driver = _driver
+
+
+func _reset_world() -> void:
 	run.restart()
 	car.repair()
-	car.driver = _driver
 	camera.crash_cam = false
 	props.reset()
 	traffic.reset()
@@ -305,6 +364,69 @@ func restart() -> void:
 	_spawn(_spawn_station)
 
 
+## Pause (the pause menu) or carry on. Not over the garage or the other menus.
+func toggle_pause() -> void:
+	if garage.visible or menus.title.visible or menus.settings.visible or menus.records.visible:
+		return
+	if get_tree().paused:
+		resume()
+	else:
+		get_tree().paused = true
+		menus.pause.open()
+
+
+func resume() -> void:
+	menus.pause.close()
+	get_tree().paused = false
+
+
+## The title screen: the car you drove last cruising up the road on its own in the
+## conditions you drove in, the camera circling it, the menu beside it.
+func open_title() -> void:
+	get_tree().paused = false
+	menus.close_all()
+	garage.visible = false
+	hud.visible = false
+	_practice = false
+	tracker.practice = false
+	hud.practice = false
+	_spawn_station = _default_spawn
+	var c := garage.current_condition()
+	if condition == null or condition.id != c:
+		apply_condition(Condition.preset(c))
+	var stats := CarStats.preset(garage.current_car())
+	stats.body_color = stats.paints[clampi(garage.paint_index, 0, stats.paints.size() - 1)][1]
+	car.change(stats)
+	run.car_changed()
+	_start_demo()
+	camera.showroom = true
+	menus.title.open()
+	radio.start()
+
+
+func _start_demo() -> void:
+	_demo_wait = 0.0
+	_reset_world()
+	car.driver = _demo
+
+
+## Where practice runs can start: Kalona, then every mile (with the crossroad there, if
+## there's one close by).
+func _practice_starts() -> Array:
+	var out: Array = [[route.start_station - SPAWN_BEHIND_START, "Kalona (the start line)"]]
+	var mile := 1
+	while route.start_station + (mile + 0.5) * RouteData.MILE_M < route.finish_station:
+		var s := route.start_station + mile * RouteData.MILE_M
+		var label := "Mile %d" % mile
+		for c: Dictionary in route.crossroads:
+			if absf(float(c.station) - s) < 0.25 * RouteData.MILE_M and c.kind != "ramp":
+				label += "  ·  %s" % c.name
+				break
+		out.append([s, label])
+		mile += 1
+	return out
+
+
 ## Hits from all around adding up to `amount` of the car's health.
 func _beat_up(amount: float) -> void:
 	var hits := [Vector3.FORWARD, Vector3.RIGHT, Vector3.BACK, Vector3.LEFT, Vector3.FORWARD + Vector3.LEFT]
@@ -312,15 +434,18 @@ func _beat_up(amount: float) -> void:
 		car.apply_hit(car.stats.durability * amount / hits.size(), true, car.global_transform.basis * d)
 
 
-## The car-select screen: the car waits at the start line while you choose.
-func open_garage() -> void:
+## The car-select screen: the car waits on the road while you choose (at the start line,
+## or for practice wherever you pick).
+func open_garage(practice := false) -> void:
 	get_tree().paused = false
+	menus.close_all()
+	_practice = practice
 	run.restart()
 	car.driver = null
 	camera.crash_cam = false
 	camera.showroom = true
 	hud.visible = false
-	garage.open()
+	garage.open(practice)
 
 
 ## Show a car in the garage (it's swapped in for real, so it sits on the road).
@@ -332,7 +457,22 @@ func _show_car(car_id: String, paint: int, condition_id: String) -> void:
 	car.change(stats)
 	run.car_changed()
 	garage.set_records(tracker.best_score, tracker.best_time)
+	var at := garage.start_station()
+	_spawn_station = at if at >= 0.0 else _default_spawn
 	_spawn(_spawn_station)
+
+
+## The graphics settings, applied to the world (and again whenever they change): the 3D
+## resolution, anti-aliasing, how much scenery and how detailed, how much rain and snow.
+func apply_settings() -> void:
+	var vp := get_viewport()
+	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+	vp.scaling_3d_scale = Settings.render_scale
+	vp.msaa_3d = Viewport.MSAA_2X if Settings.msaa() else Viewport.MSAA_DISABLED
+	scenery.near_lod = Settings.detail_distance()
+	if scenery.density != Settings.scenery:
+		scenery.density = Settings.scenery
+	weather.set_particle_scale(Settings.particles())
 
 
 ## Light, weather, land, traffic, deer and grip for one of the five conditions.
@@ -376,6 +516,10 @@ func apply_condition(c: Condition) -> void:
 func _drive(_car_id: String, _paint: int, _condition_id: String) -> void:
 	camera.showroom = false
 	hud.visible = true
+	var at := garage.start_station()
+	_spawn_station = at if at >= 0.0 else _default_spawn
+	tracker.practice = at >= 0.0
+	hud.practice = tracker.practice
 	restart()
 	radio.start()
 

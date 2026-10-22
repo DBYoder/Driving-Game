@@ -48,6 +48,7 @@ var brake := 0.0  ## 0..1; also reverse when stopped
 var steer := 0.0  ## -1 (left) .. 1 (right)
 var handbrake := false
 var boost_held := false  ## burn the boost meter (if there's any in it)
+var horn := false  ## leaning on the horn (it scares deer off the road)
 var driver: Object  ## anything with update(car: Car, delta: float)
 
 var stats: CarStats
@@ -215,6 +216,7 @@ func _physics_process(delta: float) -> void:
 		steer = 0.0
 		handbrake = false
 		boost_held = false
+		horn = false
 	_track_route()
 	on_ice = false
 	for i in range(0, ice.size(), 2):

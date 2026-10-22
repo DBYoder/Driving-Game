@@ -1,13 +1,15 @@
 class_name CarSelect
 extends CanvasLayer
-## The garage: pick a car and a paint color before a run. The car sits on the road at
-## the start line with the camera circling it. Left/right picks the car, up/down the
-## paint, Enter / Space / A drives. Remembers the last pick.
+## The garage: pick a car, a paint color and the conditions before a run (and in
+## practice, where to start). The car sits on the road with the camera circling it.
+## ▲ ▼ picks the line, ◀ ▶ changes it, Enter / Space / A drives, Esc / B goes back to the
+## title screen. Remembers the last pick.
 
 signal browsed(car_id: String, paint: int, condition_id: String)  ## what's on show changed
 signal chosen(car_id: String, paint: int, condition_id: String)  ## drive it
+signal back  ## to the title screen
 
-enum Row { CAR, PAINT, CONDITION }
+enum Row { CAR, PAINT, CONDITION, START }
 
 const SAVE_SECTION := "garage"
 
@@ -16,6 +18,9 @@ var paint_index := 0
 var condition_index := 0
 var row := Row.CAR  ## the line ◀ ▶ changes; ▲ ▼ moves between them
 var save_path := ""
+var practice := false  ## a practice run: there's a line to pick where to start
+var starts: Array = []  ## for practice: [station, name] pairs, Kalona then each mile up the road
+var start_index := 0
 var _stats: CarStats
 var _panel: PanelContainer
 var _name: Label
@@ -26,6 +31,8 @@ var _paint: Label
 var _condition: Label
 var _condition_tagline: Label
 var _records: Label
+var _start: Label
+var _heading: Label
 
 
 func setup(path: String) -> void:
@@ -49,7 +56,15 @@ func current_condition() -> String:
 	return Condition.IDS[condition_index]
 
 
-func open() -> void:
+## Where a practice run starts (station), or -1 for a real run from Kalona.
+func start_station() -> float:
+	return float(starts[start_index][0]) if practice and not starts.is_empty() else -1.0
+
+
+func open(practice_run := false) -> void:
+	practice = practice_run
+	if not practice and row == Row.START:
+		row = Row.CAR
 	visible = true
 	_show()
 
@@ -76,17 +91,22 @@ func _unhandled_input(event: InputEvent) -> void:
 				paint_index = posmod(paint_index + step, _stats.paints.size())
 			Row.CONDITION:
 				condition_index = posmod(condition_index + step, Condition.IDS.size())
+			Row.START:
+				start_index = posmod(start_index + step, starts.size())
 		_show()
 	elif event.is_action_pressed("menu_up"):
-		row = posmod(row - 1, 3) as Row
+		row = posmod(row - 1, _rows()) as Row
 		_show()
 	elif event.is_action_pressed("menu_down"):
-		row = posmod(row + 1, 3) as Row
+		row = posmod(row + 1, _rows()) as Row
 		_show()
 	elif event.is_action_pressed("menu_accept"):
 		visible = false
 		_save()
 		chosen.emit(current_car(), paint_index, current_condition())
+	elif event.is_action_pressed("menu_back"):
+		visible = false
+		back.emit()
 	else:
 		return
 	get_viewport().set_input_as_handled()
@@ -108,7 +128,16 @@ func _show() -> void:
 	var c := Condition.preset(current_condition())
 	_condition.text = _choice(c.display_name, row == Row.CONDITION)
 	_condition_tagline.text = c.tagline
+	_start.visible = practice and not starts.is_empty()
+	if _start.visible:
+		start_index = clampi(start_index, 0, starts.size() - 1)
+		_start.text = _choice("Start: %s" % starts[start_index][1], row == Row.START)
+	_heading.text = "PRACTICE: NOTHING'S SAVED" if practice else "PICK YOUR CAR"
 	browsed.emit(current_car(), paint_index, current_condition())
+
+
+func _rows() -> int:
+	return 4 if practice and not starts.is_empty() else 3
 
 
 ## A line you can change: arrows and highlighted when it's the selected one.
@@ -143,8 +172,8 @@ func _build() -> void:
 	column.add_theme_constant_override("separation", 8)
 	_panel.add_child(column)
 
-	var title := _label("PICK YOUR CAR", 18, Color(1.0, 0.85, 0.3))
-	column.add_child(title)
+	_heading = _label("PICK YOUR CAR", 18, Color(1.0, 0.85, 0.3))
+	column.add_child(_heading)
 	_name = _label("", 30)
 	column.add_child(_name)
 	_tagline = _label("", 18, Color(0.85, 0.87, 0.9))
@@ -182,9 +211,11 @@ func _build() -> void:
 	column.add_child(_condition)
 	_condition_tagline = _label("", 16, Color(0.85, 0.87, 0.9))
 	column.add_child(_condition_tagline)
+	_start = _label("", 22, Color(0.75, 1.0, 0.8))
+	column.add_child(_start)
 	_records = _label("", 16, Color(0.85, 0.87, 0.9))
 	column.add_child(_records)
-	column.add_child(_label("▲ ▼ car / paint / conditions     ◀ ▶ change     Enter / Space / A: drive     Esc: quit", 15,
+	column.add_child(_label("▲ ▼ choose a line     ◀ ▶ change     Enter / Space / A: drive     Esc / B: back", 15,
 		Color(0.7, 0.72, 0.75)))
 
 

@@ -15,8 +15,9 @@ HOW TO RUN
 
 HOW TO PLAY
 -----------
-Pick a car, a paint color and the conditions in the garage, then get from Kalona to
-Iowa City causing as much chaos as you can. The clock and the scoring start when you cross the line at
+The title screen: Drive, Practice, Records, Settings or Quit. Then pick a car, a paint
+color and the conditions in the garage, and get from Kalona to Iowa City causing as
+much chaos as you can. The clock and the scoring start when you cross the line at
 the IA-22 four-way stop in Kalona and stop at the US-218 overpass. Your best score and
 best time are saved for each car in each of the conditions.
 
@@ -79,6 +80,30 @@ hard shove and a much higher top speed, faster than any deputy. A full meter las
 4 seconds. Save it for when you need it.
 
 
+PRACTICE
+--------
+Practice from the title screen: same game, but you pick where to start (Kalona or any
+mile up the road) and nothing's saved. Good for learning a stretch or a speed trap.
+
+
+SETTINGS
+--------
+From the title screen or the pause menu. Saved as you change them.
+  Graphics      Low for slow PCs (lower resolution, half the trees), Medium, or High
+                (smoother edges, more detail in the distance)
+  Resolution    50-100%: lower it if the game stutters
+  Scenery       everything, half the trees, or none (F2 does this while driving too)
+  Display       a window or full screen
+  Volume        overall, the car and effects, and the radio, separately
+  Controller rumble  on or off
+
+
+THE HORN
+--------
+H (or RB on a controller). Every car has its own (the Tercel goes "meep"). Lean on it
+and the deer up ahead scatter, even one frozen in the middle of the road.
+
+
 THE RADIO
 ---------
 Put your own .mp3 or .ogg files in the "radio" folder next to HighwayOne.exe and the
@@ -112,22 +137,29 @@ Brake (hold to reverse)       S or Down           Left trigger
 Steer                         A / D, Left/Right   Left stick
 Handbrake                     Space               A
 Boost (hold)                  Shift               B
+Horn                          H                   RB
 Change camera                 C                   Y
 Tow truck (-500)              T                   X
 Restart                       R                   Back
-Pause                         P                   Start
-Change car (paused or after)  Enter               LB
+Menu (pause)                  Esc or P            Start
+Change car (after a run)      Enter               LB
+In the menus: choose          Up / Down, W / S    D-pad or stick
+In the menus: change setting  Left / Right        D-pad or stick
+In the menus: OK / back       Enter / Esc         A / B
 In the garage: choose a row   Up / Down, W / S    D-pad or stick
 In the garage: change it      Left / Right, A / D D-pad or stick
 In the garage: drive          Enter or Space      A
 Radio: next song / on-off     N / B               D-pad right / left
 Less scenery (slow PC)        F2
 Mute                          M
-Quit                          Esc
 
 
 WHAT'S IN THIS BUILD
 --------------------
+v0.6: a title screen, a pause menu (Esc), settings for slow and fast PCs, a records
+table, practice runs from any mile, crash and smash sounds, squealing tires, a horn
+for every car, controller rumble, and a title for every run on the results screen.
+
 v0.5.1: the boost (near misses fill it; it's how you lose a cop), and Kalona Cheese,
 the old cheese factory and Kalona Creamery store at 540th St, 3.9 miles up. Don't
 hit it: it's brick.
@@ -143,7 +175,7 @@ smash, deep corn to plow, traffic both ways, Amish buggies and tractors to get a
 with real passing zones. The curves, hills, crossroads and street names come from USGS
 map and elevation data, and you can see the real countryside out to about 3 km.
 
-Running slow? Press F2 to draw half the trees, or none.
+Running slow? Pick Low graphics in Settings, or press F2 to draw half the trees, or none.
 
 
 IF IT WON'T START OR LOOKS BROKEN
