@@ -470,6 +470,15 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
   - **Tire marks and dust** (`TireMarks`): black skid marks when the tires slide on the asphalt, ruts in the gravel and grass, and dust off gravel and dirt, smoke from a hard slide, spray in the rain and snow in winter. The Low preset halves the dust.
   - **Tests.** Unit tests cover the stop-line-to-stop-line route, where the car starts, the 4-way stop, the light's cycle, the streets (meeting the highway at its edge and level, never under the ground, the lookup, the surfaces), no crops in town, the power line, the tire marks and the clouds; Python tests cover the street bake. The QA drive also checks streets don't pop in (they arrive ~1.3 km out). Every QA drive and scenario passes, and the frame rate is about what v0.6's was (§5.4).
 
+### v0.7.1: after the v0.7 playtest
+- "There are no driving motor noises... we're missing the acceleration, tire squeal, etc." (the horn, near misses and sirens were fine).
+- **Why:** the engine was there, but nobody could hear it. Measured off the audio bus: about 20 dB under the horn in the range laptop and TV speakers play (above ~250 Hz). Its note was mostly a 30–140 Hz hum, two-thirds of its energy below that range, with a DC offset eating headroom. The tire squeal only came in for big sideways slides, and quietly.
+- **Fixed** (`EngineSound`, `CarFeel`):
+  - **The engine** is built from two wavetables of harmonics per car (mellow off the throttle, bright and buzzy on it), firing at 40–270 Hz (times each car's note), with intake hiss. Flat out it's ~5 dB under the horn on small speakers; idling ~15 dB under. The Tercel's little four buzzes higher than the Legend's V6, and the note drops at each upshift.
+  - **The tires:** a louder two-tone screech in slides, hard stops from speed and full-throttle launches on the asphalt; gravel crunches whenever you're on it; road roar and wind rise with speed.
+  - Both restart themselves if anything ever stops their audio.
+- **Tests:** the engine and tire levels are checked against the horn's in the small-speaker range, for every car (it would have caught this).
+
 **Scope-creep parking lot** (not planned; pick from here for what's next): multiplayer, ghosts, a web build, steering wheels, a southbound run, traffic on the side roads.
 
 ---

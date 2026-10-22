@@ -24,6 +24,8 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 
 ## Status
 
+**v0.7.1:** the engine and tires are audible now (screeching, gravel crunch, road and wind noise), on laptop and TV speakers too.
+
 **v0.7: graphical polish, and the real start and finish.**
 - **The run** starts stopped at the stop sign at the IA-22 four-way stop in Kalona (stop signs and ALL WAY plates on every corner, stop lines, an Amish buggy waiting its turn) and ends at the first stop light in Iowa City, at Mormon Trek Blvd (signals that cycle, on mast arms). 15.4 miles.
 - **Side roads and streets:** every road within 700 m of the highway, from the USGS road data: paved in town and on the highways, gravel out in the country. You can drive down them.
