@@ -200,7 +200,7 @@ func _ready() -> void:
 
 	weather = Weather.new()
 	add_child(weather)
-	weather.setup(car, camera, environment, sky_material)
+	weather.setup(car, camera, environment, sky_material, _seed)
 	radio = Radio.new()
 	add_child(radio)
 	apply_settings()
