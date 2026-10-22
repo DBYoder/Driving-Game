@@ -479,6 +479,19 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
   - Both restart themselves if anything ever stops their audio.
 - **Tests:** the engine and tire levels are checked against the horn's in the small-speaker range, for every car (it would have caught this).
 
+### v0.7.2: after the v0.7.1 playtest
+- "There is clipping on the vehicle tires where they move through the side of the car. Can we work on stress testing the vehicle models? Additionally, I'd like a full dash when using the in car view that includes speedometer, other gauges, etc."
+- **Why the tires clipped:** the bodies had no wheel arches. The drawn wheels followed the suspension up past where the body ends, and steered out through the fenders, with the body leaning as much as 8.6° on top of that. Swept through every pose, the old models had tires through the body in nearly all of them (4,600 to 10,000 crossings per car).
+- **Fixed** (`CarModel`, `ModelCheck`):
+  - **Wheel arches** cut into every body, sized for each tire at full steering lock, with the suspension at its worst and the body leaning its most, plus a dark wheel well behind each so you can't see through the car.
+  - The drawn wheels rise at most 4 cm above where they rest (`VISUAL_BUMP`), and the lean is capped (4° of roll, 1° of pitch, an ellipse of the two). Dents leave the arches' edges alone.
+  - **`ModelCheck`** tests every tire edge against every body triangle, and every body edge against the tire. The unit tests sweep each car (and both cruisers) through steering lock to lock, the suspension from hanging to fully compressed, hard leans every way, and beaten in from all round: 0 crossings now. The drift and stress QA runs check the live car too, many times a second while it's thrown around (none allowed).
+- **The in-car view** (`Cockpit`, `Gauges`): camera mode 2 (C or Y) puts you behind the wheel, replacing the hood camera there (the hood view moved to the end of the cycle).
+  - **The dash** for each car: the Legend's has a big tachometer, a 160 mph speedometer, fuel, temperature and oil pressure; the Windstar's a wide minivan cluster; the base Tercel's no tachometer. An odometer (each car's own miles), a trip meter from Kalona, the gear, and warning lights (check engine, brake, high beams, low fuel, boost).
+  - **The gauges work:** the speedometer and tach follow the car, the fuel runs down on the way to Iowa City (fastest in the Windstar), the temperature climbs as the engine warms and again as the car gets beaten up. The steering wheel turns with the front wheels. The radio shows the dash clock (set by the condition) and what's playing. The gauges glow at night.
+  - Around it: the binnacle, the center stack, vents, glovebox, wood trim in the Legend, the windshield pillars, the mirror and the doors. The top of the body under the cabin is hidden in this view (it would be a floor at window-sill height).
+- **Tests:** the model sweeps above; the driver can see the speedometer, odometer, tachometer and radio past the wheel and the body in every car (a check that catches the floor in the way); the gauges follow the speed, fuel, temperature, steering, gear, lights and clock.
+
 **Scope-creep parking lot** (not planned; pick from here for what's next): multiplayer, ghosts, a web build, steering wheels, a southbound run, traffic on the side roads.
 
 ---

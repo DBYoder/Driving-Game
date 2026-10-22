@@ -1,15 +1,18 @@
 class_name ClipProbe
 extends RefCounted
 ## Measures what the eye calls clipping during a QA drive: the car's body sitting inside
-## crashed traffic, flying debris or standing corn, or sunk into the ground. Sampled
-## every physics tick; QaDrive reports the worst of each and fails past the limits.
+## crashed traffic, flying debris or standing corn, or sunk into the ground; and the
+## car's own tires through its bodywork (ModelCheck, sampled less often: it's slower).
+## Sampled every physics tick; QaDrive reports the worst of each and fails past the
+## limits (any tire clip at all fails).
 
 const VISIBLE_OVERLAP := 0.3  ## meters of overlap you'd notice at a glance
 const VISIBLE_SINK := 0.15  ## meters of body below the ground surface
 
-var worst := {"wreck": 0.0, "cop": 0.0, "debris": 0.0, "corn": 0.0, "ground": 0.0, "building": 0.0}
-var worst_mile := {"wreck": 0.0, "cop": 0.0, "debris": 0.0, "corn": 0.0, "ground": 0.0, "building": 0.0}
-var visible_ticks := {"wreck": 0, "cop": 0, "debris": 0, "corn": 0, "ground": 0, "building": 0}
+var worst := {"wreck": 0.0, "cop": 0.0, "debris": 0.0, "corn": 0.0, "ground": 0.0, "building": 0.0, "tires": 0.0}
+var worst_mile := {"wreck": 0.0, "cop": 0.0, "debris": 0.0, "corn": 0.0, "ground": 0.0, "building": 0.0, "tires": 0.0}
+var visible_ticks := {"wreck": 0, "cop": 0, "debris": 0, "corn": 0, "ground": 0, "building": 0, "tires": 0}
+var tire_samples := 0
 
 
 func sample(main: Node, car: Car) -> void:
@@ -37,11 +40,21 @@ func sample(main: Node, car: Car) -> void:
 	_record("ground", _sink(car), VISIBLE_SINK, mile)
 
 
+## The car's tires against its own body, as drawn right now.
+func sample_tires(car: Car) -> void:
+	var clips := 0
+	for c in ModelCheck.tire_clips(car.model):
+		clips += c
+	tire_samples += 1
+	_record("tires", clips, 0.5, car.route.mile_at(car.station))
+
+
 func report() -> String:
 	return "worst overlap with wrecks %.2f m (%d ticks visible), cruisers %.2f m (%d), debris %.2f m (%d), standing corn %d clumps (%d), body below ground %.2f m (%d)" % [
 		worst.wreck, visible_ticks.wreck, worst.cop, visible_ticks.cop, worst.debris, visible_ticks.debris,
 		worst.corn, visible_ticks.corn, worst.ground, visible_ticks.ground] \
-		+ ", buildings %.2f m (%d)" % [worst.building, visible_ticks.building]
+		+ ", buildings %.2f m (%d), tires through the body %d places (%d of %d looks)" % [worst.building, visible_ticks.building,
+			worst.tires, visible_ticks.tires, tire_samples]
 
 
 func _record(what: String, value: float, visible: float, mile: float) -> void:

@@ -1,13 +1,15 @@
 class_name ChaseCamera
 extends Camera3D
-## Follows the car. camera_next cycles chase / hood / far chase / drone.
+## Follows the car. camera_next cycles chase / in car / far chase / drone / hood. In the
+## car you sit behind the wheel, with the dash in front of you (Cockpit).
 ## Runs in _process off the car's interpolated transform, so it stays smooth at any frame rate.
 
 const MODES := [
 	{"name": "Chase", "back": 6.5, "up": 2.3, "look_ahead": 6.0, "look_up": 0.9},
-	{"name": "Hood", "back": -1.05, "up": 0.62, "look_ahead": 30.0, "look_up": 0.4},  # just ahead of the windshield
+	{"name": "In car"},
 	{"name": "Far chase", "back": 13.0, "up": 4.5, "look_ahead": 10.0, "look_up": 1.0},
 	{"name": "Drone", "back": 60.0, "up": 42.0, "look_ahead": 50.0, "look_up": 0.0},
+	{"name": "Hood", "back": -1.05, "up": 0.62, "look_ahead": 30.0, "look_up": 0.4},  # just ahead of the windshield
 ]
 
 var car: Car
@@ -40,6 +42,11 @@ func snap() -> void:
 func _process(delta: float) -> void:
 	if car == null:
 		return
+	var inside: bool = MODES[mode].name == "In car" and not showroom and not crash_cam
+	_show_cockpit(inside)
+	near = 0.03 if inside else 0.2
+	if inside:
+		cockpit().update(car, delta)
 	if showroom:
 		_circle(delta, 7.0, 1.4, 0.25, 50.0, 2.4)  # the car on the right, the garage panel on the left
 	elif crash_cam:
@@ -72,6 +79,11 @@ func _unhandled_input(event: InputEvent) -> void:
 func _follow(blend: float) -> void:
 	var xf := car.get_global_transform_interpolated()
 	var m: Dictionary = MODES[mode]
+	if m.name == "In car":
+		var body := car.model.body_node()
+		global_transform = xf * car.model.transform * body.transform * cockpit().eye
+		fov = Cockpit.FOV + 8.0 * _boost_kick
+		return
 	if m.name == "Hood":
 		global_transform = xf * Transform3D(Basis.IDENTITY, Vector3(0, m.up, m.back))
 		fov = 75.0 + 12.0 * _boost_kick
@@ -87,6 +99,30 @@ func _follow(blend: float) -> void:
 	# A wider view at speed sells the sense of speed.
 	# Boosting, it widens more and drops back a little, so the car pulls away from you.
 	fov = lerpf(68.0, 82.0, clampf(car.linear_velocity.length() / 45.0, 0.0, 1.0)) + 12.0 * _boost_kick
+
+
+## The car's inside (built the first time it's needed, and again for a new car).
+func cockpit() -> Cockpit:
+	var body := car.model.body_node()
+	var c := body.get_node_or_null("Cockpit") as Cockpit
+	if c == null:
+		c = Cockpit.new()
+		c.name = "Cockpit"
+		body.add_child(c)
+		c.build(car.stats)
+	return c
+
+
+func _show_cockpit(on: bool) -> void:
+	if on:
+		if not cockpit().active:
+			cockpit().active = true
+			car.model.show_cabin_floor(false)
+	elif car.model and car.model.body_node():
+		var c := car.model.body_node().get_node_or_null("Cockpit") as Cockpit
+		if c and c.active:
+			c.active = false
+			car.model.show_cabin_floor(true)
 
 
 func _flat_forward(xf: Transform3D) -> Vector3:

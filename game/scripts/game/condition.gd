@@ -25,6 +25,7 @@ var cloud_cover := 0.32  ## share of the sky (sky.gdshader)
 var cloud_color := Color(1.0, 1.0, 1.0)  ## sunlit
 var cloud_shade := Color(0.70, 0.74, 0.80)  ## underneath
 var stars := 0.0
+var clock := 16 * 60 + 12  ## the time on the dash clock (minutes after midnight) as the run starts
 
 # The land
 var corn_leaf := Color(0.20, 0.40, 0.12)
@@ -63,6 +64,7 @@ static func preset(condition_id: String) -> Condition:
 	match condition_id:
 		"harvest":
 			c.display_name = "Harvest dusk"
+			c.clock = 19 * 60 + 5
 			c.tagline = "Brown corn, stubble, combines and grain trucks. More deer."
 			c.sky_top = Color(0.28, 0.34, 0.55)
 			c.sky_horizon = Color(0.95, 0.62, 0.38)
@@ -92,6 +94,7 @@ static func preset(condition_id: String) -> Condition:
 			c.oncoming = {"grain_truck": 0.3, "semi": 0.15, "pickup": 0.25, "car": 0.3}
 		"night":
 			c.display_name = "Night"
+			c.clock = 23 * 60 + 47
 			c.tagline = "Headlights only. Buggy lanterns, yard lights, deer ×3."
 			c.sky_top = Color(0.02, 0.03, 0.07)
 			c.sky_horizon = Color(0.06, 0.07, 0.12)
@@ -111,6 +114,7 @@ static func preset(condition_id: String) -> Condition:
 			c.deer_rate = 3.0
 		"storm":
 			c.display_name = "Thunderstorm"
+			c.clock = 14 * 60 + 31
 			c.tagline = "Rain, wet grip, lightning, gusts. Bad news for the Windstar."
 			c.sky_top = Color(0.20, 0.23, 0.26)
 			c.sky_horizon = Color(0.40, 0.44, 0.44)
@@ -134,6 +138,7 @@ static func preset(condition_id: String) -> Condition:
 			c.lightning = true
 		"winter":
 			c.display_name = "Winter"
+			c.clock = 8 * 60 + 13
 			c.tagline = "Snow, black ice on bridges and in the shade, snowplows, whiteout."
 			c.sky_top = Color(0.62, 0.66, 0.72)
 			c.sky_horizon = Color(0.86, 0.88, 0.90)
