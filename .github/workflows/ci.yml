@@ -1,0 +1,198 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GODOT_VERSION: 4.6.3
+
+jobs:
+  tools:
+    name: Data pipeline tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tools/requirements.txt
+      - run: pip install -r tools/requirements.txt
+      - run: python -m pytest tools/tests -q
+
+  game:
+    name: Test and export game
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache Godot and export templates
+        id: godot-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/godot
+          key: godot-${{ env.GODOT_VERSION }}-v1
+
+      - name: Download Godot and export templates
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot/templates && cd ~/godot
+          base=https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable
+          curl -fsSL -o godot.zip "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip && mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot && rm godot.zip
+          curl -fsSL -o templates.tpz "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q -j templates.tpz templates/version.txt templates/windows_release_x86_64.exe \
+            templates/linux_release.x86_64 -d templates
+          rm templates.tpz
+
+      - name: Install Godot
+        run: |
+          dest=~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          mkdir -p "$dest" && cp ~/godot/templates/* "$dest/"
+          echo "$HOME/godot" >> "$GITHUB_PATH"
+
+      # Every Godot call gets a hard timeout: a script that fails to compile can leave
+      # the engine running instead of exiting.
+      - name: Import project
+        run: timeout 300 godot --headless --path game --import
+
+      - name: Unit tests
+        run: timeout 300 godot --headless --path game -s res://tests/run_tests.gd
+
+      - name: Export Windows and Linux builds
+        run: |
+          mkdir -p build/windows build/linux
+          timeout 300 godot --headless --path game --export-release "Windows Desktop" ../build/windows/HighwayOne.exe
+          timeout 300 godot --headless --path game --export-release "Linux" ../build/linux/HighwayOne.x86_64
+          test -s build/windows/HighwayOne.exe
+
+      - name: Smoke-test the exported build
+        run: timeout 120 ./build/linux/HighwayOne.x86_64 --headless -- --smoke-test
+
+      # The drives also fail if anything pops in where the haze doesn't hide it, the car
+      # visibly clips into wrecks, cruisers, debris, corn, buildings or the ground, or it
+      # hits a deer. Storm gusts, winter ice and night deer have to be survivable too.
+      - name: QA drive (autopilot drives all 15 miles, one condition each; Legend at 110)
+        run: |
+          timeout 600 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive --car=windstar --condition=summer
+          timeout 600 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive --car=tercel --condition=harvest
+          timeout 600 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive --car=legend --autopilot-mph=110 --condition=night
+          timeout 600 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive --car=windstar --condition=storm
+          timeout 600 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive --car=tercel --condition=winter
+
+      - name: QA drift (a handbrake turn slides at least 35 degrees and recovers, every car)
+        run: |
+          for car in windstar tercel legend; do
+            timeout 120 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drift --car=$car
+          done
+
+      - name: QA stress (fast driving with random handbrake, full lock and panic stops)
+        run: |
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-stress --seed=1 --car=windstar
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-stress --seed=2 --car=tercel
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-stress --seed=3 --car=legend
+
+      - name: QA speed traps (get busted; reach the county line; two boosts lose a deputy in every car)
+        run: |
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-cops=bust --no-traffic --car=legend
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-cops=line --no-traffic --car=legend
+          for car in windstar tercel legend; do
+            timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-cops=boost --no-traffic --car=$car
+          done
+
+      - name: QA deer (a herd crosses and misses a car holding its line; then one gets hit)
+        run: |
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-deer --no-traffic --car=legend
+
+      - name: QA menus (click through the title, settings, records, a practice run, pause and back)
+        run: |
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-menus
+
+      - name: Screenshots (software rendering)
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q xvfb libgl1-mesa-dri
+          mkdir -p build/screenshots
+          shoot() {
+            timeout 300 xvfb-run -a -s "-screen 0 1280x720x24" ./build/linux/HighwayOne.x86_64 \
+              --rendering-driver opengl3 --resolution 1280x720 -- \
+              --screenshot="$PWD/build/screenshots/$1.png" --station=$2 --view=$3 $4
+          }
+          shoot kalona-start-chase 185 0
+          shoot kalona-4-way-stop 185 0 "--car=legend --no-traffic"
+          shoot kalona-from-above 185 3 "--car=legend --no-traffic"
+          shoot gravel-crossroad 9420 2 "--car=tercel --no-traffic"
+          shoot mormon-trek-finish 24905 0 "--car=windstar --no-traffic"
+          shoot mile-1-traffic 2400 0 --traffic-near
+          shoot mile-4-props 6150 2
+          shoot mile-5-corn 8000 2
+          shoot mile-7-drone 11500 3
+          shoot mile-9-long-view 14600 2 --no-traffic
+          shoot title 175 0 --title
+          shoot settings 175 0 "--title --menu=settings"
+          shoot records 175 0 "--title --menu=records"
+          shoot pause-menu 3000 0 "--car=legend --no-traffic --menu=pause"
+          shoot garage 175 0 --garage
+          shoot practice 175 0 "--garage --practice"
+          shoot windstar 175 0 "--car=windstar --orbit --no-traffic"
+          shoot tercel-beat-up 175 0 "--car=tercel --orbit --damage=0.7 --no-traffic"
+          shoot legend-beat-up 175 0 "--car=legend --orbit --damage=0.7 --no-traffic"
+          shoot speed-trap-chase 6000 3 "--car=windstar --chase --no-traffic"
+          shoot boost-escape 6000 0 "--car=windstar --chase --boost --no-traffic"
+          shoot deer-crossing 6600 0 "--car=windstar --deer=25 --no-traffic --no-cops"
+          shoot mile-2-farmsteads 2850 3 "--car=legend --no-traffic"
+          shoot kalona-cheese 6240 0 "--car=windstar --no-traffic --no-cops"
+          shoot kalona-cheese-night 6240 0 "--car=legend --condition=night --no-traffic --no-cops"
+          shoot harvest-dusk 8000 2 "--car=tercel --condition=harvest --traffic-near"
+          shoot night 2850 3 "--car=legend --condition=night --no-traffic"
+          shoot thunderstorm 8000 0 "--car=windstar --condition=storm --no-traffic"
+          shoot winter 14600 2 "--car=tercel --condition=winter --traffic-near"
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: screenshots
+          path: build/screenshots
+
+      - name: Package for friends
+        run: |
+          cp docs/PLAYING.txt build/windows/README.txt
+          cp docs/GODOT_LICENSE.txt build/windows/LICENSE-Godot.txt
+          mkdir -p build/windows/radio
+          cp docs/RADIO.txt "build/windows/radio/PUT YOUR MP3 AND OGG FILES HERE.txt"
+          cd build/windows && zip -q -9 -r ../HighwayOne-windows.zip .
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: HighwayOne-windows
+          path: build/HighwayOne-windows.zip
+
+  release:
+    name: Publish release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [tools, game]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: HighwayOne-windows
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Build ${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body: |
+            Download **HighwayOne-windows.zip**, unzip it, and run `HighwayOne.exe`.
+            Windows will warn that it's from an unknown publisher: click **More info → Run anyway**.
+            Full instructions are in the README.txt inside the zip.
+          files: HighwayOne-windows.zip

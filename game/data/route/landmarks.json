@@ -1,0 +1,13 @@
+{
+  "note": "Landmarks built by hand (scripts/world/landmarks.gd) at their real spots, measured off the 2019 USGS lidar (game x/z, meters). The lidar's own buildings and trees inside each `clear` rectangle [x0, z0, x1, z1] are left out: the landmark stands there instead. tools/bake_lidar.py --yards counts the rectangles as buildings, so the corn and fences keep their distance.",
+  "landmarks": [
+    {
+      "id": "kalona_cheese",
+      "name": "Kalona Cheese (Kalona Creamery)",
+      "where": "NE corner of IA 1 and 540th St SW, 3.9 mi north of Kalona",
+      "x": -1076.3,
+      "z": 5614.3,
+      "clear": [[-1090.3, 5595.8, -1042.3, 5641.8], [-1042.3, 5589.8, -998.3, 5630.8]]
+    }
+  ]
+}

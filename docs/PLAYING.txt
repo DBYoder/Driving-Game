@@ -1,0 +1,203 @@
+HIGHWAY 1: KALONA TO IOWA CITY
+==============================
+
+A homemade game about 15 real miles of Iowa Highway 1.
+
+
+HOW TO RUN
+----------
+1. Unzip this folder anywhere (the Desktop is fine).
+2. Double-click HighwayOne.exe.
+3. Windows will probably say "Windows protected your PC". That's because this is a
+   homemade game without a paid code-signing certificate, not because anything is wrong.
+   Click "More info", then "Run anyway". You only have to do this once per build.
+
+
+HOW TO PLAY
+-----------
+The title screen: Drive, Practice, Records, Settings or Quit. Then pick a car, a paint
+color and the conditions in the garage, and get from Kalona to Iowa City causing as
+much chaos as you can. You start stopped at the stop sign at the IA-22 four-way stop
+in Kalona; the clock and the scoring start when you cross the line, and stop at the
+first stop light in Iowa City, at Mormon Trek Blvd. Your best score and best time are
+saved for each car in each of the conditions.
+
+
+THE CARS
+--------
+1998 Ford Windstar  Heavy boat. Soft and top-heavy, so it leans hard; tough enough
+                    to plow through anything. Hubcaps and the sliding door come off.
+                    Points x1.2.
+1997 Toyota Tercel  93 horsepower. Light, nimble, slow, and fragile, but the engine
+                    never dies: it can't be totaled, it just sheds mirrors and
+                    bumpers. Points x1.5.
+1993 Acura Legend   Fastest and grippiest. The hood and trunk pop open when it's
+                    beaten up. Points x1.0.
+
+Points:
+  Mailbox 50 · fence 25 · hay bale 100 (heavy: it hurts) · plowing corn 5 a meter
+  Air time 100 per half second · near miss with oncoming traffic 250
+  Squeezing past something in your lane with almost no room (a close pass) 100
+  Passing a car 100 · a buggy 150 · a tractor 200 · a semi 300
+  A deer in your path that you miss 100
+  Losing a cop 1,000 · dragging the Washington County deputy over the county line 2,000
+
+Chain things together within 4 seconds and the combo multiplier climbs to x5. When
+the combo runs out, its points are banked and safe. A hard hit, the tow truck, or a
+wreck throws away the combo you haven't banked yet.
+
+Make it to Iowa City and your whole score is multiplied by 1.5, plus 20 points for
+every second under 15 minutes. Every point is also multiplied by your car's number.
+
+The run is over if:
+  - the car is totaled (watch the health bar; not the Tercel)
+  - it's on its roof or side for 3 seconds
+  - you hit an Amish buggy
+  - you hit oncoming traffic head-on at speed
+  - you get busted
+Stuck in a ditch? T calls the tow truck: back on the road for 500 points.
+
+
+THE CONDITIONS
+--------------
+Summer afternoon    Tall green corn, full grip.
+Harvest dusk        Low sun, brown corn and cut fields. Combines (wider than a lane)
+                    and grain trucks. More deer.
+Night               Headlights only. Buggy lanterns, farm yard lights, three times
+                    the deer.
+Thunderstorm        Rain, slick roads, lightning, and gusts that shove tall cars
+                    around (hold on to that Windstar).
+Winter              Snow, whiteout fog, snowplows, and black ice on the bridges and
+                    wherever trees shade the road. You can see the ice: it's the dark,
+                    glassy patches. Ease off before you get there.
+
+
+THE BOOST
+---------
+Near misses fill the boost meter (bottom right, over the health bar): an oncoming car
+whistling past your mirror fills 40% of it, squeezing past something going your way
+with almost no room fills a quarter. Hold Shift (or B on a controller) to burn it: a
+hard shove and a much higher top speed, faster than any deputy. A full meter lasts
+4 seconds. Save it for when you need it.
+
+
+PRACTICE
+--------
+Practice from the title screen: same game, but you pick where to start (Kalona or any
+mile up the road) and nothing's saved. Good for learning a stretch or a speed trap.
+
+
+SETTINGS
+--------
+From the title screen or the pause menu. Saved as you change them.
+  Graphics      Low for slow PCs (lower resolution, half the trees), Medium, or High
+                (smoother edges, more detail in the distance)
+  Resolution    50-100%: lower it if the game stutters
+  Scenery       everything, half the trees, or none (F2 does this while driving too)
+  Display       a window or full screen
+  Volume        overall, the car and effects, and the radio, separately
+  Controller rumble  on or off
+
+
+THE HORN
+--------
+H (or RB on a controller). Every car has its own (the Tercel goes "meep"). Lean on it
+and the deer up ahead scatter, even one frozen in the middle of the road.
+
+
+THE RADIO
+---------
+Put your own .mp3 or .ogg files in the "radio" folder next to HighwayOne.exe and the
+car radio plays them, shuffled. N (or D-pad right) skips a song, B (or D-pad left)
+turns the radio off and on.
+
+
+COPS AND DEER
+-------------
+Sheriff's deputies sit on the shoulder just past crossroads: one in Washington County
+(Kalona up to the county line at mile 1.75), three in Johnson County. They move every
+run. Go past one at over 72 mph, or hit one, and you've got a deputy on your tail.
+  - Stop with the deputy right behind you for 3 seconds: BUSTED, the run's over.
+    Calling the tow truck while they're after you counts as busted too.
+  - Get 400 m ahead and stay there, or wreck the cruiser: lost the cop, 1,000.
+    A deputy drives a little faster than your car can, so flooring it won't do it.
+    Boosting will: two full boosts and they're gone.
+  - The Washington County deputy stops at the county line: 2,000 if you drag them
+    over it.
+  - Keep it going for 2 and a half minutes and they give up: 1,000.
+
+Deer cross near the creeks, and anywhere else now and then, a few at a time. If you
+hold your speed and stay in your lane, they'll miss you, just. Speed up or swerve
+and you might hit one: it hurts the car and it costs you the combo.
+
+
+CONTROLS                      KEYBOARD            CONTROLLER
+--------                      --------            ----------
+Gas                           W or Up             Right trigger
+Brake (hold to reverse)       S or Down           Left trigger
+Steer                         A / D, Left/Right   Left stick
+Handbrake                     Space               A
+Boost (hold)                  Shift               B
+Horn                          H                   RB
+Change camera                 C                   Y
+Tow truck (-500)              T                   X
+Restart                       R                   Back
+Menu (pause)                  Esc or P            Start
+Change car (after a run)      Enter               LB
+In the menus: choose          Up / Down, W / S    D-pad or stick
+In the menus: change setting  Left / Right        D-pad or stick
+In the menus: OK / back       Enter / Esc         A / B
+In the garage: choose a row   Up / Down, W / S    D-pad or stick
+In the garage: change it      Left / Right, A / D D-pad or stick
+In the garage: drive          Enter or Space      A
+Radio: next song / on-off     N / B               D-pad right / left
+Less scenery (slow PC)        F2
+Mute                          M
+
+
+WHAT'S IN THIS BUILD
+--------------------
+v0.7.1: you can hear the engine now (it was there, but too low and too quiet for
+laptop and TV speakers), and the tires: screeching in slides, hard stops and launches,
+crunching on gravel, and the road and wind roaring louder the faster you go.
+
+v0.7: the run now starts at the four-way stop in Kalona (stop signs on every corner, an
+Amish buggy waiting its turn) and ends at the stop light at Mormon Trek Blvd in Iowa
+City, 15.4 miles. The side roads and town streets are there now, paved in town and
+gravel out in the country (you can drive down them), Kalona is lawns and houses
+instead of corn, power lines run along the highway, the sky has clouds (and stars at
+night), and tires leave skid marks, ruts and dust. The corn no longer pops in and out
+in a wave as you drive.
+
+v0.6: a title screen, a pause menu (Esc), settings for slow and fast PCs, a records
+table, practice runs from any mile, crash and smash sounds, squealing tires, a horn
+for every car, controller rumble, and a title for every run on the results screen.
+
+v0.5.1: the boost (near misses fill it; it's how you lose a cop), and Kalona Cheese,
+the old cheese factory and Kalona Creamery store at 540th St, 3.9 miles up. Don't
+hit it: it's brick.
+
+v0.5: our Highway 1. Every farmhouse, barn, machine shed, grain bin and tree line along
+the road is where it really is (found in USGS lidar), the creeks and the county line
+are signed with their real names, and there are five conditions to drive it in. Plus
+the radio.
+
+Before that: speed traps, chases and deer; the Windstar, the Tercel and the Legend,
+each with its own handling, toughness, points and ways of falling apart; things to
+smash, deep corn to plow, traffic both ways, Amish buggies and tractors to get around,
+with real passing zones. The curves, hills, crossroads and street names come from USGS
+map and elevation data, and you can see the real countryside out to about 3 km.
+
+Running slow? Pick Low graphics in Settings, or press F2 to draw half the trees, or none.
+
+
+IF IT WON'T START OR LOOKS BROKEN
+---------------------------------
+- Update your graphics driver.
+- Tell whoever sent you this what kind of computer you have.
+
+
+CREDITS
+-------
+Road and elevation data: U.S. Geological Survey, The National Map (public domain).
+Made with the Godot Engine (godotengine.org); see LICENSE-Godot.txt.

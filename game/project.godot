@@ -1,0 +1,39 @@
+; Engine configuration file.
+; Pinned to Godot 4.6.3 (see .github/workflows/ci.yml).
+
+config_version=5
+
+[application]
+
+config/name="Highway 1"
+config/description="Iowa Highway 1, Kalona to Iowa City. Chaos encouraged."
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.6", "GL Compatibility")
+
+[autoload]
+
+Controls="*res://scripts/autoload/controls.gd"
+Settings="*res://scripts/autoload/settings.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[layer_names]
+
+3d_physics/layer_1="world"
+3d_physics/layer_2="car"
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+common/physics_interpolation=true
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=false
