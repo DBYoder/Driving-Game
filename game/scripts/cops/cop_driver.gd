@@ -7,7 +7,8 @@ extends RefCounted
 
 enum Mode { PARKED, CHASING, GIVING_UP }
 
-const FOLLOW_GAP := 10.0  ## m behind the player while chasing
+const FOLLOW_GAP := 10.0  ## m behind the player while chasing, at a crawl...
+const FOLLOW_SECONDS := 0.45  ## ...plus this many seconds' worth at speed, room to brake for a curve
 const STOP_GAP := 7.0  ## m: close enough, stop here
 const SHOULDER := 6.0  ## m right of the centerline, where it pulls over (Cops.PARK_OFFSET)
 
@@ -50,10 +51,12 @@ func _chase(car: Car) -> void:
 		aim = car.route.position_at(s) + car.route.right_at(s) * lane
 	var local := car.global_transform.affine_inverse() * aim
 	car.steer = Autopilot.steer_toward(local, car.stats.steer_limit(speed))
-	# Flat out to catch up, then match their speed a following distance back.
+	# Flat out to catch up, then match their speed a following distance back (further
+	# back the faster they go, so braking hard for a curve doesn't get them rear-ended).
 	var wanted := chase_speed
+	var follow := FOLLOW_GAP + maxf(speed, 0.0) * FOLLOW_SECONDS
 	if gap < 150.0:
-		wanted = target.linear_velocity.length() + (gap - FOLLOW_GAP) * 0.5
+		wanted = target.linear_velocity.length() + (gap - follow) * 0.5
 	if gap < STOP_GAP:
 		wanted = 0.0
 	# Facing away from them (after they spun past): slow down to turn around.

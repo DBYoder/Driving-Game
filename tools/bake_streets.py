@@ -1,10 +1,10 @@
-"""The side roads and town streets near IA 1, for the game to draw.
+"""The side roads and town streets near the route, for the game to draw.
 
-    python tools/bake_streets.py      (after bake_route.py and bake_places.py)
+    python tools/bake_streets.py [--route=<id>]      (after bake_route.py and bake_places.py)
 
-Writes game/data/route/streets.json: every public road (and private lane) within
-STREET_REACH_M of IA 1 in the National Transportation Dataset, cut back to the edge of
-IA 1's pavement, as game x/z polylines with a kind:
+Writes game/data/routes/<id>/streets.json: every public road (and private lane) within
+STREET_REACH_M of the route's highway in the National Transportation Dataset, cut back
+to the edge of its pavement, as game x/z polylines with a kind:
   paved   highways, county routes, and streets inside the city limits
   gravel  the rest (most of rural Iowa's county roads are gravel)
   lane    private drives and farm lanes
@@ -128,6 +128,8 @@ def surface_heights(xz: np.ndarray, half_width: float, lift: float, ground: Grou
 
 
 def main():
+    import sys
+    config.use_args(sys.argv)
     route = json.loads((config.OUT_DIR / "route.json").read_text())
     places = json.loads((config.OUT_DIR / "places.json").read_text())
     o = route["origin"]
@@ -146,7 +148,7 @@ def main():
     project_roads(roads)
     pieces: dict[tuple[str, str], list] = {}
     for r in roads:
-        if config.ROUTE_STATE in r.state_routes or config.FINISH_US in r.us_routes:
+        if config.ROUTE_STATE in r.state_routes or config.UNDERPASS_US in r.us_routes:
             continue
         for ln in r.lines:
             g = shapely.LineString(to_game(ln)).intersection(near)
@@ -220,7 +222,7 @@ def main():
     total = {k: round(sum(shapely.LineString(np.reshape(s["points"], (-1, 5))[:, [0, 4]]).length
                           for s in streets if s["kind"] == k) / 1000.0, 1) for k in KINDS}
     print(f"streets: {len(streets)} pieces, km by kind {total}, "
-          f"{sum(1 for s in streets if any(s['joins']))} meet IA 1")
+          f"{sum(1 for s in streets if any(s['joins']))} meet the highway")
 
 
 if __name__ == "__main__":

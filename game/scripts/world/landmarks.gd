@@ -1,7 +1,7 @@
 class_name Landmarks
 extends Node3D
 ## The places you'd point at from the passenger seat, built by hand at their real spots
-## (data/route/landmarks.json). RouteData leaves out the lidar's own buildings and trees
+## (data/routes/highway1/landmarks.json). RouteData leaves out the lidar's own buildings and trees
 ## where each one stands.
 ##
 ## Kalona Cheese, at the corner of 540th St 3.9 miles up from Kalona (the Kalona Creamery

@@ -404,7 +404,7 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
     - Two full boosts get you clear, in any car.
     - Lost now takes 400 m clear for 4 s (was 600 m).
     - When a chase starts, a hint says how.
-  - **Kalona Cheese** (`Landmarks`, `data/route/landmarks.json`): the Kalona Creamery since 2017, on the corner of 540th St SW, 3.9 miles up. It's built by hand from your photo, sized and placed off the lidar:
+  - **Kalona Cheese** (`Landmarks`, `data/routes/highway1/landmarks.json`): the Kalona Creamery since 2017, on the corner of 540th St SW, 3.9 miles up. It's built by hand from your photo, sized and placed off the lidar:
     - the red brick store a story and a half tall, KALONA CHEESE across its steep gray gable;
     - the one-story front under a gray shingled mansard, with the black KALONA CREAMERY sign over black double doors;
     - behind it, the plant: a concrete-block wing, the old plant under a tan roof, the brick smokestack, three steel silos and the big metal plant buildings.
@@ -493,6 +493,22 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
 - **The storm's gusts follow the run's seed** (`Weather`), like traffic, cops and deer, so a test run repeats exactly. They were random every run, and the Windstar's thunderstorm QA drive varied from about 20:30 to over 25:00 (its limit) depending on how they shoved it. Lightning and the rain's hiss stay random. Players still get different gusts each run.
 - **Tests:** the model sweeps above; the driver can see the speedometer, odometer, tachometer and radio past the wheel and the body in every car (a check that catches the floor in the way); the gauges follow the speed, fuel, temperature, steering, gear, lights and clock.
 
+### Phase 8: v0.8 "Highway 22 to Wellman"
+- After v0.7.2: "let's plan one more route, which a user could choose. That route would run from Kalona to Wellman on Highway 22." Picked: finish at 8th Ave in downtown Wellman (where it stops for IA 22), choose it on a Route line in the garage.
+- **The route.** From the same 4-way stop in Kalona (IA 1 and IA 22), the westbound stop line this time, 6.76 miles west to 8 m short of 8th Ave in Wellman:
+  - Larch, Kola, Kiwi and Juniper Ave, 120th St, Hickory and Gum Ave;
+  - Ramsey Creek (mile 1.26), the English River (2.32, a 92 m bridge and its wooded valley) and Lime Creek (3.62), each signed at its bridge;
+  - Wellman's city limit (pop 1,524) at mile 5.70, then its avenues, 1st to 8th.
+  - It's all Washington County: two deputies (Highway 1 has four, over twice the miles), no county line to drag them over.
+  - Par for the time bonus is 6:40 (Highway 1's 15:00, the same pace per mile).
+- **Built:**
+  - **The tools take a route** (`tools/config.py` ROUTES, `--route=<id>` on every script): the highway, the cross street at each end, search hints, the origin, the stop lines, no-passing at each end, the watersheds. Each route bakes into `game/data/routes/<id>/`; Highway 1 moved there, and re-baking it gives the same bytes.
+  - **IA 22, baked from the same sources:** the road and terrain (571 tiles), the horizon, the creeks and city limits, 148 street pieces (Kalona's and Wellman's streets, the gravel roads), and from the lidar 2,066 buildings (1,220 houses, 85 barns, 700 sheds, 61 grain bins) and 72,000 trees.
+  - **Two fixes the new route turned up in the bake:** IA 22 runs right along Wellman's city line for half a mile, which would have put up a dozen city limit signs (now the road counts as in town within 25 m of it, and short stays don't count); and named rivers through their own water weren't counted as creeks, which also gives Highway 1 its missing Old Mans Creek sign (mile 9.8, at its 66 m bridge; deer cross there now too).
+  - **The game picks a route** (`Routes`): the garage's top line; changing it rebuilds the world for it (the game reloads, the garage opens again on the new route) and it's remembered. The HUD, menus, results ("Made it to Wellman"), run titles, route markers (WEST over IOWA 22), the finish banner (WELLMAN · FINISH), stop signs for 8th Ave (no lights), speed traps, the fields' section lines and the time bonus's par all come from the route. Each route keeps its own records; Highway 1's keep their old keys.
+  - **Deputies keep a safe distance:** they followed 10 m back at any speed, and at 108 mph on IA 22 one rear-ended a Legend braking for the S-curve into the English River valley and totaled it. Now they hang back 10 m plus 0.45 s of their speed (~30 m at highway speed).
+- **Tests:** both routes load with their details, IA 22 runs from IA 1 in Kalona to 8th Ave (west, 6.76 mi, three creeks with bridges, one Wellman sign, no county line), both start lines are the same 4-way stop (in real coordinates), each route has its own records, Wellman's finish has stop signs not lights, IA 22's two Washington County traps, the garage's route line, the par. CI smoke-tests and drives IA 22 too (three conditions, stress, a speed trap, deer) and takes its screenshots.
+
 **Scope-creep parking lot** (not planned; pick from here for what's next): multiplayer, ghosts, a web build, steering wheels, a southbound run, traffic on the side roads.
 
 ---
@@ -514,7 +530,7 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
 
 ## 9. What I need from you (open questions)
 
-1. **Landmarks, in order heading north from Kalona.** I want the 5–15 things you'd point at from the passenger seat: buildings, signs, the hill that gives you air, where cops actually sit, deer spots, a weird mailbox. Rough locations are fine ("just past F62 on the right"). *So far: Kalona Cheese (v0.5.1). More are welcome.*
+1. **Landmarks, in order heading north from Kalona.** I want the 5–15 things you'd point at from the passenger seat: buildings, signs, the hill that gives you air, where cops actually sit, deer spots, a weird mailbox. Rough locations are fine ("just past F62 on the right"). *So far: Kalona Cheese (v0.5.1). More are welcome, on Highway 22 to Wellman too (v0.8): a grain elevator, a church, a business you'd recognize.*
 2. **The cars.** I went with a 1997 Tercel sedan and a 1993 Legend sedan, in each car's real paint colors, all pickable in the garage. Tell me if your Tercel was a coupe or hatch, if the Legend was a coupe, or the actual colors, and I'll match them. Inside-joke details count too: the tape deck, a door that didn't close, a dent.
 3. ~~A phone video of the drive.~~ Not available, so Street View stands in. It needs a **Google Maps API key** saved as a secret in this cloud environment; the free monthly allowance easily covers a few hundred reference frames. Without one, I'll rely on your landmark list and the map data. Needed before Phase 5.
 4. **A gamepad?** It plays fine on keyboard, but tell me if everyone will use controllers.

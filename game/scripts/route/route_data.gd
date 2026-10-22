@@ -1,13 +1,16 @@
 class_name RouteData
 extends RefCounted
-## The baked road (see tools/bake_route.py): a centerline sampled every `spacing` meters,
-## plus the crossroads, bridges and terrain along it.
+## A baked route (see tools/bake_route.py): a centerline sampled every `spacing` meters,
+## plus the crossroads, bridges and terrain along it. Each route has its own folder,
+## data/routes/<id>/ (Routes lists them).
 ##
 ## Distances along the road are "stations" in meters from the first sample.
 ## World axes: x = east, y = up, z = south (so driving north is -z).
 
 const MILE_M := 1609.344
 
+var id := Routes.DEFAULT  ## the route's folder name (one of Routes.IDS)
+var info: Dictionary  ## what the game knows about it besides the data (Routes.INFO)
 var title: String
 var spacing: float
 var length: float
@@ -26,10 +29,10 @@ var trees := PackedFloat32Array()
 ## Named creeks, city limits and the county line (tools/bake_places.py).
 var places := {"creeks": [], "cities": [], "counties": []}
 ## Side roads and town streets (tools/bake_streets.py): Dictionaries with name, kind
-## ("paved", "gravel", "lane"), half_width, joins ([start, end] meet IA 1) and points
+## ("paved", "gravel", "lane"), half_width, joins ([start, end] meet the highway) and points
 ## (PackedFloat32Array, 5 per point: x, left edge y, middle y, right edge y, z).
 var streets: Array = []
-## Hand-built landmarks (data/route/landmarks.json, built by Landmarks): Dictionaries with
+## Hand-built landmarks (the route's landmarks.json, built by Landmarks): Dictionaries with
 ## id, name, x, z and the `clear` rectangles their own buildings fill.
 var landmarks: Array = []
 var _no_pass_north := PackedByteArray()  ## per sample: 1 = solid line for northbound
@@ -44,6 +47,8 @@ static func load_from(dir: String) -> RouteData:
 		return null
 
 	var r := RouteData.new()
+	r.id = dir.trim_suffix("/").get_file()
+	r.info = Routes.info(r.id)
 	r.title = d.name
 	r.spacing = d.spacing_m
 	r.start_station = d.start_station

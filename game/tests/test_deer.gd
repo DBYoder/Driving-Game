@@ -1,6 +1,6 @@
 extends "res://tests/test_case.gd"
 
-var route := RouteData.load_from("res://data/route")
+var route := RouteData.load_from("res://data/routes/highway1")
 
 
 func _spots(seed_value: int) -> Array[float]:

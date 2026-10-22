@@ -3,7 +3,7 @@ extends "res://tests/test_case.gd"
 ## the radio past the steering wheel and the bodywork, and the gauges follow the car.
 
 const CARS := ["windstar", "tercel", "legend"]
-var route := RouteData.load_from("res://data/route")
+var route := RouteData.load_from("res://data/routes/highway1")
 
 
 func _model(id: String) -> CarModel:

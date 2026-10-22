@@ -2,8 +2,8 @@ class_name Roadside
 extends Node3D
 ## Street-name signs at the real crossroads and green mile markers (the start and finish
 ## intersections have their own: Intersections). From the map data (tools/bake_places.py): the names of the creeks at their
-## bridges, the county line and the Iowa City limit with its population. And the usual:
-## 55 mph once out of Kalona, IOWA 1 route markers.
+## bridges, the county line and the city limits with their populations. And the usual:
+## 55 mph once out of Kalona, route markers (NORTH over IOWA 1, WEST over IOWA 22).
 
 const SIGN_GREEN := Color(0.05, 0.40, 0.18)
 const POST_GRAY := Color(0.55, 0.55, 0.57)
@@ -61,7 +61,7 @@ func _material(color: Color) -> StandardMaterial3D:
 	return m
 
 
-## A sign standing on the right shoulder, facing northbound traffic.
+## A sign standing on the right shoulder, facing us.
 func _add_sign(station: float, offset: float, text: String, face: Material, post: Material) -> void:
 	var holder := _place(station, offset)
 	var lines := text.count("\n") + 1
@@ -89,7 +89,8 @@ func _add_plate(station: float, offset: float, text: String, size: Vector2, face
 	holder.add_child(label)
 
 
-## Iowa's route marker (IOWA over a big 1 in a black-rimmed white square) under a NORTH plate.
+## Iowa's route marker (IOWA over the route's number in a black-rimmed white square) under
+## its direction (NORTH, WEST).
 func _add_route_marker(station: float, white: Material, post: Material) -> void:
 	var holder := _place(station, 7.6)
 	var black := _material(BLACK)
@@ -97,7 +98,8 @@ func _add_route_marker(station: float, white: Material, post: Material) -> void:
 	_box(holder, Vector3(0.62, 0.62, 0.04), Vector3(0, 2.3, 0), black)
 	_box(holder, Vector3(0.56, 0.56, 0.042), Vector3(0, 2.3, 0), white)
 	_box(holder, Vector3(0.62, 0.24, 0.04), Vector3(0, 2.78, 0), white)
-	var rows := [["NORTH", 26, 2.78], ["IOWA", 22, 2.47], ["1", 80, 2.24]]
+	var number: String = route.info.number
+	var rows := [[route.info.heading, 26, 2.78], ["IOWA", 22, 2.47], [number, 80 if number.length() < 2 else 64, 2.24]]
 	for row: Array in rows:
 		var label := _label(row[0], row[1])
 		label.modulate = BLACK

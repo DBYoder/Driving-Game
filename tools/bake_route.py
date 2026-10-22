@@ -1,9 +1,10 @@
-"""Bake IA 1 (Kalona's 4-way stop -> Iowa City's first stop light) into game data.
+"""Bake a route (config.ROUTES: IA 1 from Kalona's 4-way stop to Iowa City's first stop
+light, or IA 22 from the same 4-way stop to Wellman) into game data.
 
-    python tools/bake_route.py
+    python tools/bake_route.py [--route=highway1|highway22]
 
-Writes game/data/route/route.json and terrain.bin. Downloads are cached in
-tools/.cache/, so re-running is quick and works offline after the first time.
+Writes game/data/routes/<id>/route.json, terrain.bin and the horizon. Downloads are
+cached in tools/.cache/, so re-running is quick and works offline after the first time.
 
 Game coordinates (Godot convention, meters): x = east, y = up, z = south,
 relative to an origin near the route midpoint (config.ORIGIN) so nothing is more than ~13 km away.
@@ -53,14 +54,15 @@ def find_route(roads, to_utm):
 
     start_lines = [ln for r in roads if config.START_STATE in r.state_routes
                    and config.ROUTE_STATE not in r.state_routes for ln in r.lines]
-    finish_lines = [ln for r in roads if r.name == config.FINISH_ROAD for ln in r.lines]
+    finish_lines = [ln for r in roads if r.name in config.FINISH_ROADS for ln in r.lines]
     start_cross = crossing_point(raw, start_lines)
     finish_cross = crossing_point(raw, finish_lines)
     if start_cross is None or finish_cross is None:
-        raise RuntimeError("could not find the IA 22 crossing or the finish crossing on IA 1")
-    # Start and finish at the stop lines, short of the middle of the 4-way stop and the light.
-    start_pt = raw.interpolate(raw.project(start_cross) - config.STOP_LINE_M)
-    finish_pt = raw.interpolate(raw.project(finish_cross) - config.STOP_LINE_M)
+        raise RuntimeError(f"could not find the IA {config.START_STATE} crossing or the finish crossing "
+                           f"({', '.join(sorted(config.FINISH_ROADS))}) on IA {config.ROUTE_STATE}")
+    # Start and finish at the stop lines, short of the middle of each intersection.
+    start_pt = raw.interpolate(raw.project(start_cross) - config.START_STOP_LINE_M)
+    finish_pt = raw.interpolate(raw.project(finish_cross) - config.FINISH_STOP_LINE_M)
 
     s0 = raw.project(start_pt) - config.PRE_ROLL_M
     s1 = raw.project(finish_pt) + config.RUN_OUT_M
@@ -69,7 +71,7 @@ def find_route(roads, to_utm):
 
 
 def center_divided(dense: np.ndarray, hwy: shapely.MultiLineString) -> np.ndarray:
-    """Where IA 1 is a divided road, move the path from its carriageway to the middle.
+    """Where the highway is a divided road, move the path from its carriageway to the middle.
 
     Our path follows one carriageway; probing sideways finds the other one (if any)
     up to MEDIAN_PROBE_M away, and the point moves halfway toward it. The shift is
@@ -124,14 +126,17 @@ def route_label(r) -> str:
 
 
 def base_name(name: str) -> str:
-    """'Hazelwood Ave SW' and 'Hazelwood Ave' are the same road on either side of IA 1."""
+    """'Hazelwood Ave SW' and 'Hazelwood Ave' are the same road on either side of the highway."""
     words = name.split()
     return " ".join(words[:-1]) if words and words[-1] in {"N", "S", "E", "W", "NE", "NW", "SE", "SW"} else name
 
 
 def passing_zones(xy, profile, start_s, finish_s):
-    """Solid-line (no passing) zones for each direction, from sight distance, plus
-    through Kalona and the divided stretch from the US 218 interchange to the finish."""
+    """Solid-line (no passing) zones for each direction, from sight distance, plus out of
+    town at the start and into the finish (config.START/FINISH_NO_PASSING_M).
+
+    "northbound" is the way the route runs (our way) and "southbound" against it, whichever
+    way the highway really goes."""
     out = {}
     for direction in ("northbound", "southbound"):
         if direction == "northbound":
@@ -139,22 +144,23 @@ def passing_zones(xy, profile, start_s, finish_s):
         else:
             blocked = geo.no_passing(xy[::-1], profile[::-1], config.SPACING_M)[::-1]
         stations = np.arange(len(xy)) * config.SPACING_M
-        blocked |= stations < start_s + config.TOWN_NO_PASSING_M
-        blocked |= stations > finish_s - config.INTERCHANGE_NO_PASSING_M
+        blocked |= stations < start_s + config.START_NO_PASSING_M
+        blocked |= stations > finish_s - config.FINISH_NO_PASSING_M
         out[direction] = geo.zones(blocked, config.SPACING_M, config.MIN_NO_PASSING_M)
     return out
 
 
 def find_junctions(roads, raw_line: shapely.LineString, all_hwy: shapely.MultiLineString, xy: np.ndarray):
-    """Side roads and driveways that end on IA 1, as stations along the smoothed route.
+    """Side roads and driveways that end on the highway, as stations along the smoothed route.
 
-    Distances are measured to both carriageways where IA 1 is divided, not just the one we drive.
+    Distances are measured to both carriageways where it's divided, not just the one we drive.
     """
     tangents = geo.headings(xy)
     found = []
     for r in roads:
-        # US 218 passes under IA 1; its pieces end at the bridge but it isn't a junction.
-        if config.ROUTE_STATE in r.state_routes or config.FINISH_US in r.us_routes:
+        # A highway passing under ours (US 218 under IA 1): its pieces end at the bridge
+        # but it isn't a junction.
+        if config.ROUTE_STATE in r.state_routes or config.UNDERPASS_US in r.us_routes:
             continue
         kind = config.ROAD_CLASSES.get(r.mtfcc)
         if kind is None and r.mtfcc in config.DRIVEWAY_CLASSES:
@@ -168,7 +174,7 @@ def find_junctions(roads, raw_line: shapely.LineString, all_hwy: shapely.MultiLi
             ends = [shapely.Point(ln[0]), shapely.Point(ln[-1])]
             d = [all_hwy.distance(p) for p in ends]
             k = int(np.argmin(d))
-            # Must end on IA 1 and lead away from it (not run alongside or link two points on it).
+            # Must end on the highway and lead away from it (not run alongside or link two points on it).
             if d[k] > config.JUNCTION_TOL_M or d[1 - k] < 15 or raw_line.distance(ends[k]) > 30:
                 continue
             s = nearest_station(xy, ln[0] if k == 0 else ln[-1])
@@ -297,6 +303,8 @@ def carve(natural, road, d):
 
 
 def main():
+    import sys
+    config.use_args(sys.argv)
     roads = read_roads(config.ROAD_BBOX)
     to_utm = project_roads(roads)
     raw_line, start_pt, finish_pt = find_route(roads, to_utm)
@@ -326,7 +334,7 @@ def main():
     grade = np.diff(profile) / config.SPACING_M
     route = {
         "version": 1,
-        "name": "Iowa Highway 1: Kalona to Iowa City",
+        "name": config.ROUTE_NAME,
         "baked": date.today().isoformat(),
         "sources": [
             "USGS National Transportation Dataset (NTD) for Iowa, public domain",

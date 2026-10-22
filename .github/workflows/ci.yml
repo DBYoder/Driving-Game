@@ -78,7 +78,9 @@ jobs:
           test -s build/windows/HighwayOne.exe
 
       - name: Smoke-test the exported build
-        run: timeout 120 ./build/linux/HighwayOne.x86_64 --headless -- --smoke-test
+        run: |
+          timeout 120 ./build/linux/HighwayOne.x86_64 --headless -- --smoke-test
+          timeout 120 ./build/linux/HighwayOne.x86_64 --headless -- --smoke-test --route=highway22
 
       # Packaged right after the build, so the zip is there to grab even while the long
       # checks below are still running (the release still waits for all of them).
@@ -106,6 +108,12 @@ jobs:
           timeout 600 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive --car=windstar --condition=storm
           timeout 600 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive --car=tercel --condition=winter
 
+      - name: QA drive on Highway 22 (Kalona to Wellman, three conditions; Legend at 110)
+        run: |
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive --route=highway22 --car=legend --autopilot-mph=110 --condition=summer
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive --route=highway22 --car=windstar --condition=storm
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive --route=highway22 --car=tercel --condition=night
+
       - name: QA drift (a handbrake turn slides at least 35 degrees and recovers, every car)
         run: |
           for car in windstar tercel legend; do
@@ -117,6 +125,7 @@ jobs:
           timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-stress --seed=1 --car=windstar
           timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-stress --seed=2 --car=tercel
           timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-stress --seed=3 --car=legend
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-stress --seed=4 --car=windstar --route=highway22
 
       - name: QA speed traps (get busted; reach the county line; two boosts lose a deputy in every car)
         run: |
@@ -125,10 +134,12 @@ jobs:
           for car in windstar tercel legend; do
             timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-cops=boost --no-traffic --car=$car
           done
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-cops=bust --no-traffic --car=tercel --route=highway22
 
       - name: QA deer (a herd crosses and misses a car holding its line; then one gets hit)
         run: |
           timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-deer --no-traffic --car=legend
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-deer --no-traffic --car=windstar --route=highway22
 
       - name: QA menus (click through the title, settings, records, a practice run, pause and back)
         run: |
@@ -172,6 +183,12 @@ jobs:
           shoot night 2850 3 "--car=legend --condition=night --no-traffic"
           shoot thunderstorm 8000 0 "--car=windstar --condition=storm --no-traffic"
           shoot winter 14600 2 "--car=tercel --condition=winter --traffic-near"
+          shoot in-car-legend 6000 1 "--car=legend --autopilot --boost --condition=harvest"
+          shoot highway22-kalona-start 197 0 "--route=highway22 --car=legend --no-traffic"
+          shoot highway22-english-river 3780 0 "--route=highway22 --car=tercel --no-traffic"
+          shoot highway22-wellman-finish 11000 0 "--route=highway22 --car=windstar --no-traffic"
+          shoot highway22-wellman-from-above 10600 3 "--route=highway22 --car=legend --no-traffic"
+          shoot highway22-garage 197 0 "--route=highway22 --garage"
 
       - uses: actions/upload-artifact@v6
         with:

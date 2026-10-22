@@ -4,7 +4,7 @@ extends "res://tests/test_case.gd"
 
 const Main := preload("res://scripts/main.gd")
 
-var route := RouteData.load_from("res://data/route")
+var route := RouteData.load_from("res://data/routes/highway1")
 
 
 func _crossroad(street_name: String) -> Dictionary:

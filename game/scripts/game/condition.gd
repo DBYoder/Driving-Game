@@ -180,7 +180,8 @@ func corn_light() -> Color:
 	return Color(lit.r / 1.11, lit.g / 1.11, lit.b / 1.08)
 
 
-## Key for this condition's records: the plain car name for summer (the records from
-## before conditions existed), "car|condition" for the others.
+## Key for this condition's records on the route that's on (Routes.records_key): the
+## plain car name for summer (the records from before conditions existed),
+## "car|condition" for the others.
 func records_key(car_name: String) -> String:
-	return car_name if id == "summer" else "%s|%s" % [car_name, id]
+	return Routes.records_key(car_name if id == "summer" else "%s|%s" % [car_name, id])

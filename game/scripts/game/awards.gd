@@ -41,9 +41,9 @@ static func title_for(run: Dictionary) -> String:
 	if counts.get("Fence", 0) >= 40:
 		return "Good fences make good points."
 	if run.get("finished", false):
-		if run.get("seconds", 1e9) < 660.0:
+		if run.get("seconds", 1e9) < Routes.info().par_seconds * 0.73:
 			return "Hauling cheese curds."
 		if run.get("score", 0) < 3000:
 			return "Drove it like a rental."
-		return "Made it to Iowa City. Mom would be proud."
-	return "Just another day on Highway 1."
+		return "Made it to %s. Mom would be proud." % Routes.info().to
+	return "Just another day on Highway %s." % Routes.info().number

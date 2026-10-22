@@ -1,8 +1,8 @@
 # Highway 1
 
-A tiny, private, chaotic arcade driving game set on 15 real miles of **Iowa Highway 1,
-from the IA-22 four-way stop in Kalona to the first stop light in Iowa City (Mormon
-Trek Blvd).**
+A tiny, private, chaotic arcade driving game set on real Iowa highways out of Kalona's
+four-way stop: **15 miles of Iowa Highway 1 north to the first stop light in Iowa City
+(Mormon Trek Blvd)**, or **7 miles of Iowa Highway 22 west to downtown Wellman**.
 Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 
 **Play it:** grab `HighwayOne-windows.zip` from the
@@ -11,6 +11,7 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 
 | | |
 |---|---|
+| ![Highway 22: the start in Kalona, facing west](docs/screenshots/highway22-kalona-start.png) | ![Highway 22: Wellman, from above](docs/screenshots/highway22-wellman-from-above.png) |
 | ![Behind the wheel of the Legend at harvest dusk: the dash, the gauges, the radio](docs/screenshots/in-car-legend.png) | ![The Windstar's dash at night, its gauges lit](docs/screenshots/in-car-night.png) |
 | ![Stopped at the four-way stop in Kalona, a buggy waiting its turn](docs/screenshots/kalona-4-way-stop.png) | ![The finish: the stop light at Mormon Trek Blvd](docs/screenshots/mormon-trek-finish.png) |
 | ![Kalona from above: streets, houses and lawns](docs/screenshots/kalona-from-above.png) | ![A gravel crossroad and the power line, mile 5.7](docs/screenshots/gravel-crossroad.png) |
@@ -24,6 +25,13 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 | ![A Johnson County deputy on a Windstar's tail](docs/screenshots/speed-trap-chase.png) | ![Deer crossing near the creek at mile 4](docs/screenshots/deer-crossing.png) |
 
 ## Status
+
+**v0.8: a second route, Highway 22 from Kalona to Wellman.** Pick it on the garage's
+new Route line. It starts at the same 4-way stop, from the other side, and runs 6.8 miles
+west over Ramsey Creek, the English River and Lime Creek into downtown Wellman, where 8th
+Ave stops for you at the finish. Its 2,066 real buildings and 72,000 trees are from the
+lidar like Highway 1's; it's all Washington County (two deputies, no county line to run
+for), and it keeps its own records. Highway 1 also gains its missing Old Mans Creek sign.
 
 **v0.7.2:** an in-car view with a working dash (speedometer, tachometer, fuel, temperature, odometer, warning lights, the radio's clock): press C or Y. And no more tires poking through the bodywork: every car has wheel arches now, and a test throws each one through every pose to make sure.
 
@@ -76,8 +84,10 @@ PLAN.md for what's next.
 
 ```
 game/                  Godot 4.6.3 project (GL Compatibility renderer)
-  data/route/          baked road, terrain, horizon, buildings, trees and names (generated, committed)
-  scripts/route/       RouteData, TerrainTiles, HorizonTerrain: loading and querying the baked data
+  data/routes/<id>/    each route's baked road, terrain, horizon, buildings, trees and names
+                       (highway1, highway22; generated, committed)
+  scripts/route/       Routes (the routes and which is on), RouteData, TerrainTiles,
+                       HorizonTerrain: loading and querying the baked data
   scripts/world/       road, street and terrain meshes and colliders, streaming, roadside
                        signs, the start and finish intersections, power lines, the lidar
                        buildings and trees (Scenery), hand-built landmarks, weather and
@@ -108,6 +118,7 @@ docs/                  route previews, screenshots, the README that ships in the
 godot --headless --path game --import                   # first time, or after adding files
 godot --headless --path game -s res://tests/run_tests.gd  # unit tests
 godot --path game -- --car=tercel --station=15000 --view=3  # skip the garage, mid-route, drone view
+godot --path game -- --route=highway22 --car=legend        # Highway 22, Kalona to Wellman
 godot --path game -- --autopilot --autopilot-mph=90       # watch the autopilot drive (and pass)
 godot --path game -- --station=2400 --traffic-near        # start with traffic in view
 godot --path game -- --car=windstar --station=6000 --chase  # a deputy already on your tail
@@ -121,6 +132,7 @@ godot --path game -- --garage --practice                   # the garage for a pr
 
 # Automated test drives, headless and ~25x faster than real time:
 godot --headless --fixed-fps 60 --path game -- --qa-drive            # autopilot, all 15 miles
+godot --headless --fixed-fps 60 --path game -- --qa-drive --route=highway22  # ...or to Wellman
 godot --headless --fixed-fps 60 --path game -- --qa-stress --seed=1  # hooligan inputs
 godot --headless --fixed-fps 60 --path game -- --qa-drift            # scripted handbrake turn
 godot --headless --fixed-fps 60 --path game -- --qa-cops=bust --no-traffic  # get busted (or =line)
@@ -132,7 +144,9 @@ godot --path game -- --car=legend --damage=0.7 --orbit                # look at 
 godot --path game -- --tune=handbrake_grip:0.5                        # try a CarStats tweak
 ```
 
-**Road data:** only needed to re-bake (the baked files are committed).
+**Road data:** only needed to re-bake (the baked files are committed). Each route is in
+`tools/config.py` ROUTES; every script takes `--route=highway1` (the default) or
+`--route=highway22`.
 
 ```sh
 pip install -r tools/requirements.txt
@@ -140,9 +154,10 @@ python tools/bake_route.py     # downloads ~190 MB of USGS road data once, cache
 python tools/bake_places.py    # creek, county and city names for the signs, and the city limits
 python tools/bake_streets.py   # the side roads and town streets
 python tools/bake_lidar.py     # buildings and trees from USGS lidar (~1.5 GB once, ~20 min)
-python tools/bake_lidar.py --yards  # after editing game/data/route/landmarks.json
+python tools/bake_lidar.py --yards  # after editing the route's landmarks.json
 python tools/bake_lidar.py --extend OLD/route.json  # just the tiles near road added past the old end
-python tools/preview_route.py  # writes docs/route-preview/*.png to eyeball the result
+python tools/preview_route.py  # writes the route-map and profile PNGs to eyeball the result
+python tools/bake_route.py --route=highway22   # (and the same for the others): Kalona to Wellman
 python -m pytest tools/tests
 ```
 

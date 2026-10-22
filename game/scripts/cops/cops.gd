@@ -1,8 +1,9 @@
 class_name Cops
 extends Node3D
-## County sheriff's deputies running speed traps. Each run, one deputy waits in
-## Washington County (Kalona, up to the county line at Johnson-Washington Rd) and three
-## in Johnson County, parked on the shoulder just past a crossroad. Blow past one well
+## County sheriff's deputies running speed traps, parked on the shoulder just past a
+## crossroad. Each run on Highway 1, one deputy waits in Washington County (Kalona, up to
+## the county line at Johnson-Washington Rd) and three in Johnson County; on Highway 22,
+## all in Washington County, two (Routes.INFO traps). Blow past one well
 ## over the limit (or hit it) and the chase is on: lights, siren, and traffic pulling
 ## over. The rules are in Pursuit; the driving in CopDriver.
 ##
@@ -14,7 +15,6 @@ signal chase_started(county: String)
 signal chase_ended(outcome: Pursuit.Outcome)
 
 const COUNTY_LINE_ROAD := "Johnson-Washington Rd SW"
-const TRAPS_PER_COUNTY := {"Washington": 1, "Johnson": 3}
 const PARK_OFFSET := 6.0  ## out on the shoulder, clear of a combine's header
 const PARK_PAST := 15.0  ## m past the crossroad
 const TRAP_SPACING := 900.0  ## m at least between traps
@@ -41,7 +41,8 @@ var run: Run
 var traffic: Traffic
 var enabled := true
 var night := false  ## cruisers drive with their headlights on
-var county_line := 0.0  ## station: Washington County south of here, Johnson County north
+var county_line := INF  ## station: Washington County before here, Johnson County after (none: INF)
+var traps_per_county := {"Washington": 1, "Johnson": 3}
 var traps: Array[Trap] = []
 var chase: Pursuit  ## the chase on now, or null
 var chaser: Trap
@@ -57,6 +58,7 @@ func setup(r: RouteData, p: Car, game_run: Run, t: Traffic, seed_value: int) -> 
 	player = p
 	run = game_run
 	traffic = t
+	traps_per_county = route.info.get("traps", traps_per_county)
 	for c in route.crossroads:
 		if c.name == COUNTY_LINE_ROAD:
 			county_line = c.station
@@ -72,14 +74,14 @@ func reset(seed_value: int) -> void:
 		_free_car(trap)
 	traps.clear()
 	_rng.seed = seed_value
-	for county: String in TRAPS_PER_COUNTY:
+	for county: String in traps_per_county:
 		var spots: Array[float] = []
 		for c in route.crossroads:
 			var s: float = c.station + PARK_PAST
 			var in_county: bool = county_at(s) == county and absf(s - county_line) > 150.0
 			if c.kind == "road" and in_county and s > route.start_station + 150.0 and s < route.finish_station - 400.0:
 				spots.append(s)
-		var count: int = TRAPS_PER_COUNTY[county]
+		var count: int = traps_per_county[county]
 		for i in count:
 			spots = spots.filter(func(s): return traps.all(func(t): return absf(t.station - s) > TRAP_SPACING))
 			if spots.is_empty():
