@@ -16,6 +16,7 @@ var crash_cam := false  ## slowly circle the car (after a wreck)
 var showroom := false  ## circle close and low, for the car-select screen
 var _heading := Vector3.FORWARD
 var _orbit := 0.0
+var _boost_kick := 0.0  ## 0..1, eases in and out with the boost
 
 
 func setup(c: Car) -> void:
@@ -44,6 +45,7 @@ func _process(delta: float) -> void:
 	elif crash_cam:
 		_circle(delta, 9.0, 3.5, 0.5, 60.0)
 	else:
+		_boost_kick = move_toward(_boost_kick, 1.0 if car.boost.active else 0.0, delta * (3.0 if car.boost.active else 1.2))
 		_follow(1.0 - exp(-delta * 5.0))
 
 
@@ -72,18 +74,19 @@ func _follow(blend: float) -> void:
 	var m: Dictionary = MODES[mode]
 	if m.name == "Hood":
 		global_transform = xf * Transform3D(Basis.IDENTITY, Vector3(0, m.up, m.back))
-		fov = 75.0
+		fov = 75.0 + 12.0 * _boost_kick
 		return
 	# Swing behind the direction of travel with a little lag, ignoring pitch and roll.
 	_heading = _heading.slerp(_flat_forward(xf), blend).normalized()
-	var pos: Vector3 = xf.origin - _heading * m.back + Vector3.UP * m.up
+	var pos: Vector3 = xf.origin - _heading * m.back * (1.0 + 0.25 * _boost_kick) + Vector3.UP * m.up
 	var ground := car.route.terrain.height_at(pos.x, pos.z)
 	if not is_nan(ground):
 		pos.y = maxf(pos.y, ground + 0.8)
 	global_position = pos
 	look_at(xf.origin + _heading * m.look_ahead + Vector3.UP * m.look_up, Vector3.UP)
 	# A wider view at speed sells the sense of speed.
-	fov = lerpf(68.0, 82.0, clampf(car.linear_velocity.length() / 45.0, 0.0, 1.0))
+	# Boosting, it widens more and drops back a little, so the car pulls away from you.
+	fov = lerpf(68.0, 82.0, clampf(car.linear_velocity.length() / 45.0, 0.0, 1.0)) + 12.0 * _boost_kick
 
 
 func _flat_forward(xf: Transform3D) -> Vector3:

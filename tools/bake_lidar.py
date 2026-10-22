@@ -220,8 +220,22 @@ def yard_distances(route: dict, structures: list[dict]) -> np.ndarray:
     return out
 
 
+def landmark_footprints() -> list[dict]:
+    """The hand-built landmarks' rectangles (game/data/route/landmarks.json), as buildings:
+    the corn and the fences keep their distance from them too."""
+    path = config.OUT_DIR / "landmarks.json"
+    if not path.exists():
+        return []
+    out = []
+    for lm in json.loads(path.read_text())["landmarks"]:
+        for x0, z0, x1, z1 in lm["clear"]:
+            out.append({"x": (x0 + x1) / 2, "z": (z0 + z1) / 2, "length": x1 - x0, "width": z1 - z0,
+                        "yaw": 0.0, "height": 6.0, "kind": "landmark"})
+    return out
+
+
 def write_yards(route: dict, structures: list[dict]) -> None:
-    yards = yard_distances(route, structures)
+    yards = yard_distances(route, structures + landmark_footprints())
     yards.tofile(config.OUT_DIR / "yard_dist.bin")
     print(f"yards: {(yards < 30).sum()} terrain vertices within 30 m of a building")
 

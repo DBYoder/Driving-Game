@@ -101,10 +101,13 @@ jobs:
           timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-stress --seed=2 --car=tercel
           timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-stress --seed=3 --car=legend
 
-      - name: QA speed traps (pull over and get busted; outrun a deputy to the county line)
+      - name: QA speed traps (get busted; reach the county line; two boosts lose a deputy in every car)
         run: |
           timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-cops=bust --no-traffic --car=legend
           timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-cops=line --no-traffic --car=legend
+          for car in windstar tercel legend; do
+            timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-cops=boost --no-traffic --car=$car
+          done
 
       - name: QA deer (a herd crosses and misses a car holding its line; then one gets hit)
         run: |
@@ -130,8 +133,11 @@ jobs:
           shoot tercel-beat-up 175 0 "--car=tercel --orbit --damage=0.7 --no-traffic"
           shoot legend-beat-up 175 0 "--car=legend --orbit --damage=0.7 --no-traffic"
           shoot speed-trap-chase 6000 3 "--car=windstar --chase --no-traffic"
+          shoot boost-escape 6000 0 "--car=windstar --chase --boost --no-traffic"
           shoot deer-crossing 6600 0 "--car=windstar --deer=25 --no-traffic --no-cops"
           shoot mile-2-farmsteads 2850 3 "--car=legend --no-traffic"
+          shoot kalona-cheese 6240 0 "--car=windstar --no-traffic --no-cops"
+          shoot kalona-cheese-night 6240 0 "--car=legend --condition=night --no-traffic --no-cops"
           shoot harvest-dusk 8000 2 "--car=tercel --condition=harvest --traffic-near"
           shoot night 2850 3 "--car=legend --condition=night --no-traffic"
           shoot thunderstorm 8000 0 "--car=windstar --condition=storm --no-traffic"

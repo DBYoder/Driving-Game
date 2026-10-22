@@ -74,6 +74,8 @@ var _smoke: CPUParticles3D
 var _beacons: Array[StandardMaterial3D] = []  ## a cruiser's red and blue lights
 var _beacons_on := false
 var _headlights: Array[SpotLight3D] = []
+var _flame: MeshInstance3D  ## out of the tailpipe while boosting
+var _boosting := false
 var _lean := Vector2.ZERO  ## smoothed (roll, pitch) in radians
 var _time := 0.0
 var _damage := 0.0
@@ -120,6 +122,8 @@ func build(stats: CarStats, wheels: Array) -> void:
 		_build_light_bar(stats, w, l)
 	_smoke = _make_smoke(l)
 	_body.add_child(_smoke)
+	_flame = _make_flame()
+	_body.add_child(_flame)
 	_shadow = MeshInstance3D.new()
 	var quad := QuadMesh.new()
 	quad.size = Vector2(w * 1.25, l * 1.1)
@@ -204,10 +208,21 @@ func update(wheels: Array, steer_angle: float, accel: Vector3, speed: float, del
 		var flash := fmod(_time, 0.5) < 0.25
 		_beacons[0].albedo_color = Color(1.0, 0.1, 0.1) if _beacons_on and flash else Color(0.35, 0.05, 0.05)
 		_beacons[1].albedo_color = Color(0.15, 0.3, 1.0) if _beacons_on and not flash else Color(0.05, 0.08, 0.3)
+	_flame.visible = _boosting
+	if _boosting:
+		var flicker := 0.75 + 0.25 * sin(_time * 53.0) * sin(_time * 31.0 + 1.0)
+		var length := (1.1 + clampf(speed / 60.0, 0.0, 1.0) * 0.9) * flicker
+		_flame.scale = Vector3(1.0, length, 1.0)
+		_flame.position = Vector3(_stats.body_size.x * 0.28, -0.3, _stats.body_size.z / 2.0 + length / 2.0)
 	for part in _parts:
 		if part.state == "open":
 			var flap: float = sin(_time * (7.0 + speed * 0.2) + part.at.z) * clampf(speed / 30.0, 0.0, 1.0)
 			part.node.rotation.x = part.open_angle * (0.75 + 0.25 * flap)
+
+
+## A flame out of the tailpipe while the boost burns.
+func set_boost(on: bool) -> void:
+	_boosting = on
 
 
 ## A cruiser's lights: flashing red and blue while it's chasing someone.
@@ -621,6 +636,37 @@ func _make_smoke(length: float) -> CPUParticles3D:
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	smoke.material_override = m
 	return smoke
+
+
+## Cones pointing backward from the tailpipe, orange round a hot core (scaled along
+## their length as they flicker).
+func _make_flame() -> MeshInstance3D:
+	var flame := _flame_cone(0.2, Color(1.0, 0.45, 0.08))
+	var core := _flame_cone(0.09, Color(1.0, 0.92, 0.6))
+	core.scale = Vector3(1.0, 0.6, 1.0)
+	core.position = Vector3(0, -0.2, 0)
+	flame.add_child(core)
+	flame.rotation = Vector3(PI / 2.0, 0.0, 0.0)  # the cones' tips (+Y) point back (+Z)
+	flame.visible = false
+	return flame
+
+
+func _flame_cone(radius: float, color: Color) -> MeshInstance3D:
+	var cone := CylinderMesh.new()
+	cone.top_radius = 0.0
+	cone.bottom_radius = radius
+	cone.height = 1.0
+	cone.radial_segments = 6
+	cone.rings = 1
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.albedo_color = color
+	cone.material = m
+	var node := MeshInstance3D.new()
+	node.mesh = cone
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return node
 
 
 func _shadow_material() -> StandardMaterial3D:

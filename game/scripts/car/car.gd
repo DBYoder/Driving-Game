@@ -47,6 +47,7 @@ var throttle := 0.0  ## 0..1
 var brake := 0.0  ## 0..1; also reverse when stopped
 var steer := 0.0  ## -1 (left) .. 1 (right)
 var handbrake := false
+var boost_held := false  ## burn the boost meter (if there's any in it)
 var driver: Object  ## anything with update(car: Car, delta: float)
 
 var stats: CarStats
@@ -61,6 +62,7 @@ var grip_scale := 1.0  ## the weather's: wet or snowy roads grip less (Condition
 var ice := PackedFloat32Array()  ## [from, to] station pairs of black ice on the road
 var ice_grip := 1.0  ## grip on it
 var on_ice := false
+var boost := Boost.new()  ## filled by near misses (Traffic), burned with boost_held
 var headlights := false:  ## at night
 	set(value):
 		headlights = value
@@ -212,6 +214,7 @@ func _physics_process(delta: float) -> void:
 		brake = 0.0
 		steer = 0.0
 		handbrake = false
+		boost_held = false
 	_track_route()
 	on_ice = false
 	for i in range(0, ice.size(), 2):
@@ -233,8 +236,14 @@ func _physics_process(delta: float) -> void:
 	_anti_roll(xf, up)
 
 	# Drive split across the front tires; reverse when the brake is held at a standstill.
+	# Boosting, the engine pulls past its usual top speed and a shove on top of that
+	# (straight through the body, so the tires keep their grip for steering).
+	var boosting := boost.update(boost_held and brake < 0.1 and not freeze, delta)
 	var reversing := brake > 0.1 and throttle < 0.1 and speed < 0.5
-	var drive := throttle * stats.drive_force(maxf(speed, 0.0))
+	var boost_top := Boost.top_speed(stats.top_speed)
+	var drive := throttle * stats.drive_force(maxf(speed, 0.0), boost_top - stats.top_speed if boosting else 0.0)
+	if boosting:
+		_boost_push(forward, up, clampf((boost_top - speed) / 4.0, 0.0, 1.0))
 	var braking := brake
 	if reversing:
 		drive = -brake * stats.reverse_force * clampf((stats.reverse_speed + speed) / 2.0, 0.0, 1.0)
@@ -253,7 +262,20 @@ func _physics_process(delta: float) -> void:
 	var accel := global_transform.basis.inverse() * (linear_velocity - _accel_last_velocity) / delta
 	_accel_last_velocity = linear_velocity
 	_accel = _accel.lerp(accel, 1.0 - exp(-delta * 8.0))
+	model.set_boost(boosting)
 	model.update(wheels, steer_angle, _accel, speed, delta)
+
+
+## The boost's shove (`amount` of it: it fades out near the boosted top speed): along
+## the car on the ground, level in the air (so a jump goes further, not higher).
+func _boost_push(forward: Vector3, up: Vector3, amount: float) -> void:
+	var push := forward
+	if grounded_wheels() < 2 or up.y < 0.5:
+		push = Vector3(forward.x, 0.0, forward.z)
+		if push.length() < 0.1:
+			return
+		push = push.normalized()
+	apply_central_force(push * Boost.THRUST * stats.mass * amount)
 
 
 ## A collision shows up as a sudden change in velocity. Normal driving stays under

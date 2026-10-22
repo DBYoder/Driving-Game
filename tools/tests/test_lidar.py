@@ -94,3 +94,15 @@ def test_crossings_and_merging():
     assert len(s) == 2 and abs(s[0] - 305) < 6
     merged = merge_close([{"station": x, "name": "Dirty Face Creek"} for x in s], "name", 200.0)
     assert len(merged) == 1
+
+
+def test_landmarks_count_as_yards():
+    rects = bl.landmark_footprints()
+    assert rects, "the Kalona Cheese landmark is in game/data/route/landmarks.json"
+    for r in rects:
+        assert r["length"] > 10 and r["width"] > 10 and r["yaw"] == 0.0
+    route = {"terrain": {"tile_size_m": 256.0, "grid": 33, "tiles": [[0, 0, 0.0]]}}
+    box = {"x": 128.0, "z": 128.0, "length": 40.0, "width": 30.0, "yaw": 0.0, "height": 6.0, "kind": "landmark"}
+    d = bl.yard_distances(route, [box])
+    assert d[0, 16, 16] == 0 and d[0, 16, 18] == 0   # inside the rectangle
+    assert abs(int(d[0, 16, 24]) - 44) <= 1           # 64 m east of the middle: 44 m past its 20 m half-length

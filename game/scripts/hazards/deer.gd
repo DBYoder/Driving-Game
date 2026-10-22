@@ -144,6 +144,12 @@ func _path_blocked(station: float, side: float) -> bool:
 		var reach := maxf(float(bl.length), float(bl.width)) / 2.0 + 8.0
 		if Geometry2D.get_closest_point_to_segment(p, a, b).distance_to(p) < reach:
 			return true
+	for l: Dictionary in route.landmarks:
+		for c: Array in l.clear:
+			var p := Vector2((c[0] + c[2]) / 2.0, (c[1] + c[3]) / 2.0)
+			var reach := maxf(c[2] - c[0], c[3] - c[1]) / 2.0 + 8.0
+			if Geometry2D.get_closest_point_to_segment(p, a, b).distance_to(p) < reach:
+				return true
 	return false
 
 

@@ -35,6 +35,7 @@ THE CARS
 Points:
   Mailbox 50 · fence 25 · hay bale 100 (heavy: it hurts) · plowing corn 5 a meter
   Air time 100 per half second · near miss with oncoming traffic 250
+  Squeezing past something in your lane with almost no room (a close pass) 100
   Passing a car 100 · a buggy 150 · a tractor 200 · a semi 300
   A deer in your path that you miss 100
   Losing a cop 1,000 · dragging the Washington County deputy over the county line 2,000
@@ -69,6 +70,15 @@ Winter              Snow, whiteout fog, snowplows, and black ice on the bridges 
                     glassy patches. Ease off before you get there.
 
 
+THE BOOST
+---------
+Near misses fill the boost meter (bottom right, over the health bar): an oncoming car
+whistling past your mirror fills 40% of it, squeezing past something going your way
+with almost no room fills a quarter. Hold Shift (or B on a controller) to burn it: a
+hard shove and a much higher top speed, faster than any deputy. A full meter lasts
+4 seconds. Save it for when you need it.
+
+
 THE RADIO
 ---------
 Put your own .mp3 or .ogg files in the "radio" folder next to HighwayOne.exe and the
@@ -83,7 +93,9 @@ Sheriff's deputies sit on the shoulder just past crossroads: one in Washington C
 run. Go past one at over 72 mph, or hit one, and you've got a deputy on your tail.
   - Stop with the deputy right behind you for 3 seconds: BUSTED, the run's over.
     Calling the tow truck while they're after you counts as busted too.
-  - Get 600 m ahead and stay there, or wreck the cruiser: lost the cop, 1,000.
+  - Get 400 m ahead and stay there, or wreck the cruiser: lost the cop, 1,000.
+    A deputy drives a little faster than your car can, so flooring it won't do it.
+    Boosting will: two full boosts and they're gone.
   - The Washington County deputy stops at the county line: 2,000 if you drag them
     over it.
   - Keep it going for 2 and a half minutes and they give up: 1,000.
@@ -99,6 +111,7 @@ Gas                           W or Up             Right trigger
 Brake (hold to reverse)       S or Down           Left trigger
 Steer                         A / D, Left/Right   Left stick
 Handbrake                     Space               A
+Boost (hold)                  Shift               B
 Change camera                 C                   Y
 Tow truck (-500)              T                   X
 Restart                       R                   Back
@@ -115,6 +128,10 @@ Quit                          Esc
 
 WHAT'S IN THIS BUILD
 --------------------
+v0.5.1: the boost (near misses fill it; it's how you lose a cop), and Kalona Cheese,
+the old cheese factory and Kalona Creamery store at 540th St, 3.9 miles up. Don't
+hit it: it's brick.
+
 v0.5: our Highway 1. Every farmhouse, barn, machine shed, grain bin and tree line along
 the road is where it really is (found in USGS lidar), the creeks and the county line
 are signed with their real names, and there are five conditions to drive it in. Plus

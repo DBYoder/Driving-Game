@@ -4,7 +4,8 @@ extends Node3D
 ## tractors pulling hay wagons, the odd 45-mph sedan) and oncoming cars, pickups and
 ## semis. They keep their lanes, keep their distance, and brake for the player.
 ##
-## Scores: a near miss with oncoming traffic, and a clean pass of anything in your lane.
+## Scores: a near miss with oncoming traffic, and a clean pass of anything in your lane
+## (a close one counts extra). Near misses and close passes fill the boost meter.
 ## Hitting a vehicle is a real crash (damage, momentum, it tumbles away as a wreck);
 ## a head-on at speed or touching a buggy ends the run.
 ##
@@ -26,6 +27,7 @@ const NEAR_MISS_GAP := 1.2  ## meters between mirrors
 const YIELD_RANGE := 250.0  ## m: pull over for a siren coming up this close
 const YIELD_SHIFT := 2.4  ## m further out, onto the shoulder
 const NEAR_MISS_POINTS := 250
+const CLOSE_PASS_POINTS := 100  ## on top of the pass, for squeezing by within NEAR_MISS_GAP
 
 ## length/width (m), mass (kg), speed range (m/s), footprint center along the vehicle
 ## (meters toward the back), points for passing it, and the run-over message.
@@ -55,6 +57,7 @@ class Vehicle:
 	var cruise: float
 	var speed: float
 	var passed := false  ## scored (passed or near-missed) already
+	var closest := INF  ## m between mirrors while the player was alongside (overtaking)
 	var touched := false
 	var last_gap := INF  ## station ahead of the player last tick (oncoming near-miss check)
 
@@ -283,19 +286,26 @@ func _score_pass(v: Vehicle, spec: Dictionary) -> void:
 	if v.passed or v.touched or not run.tracker.running():
 		return
 	var gap := v.station - car.station
+	var mirrors: float = absf(car.lateral - v.offset) - (car.stats.body_size.x + spec.width) / 2.0
 	if v.direction > 0.0:
+		var overlap: float = spec.length / 2.0 + car.stats.body_size.z / 2.0
+		if absf(gap) < overlap:
+			v.closest = minf(v.closest, mirrors)
 		# Overtook it: the player's whole car is past its front.
-		if gap < -(spec.length / 2.0 + car.stats.body_size.z / 2.0 + 2.0):
+		if gap < -(overlap + 2.0):
 			v.passed = true
 			run.score.add("Passed: %s" % v.kind, spec.pass)
+			if v.closest < NEAR_MISS_GAP:
+				run.score.add("Close pass", CLOSE_PASS_POINTS)
+				car.boost.fill(Boost.CLOSE_PASS)
 		return
 	# Oncoming: when it goes by, how close were the mirrors?
 	if v.last_gap > 0.0 and gap <= 0.0:
 		v.passed = true
-		var mirrors: float = absf(car.lateral - v.offset) - (car.stats.body_size.x + spec.width) / 2.0
 		var closing := car.forward_speed() + v.speed
 		if mirrors < NEAR_MISS_GAP and closing > 20.0:
 			run.score.add("Near miss", NEAR_MISS_POINTS)
+			car.boost.fill(Boost.NEAR_MISS)
 	v.last_gap = gap
 
 

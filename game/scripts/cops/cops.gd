@@ -174,6 +174,7 @@ func _start(trap: Trap) -> void:
 	trap.car.freeze = false
 	trap.driver.mode = CopDriver.Mode.CHASING
 	trap.driver.target = player
+	trap.driver.chase_speed = Pursuit.chase_speed(trap.car.stats, player.stats)
 	trap.car.model.set_beacons(true)
 	siren.reparent(trap.car, false)
 	siren.position = Vector3.ZERO
@@ -194,7 +195,7 @@ func _run_chase(delta: float) -> void:
 
 
 ## Far back, there's no ground under the cruiser: freeze it and move it along the road
-## toward the player at its top speed, then hand it back to the physics when it's close.
+## toward the player at its chase speed, then hand it back to the physics when it's close.
 func _update_rails(gap: float, delta: float) -> void:
 	var car := chaser.car
 	if not _rails and gap > PHYSICS_RANGE + RAILS_MARGIN:
@@ -205,13 +206,13 @@ func _update_rails(gap: float, delta: float) -> void:
 		_rails = false
 		car.freeze = false
 		var dir := 1.0 if player.station >= _rail_station else -1.0
-		car.linear_velocity = route.tangent_at(_rail_station) * dir * car.stats.top_speed * 0.9
+		car.linear_velocity = route.tangent_at(_rail_station) * dir * chaser.driver.chase_speed * 0.9
 		car.reset_physics_interpolation()
 	if not _rails:
 		return
 	var to_go := player.station - _rail_station
 	var dir := signf(to_go) if absf(to_go) > 5.0 else 0.0
-	_rail_station += dir * minf(car.stats.top_speed * 0.95 * delta, absf(to_go))
+	_rail_station += dir * minf(chaser.driver.chase_speed * 0.95 * delta, absf(to_go))
 	var heading := route.tangent_at(_rail_station) * (dir if dir != 0.0 else 1.0)
 	var pos := route.position_at(_rail_station) + route.right_at(_rail_station) * (1.83 * (dir if dir != 0.0 else 1.0))
 	pos.y += RIDE_HEIGHT

@@ -31,7 +31,7 @@ func sample(main: Node, car: Car) -> void:
 	deepest = 0.0
 	var car_xf := car.body_shape.global_transform
 	var car_half := (car.body_shape.shape as BoxShape3D).size / 2.0
-	for box: Array in main.scenery.building_boxes(car.global_position, 40.0):
+	for box: Array in main.scenery.building_boxes(car.global_position, 40.0) + main.landmarks.building_boxes(car.global_position, 80.0):
 		deepest = maxf(deepest, box_overlap(car_xf, car_half, box[0], box[1]))
 	_record("building", deepest, VISIBLE_OVERLAP, mile)
 	_record("ground", _sink(car), VISIBLE_SINK, mile)

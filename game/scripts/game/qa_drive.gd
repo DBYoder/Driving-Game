@@ -5,6 +5,7 @@ extends Node
 ##   HighwayOne --headless --fixed-fps 60 -- --qa-stress   random inputs for 4 minutes
 ##   HighwayOne --headless --fixed-fps 60 -- --qa-drift    a scripted handbrake turn
 ##   HighwayOne --headless --fixed-fps 60 -- --qa-cops=bust (or =line)  a speed trap
+##   HighwayOne --headless --fixed-fps 60 -- --qa-cops=boost  boost away from a deputy
 ##   HighwayOne --headless --fixed-fps 60 -- --qa-deer     a herd of deer, then a hit
 ## Watches for the car falling through the world, leaving its lane (autopilot only),
 ## flipping (autopilot only), or the physics blowing up; for things popping into or out
@@ -31,7 +32,7 @@ var car: Car
 var run: Run
 var stress := false
 var drift: DriftDriver  ## set for the drift test
-var cop_scenario := ""  ## "bust" or "line" for the speed-trap test
+var cop_scenario := ""  ## "bust" or "line" for the speed-trap test, "boost" to outrun one
 var deer_scenario := false
 var _sim_time := 0.0
 var _wall_start := 0
@@ -65,6 +66,10 @@ var _health_before := 0.0
 var _hit_at := 0.0
 var _hits_before_stand := 0
 var _combo_lost := false
+var _boost_fills := 0
+var _filled_at := -INF
+var _chase_outcome := -1
+var _boost_top := 0.0
 
 
 func _ready() -> void:
@@ -73,7 +78,9 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if _sim_time == 0.0 and cop_scenario != "":
+	if _sim_time == 0.0 and cop_scenario == "boost":
+		_set_up_boost_chase()
+	elif _sim_time == 0.0 and cop_scenario != "":
 		_set_up_trap_run()
 	if _sim_time == 0.0 and deer_scenario:
 		_set_up_deer_run()
@@ -83,7 +90,7 @@ func _physics_process(delta: float) -> void:
 	if not pos.is_finite() or not car.linear_velocity.is_finite():
 		_fail("physics produced NaN at %.1f s" % _sim_time)
 		return
-	if speed > 80.0:
+	if speed > Boost.MAX_SPEED + 8.0:
 		_fail("car reached an impossible %.0f mph near mile %.2f" % [speed * Hud.MPH, car.route.mile_at(car.station)])
 	var road_y := car.route.position_at(car.station).y
 	var ground := car.route.terrain.height_at(pos.x, pos.z)
@@ -114,6 +121,9 @@ func _physics_process(delta: float) -> void:
 		return
 	if drift:
 		_drift_tick()
+		return
+	if cop_scenario == "boost":
+		_boost_tick()
 		return
 	if cop_scenario != "":
 		_cop_tick()
@@ -235,6 +245,56 @@ func _cop_tick() -> void:
 		_finish()
 	elif _sim_time > 150.0:
 		_fail("speed-trap test: %s" % ("no chase" if not _chase_seen else "the chase never ended the way it should (%s)" % cop_scenario))
+
+
+## Johnson County, flat out with no speed traps; once the car's at its top speed a
+## deputy turns up on its tail, going just as fast.
+func _set_up_boost_chase() -> void:
+	var cops: Cops = get_parent().cops
+	for trap in cops.traps:
+		trap.done = true
+	cops.chase_ended.connect(func(outcome): _chase_outcome = outcome)
+	get_parent()._spawn(cops.county_line + 300.0)
+	(car.driver as Autopilot).target_speed = 100.0  # flat out
+
+
+## With the deputy right behind, fill the meter (as two near misses in a row would) and
+## burn it; again 15 s later. That should lose the deputy: they're only a little faster
+## than the car without it.
+func _boost_tick() -> void:
+	var cops: Cops = get_parent().cops
+	if not _chase_seen:
+		if car.forward_speed() > car.stats.top_speed - 4.0:
+			cops.chase_from_behind(25.0)
+			cops.chaser.car.linear_velocity = car.linear_velocity
+			_chase_seen = true
+			_chase_started_at = _sim_time
+		elif _sim_time > 60.0:
+			_fail("boost test: never got up to top speed (%.0f mph)" % (car.forward_speed() * Hud.MPH))
+		return
+	if cops.chasing():
+		_closest_cop = minf(_closest_cop, cops.chaser.car.global_position.distance_to(car.global_position))
+		var gap := cops.chaser.car.global_position.distance_to(car.global_position)
+		if car.boost.meter == 0.0 and _sim_time - _filled_at > 15.0 and _boost_fills < 3 and gap < Pursuit.LOST_GAP:
+			car.boost.fill(1.0)
+			_boost_fills += 1
+			_filled_at = _sim_time
+		car.boost_held = car.boost.meter > 0.0
+	else:
+		car.boost_held = false
+	_boost_top = maxf(_boost_top, car.forward_speed())
+	if run.tracker.state == RunTracker.State.WRECKED:
+		_fail("wrecked (%s) during the boost test" % run.tracker.wreck_reason)
+	elif _chase_outcome == Pursuit.Outcome.LOST:
+		print("QA cops: boosted away from the deputy, lost %.1f s into the chase with %d full boosts, top %.0f mph" % [
+			_sim_time - _chase_started_at, _boost_fills, _boost_top * Hud.MPH])
+		if _boost_fills > 2:
+			_problems.append("took %d full boosts to lose the deputy (2 should do it)" % _boost_fills)
+		_finish()
+	elif _chase_outcome != -1:
+		_fail("boost test: the chase ended the wrong way (%s)" % Pursuit.Outcome.keys()[_chase_outcome])
+	elif _sim_time - _chase_started_at > 90.0:
+		_fail("boost test: still chased after 90 s and %d full boosts" % _boost_fills)
 
 
 ## Line up a herd of three at the first creek, coming from the right, the first one

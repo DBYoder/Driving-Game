@@ -11,9 +11,10 @@ const RADAR_RANGE := 130.0  ## m
 const BUST_GAP := 15.0  ## m: the cop's right there...
 const BUST_SPEED := 4.5  ## m/s (10 mph): ...you're barely moving...
 const BUST_SECONDS := 3.0  ## ...for this long: busted
-const LOST_GAP := 600.0  ## m: this far ahead of the cop...
+const LOST_GAP := 400.0  ## m: this far ahead of the cop...
 const LOST_SECONDS := 4.0  ## ...for this long: you've lost them
 const MAX_SECONDS := 150.0  ## then the deputy gives up anyway
+const CHASE_EDGE := 4.0  ## m/s (9 mph) a deputy drives faster than your car can go
 
 var county: String  ## whose deputy it is
 var time := 0.0
@@ -23,6 +24,12 @@ var lost_timer := 0.0
 
 func _init(cop_county: String) -> void:
 	county = cop_county
+
+
+## How fast a deputy chases: a little faster than your car can go, so flooring it won't
+## shake them (boosting will), but no faster than the cruiser can go.
+static func chase_speed(cruiser: CarStats, player: CarStats) -> float:
+	return minf(cruiser.top_speed, player.flat_out_speed() + CHASE_EDGE)
 
 
 ## Does a parked deputy's radar flag a car `distance` away doing `speed`?

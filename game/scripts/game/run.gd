@@ -38,6 +38,7 @@ func car_changed() -> void:
 func restart() -> void:
 	tracker.reset()
 	score.reset()
+	car.boost.reset()
 	_air_time = 0.0
 	_rolled_time = 0.0
 

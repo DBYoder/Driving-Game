@@ -113,13 +113,15 @@ The stats below are approximate, for flavor; tuning is for fun.
 | Round hay bale (they roll!) | 100 |
 | Plowing through corn | 5 per meter (slows you down) |
 | Airtime (crest or ditch jump) | 100 per 0.5 s |
-| Near-miss with oncoming traffic | 250 |
+| Near-miss with oncoming traffic | 250 (and fills the boost) |
+| Close pass: squeezing past something in your lane | 100 (and fills the boost) |
 | Clean pass: buggy / tractor / combine | 150 / 200 / 400 |
 | Escaping a cop | 1,000 |
 | Crossing the county line with the Washington County deputy on you (the deputy gives up: "jurisdiction bonus") | 2,000 |
 | A deer in your path that you miss | 100 |
 
 - **Combo**: events chained within ~4 s raise a multiplier (up to ×5). Any hard hit resets it.
+- **Boost**: near misses and close passes fill a meter; hold Shift (or B) to burn it for a hard shove and a higher top speed. It's how you lose a cop (§4.5).
 - **Finish**: reaching the 218 interchange multiplies the whole run by ×1.5, plus a time bonus under par.
 
 ### 4.4 Wrecks, and the 1:1 problem
@@ -141,7 +143,7 @@ The run ends when:
 - **Oncoming and same-direction traffic**: cars, pickups, semis. Passing on a two-lane road with oncoming traffic is the core tension.
 - **Amish buggies**: ~8–10 mph, hugging the right edge, with an orange slow-moving-vehicle triangle and lanterns at night. Densest near Kalona.
 - **Farm equipment**: tractors with wagons; **combines wider than a lane** in harvest (you have to use the shoulder or the other lane); grain trucks pulling out of field entrances.
-- **Cops**: the Washington County deputy at the south end and Johnson County north of the line. Speed traps sit hidden at farmsteads and crossroads. Passing one well over the 55 mph limit triggers a chase.
+- **Cops**: the Washington County deputy at the south end and Johnson County north of the line. Speed traps sit hidden at farmsteads and crossroads. Passing one well over the 55 mph limit triggers a chase. A deputy drives a little faster than your car can, so you can't just floor it: you lose them with the boost.
 - **Deer**: dusk and night, near creeks and tree lines. A collision means big damage.
 
 ### 4.6 Conditions (each has its own high-score table: 3 cars × 5 conditions)
@@ -375,7 +377,39 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
     - Pipeline tests cover the lidar classification (roofs vs. trees, power lines, oriented footprints, bins, yards) and the creek and city crossings. Unit tests cover the conditions, harvested fields, the traffic mix and the radio.
   - **Not done:**
     - **Real crop placement:** its host is still blocked (§9 Q6).
-    - **Your landmarks:** still waiting on your list (§9 Q1).
+    - **Your landmarks:** still waiting on your list (§9 Q1). *Done since: Kalona Cheese, below.*
+
+### v0.5.1: after the v0.5 playtest
+- **Playtest notes:** "a boost mechanic for near misses, a clearer way to outrun the police", and "the one clear landmark on the run, the Kalona cheese factory" (with a photo).
+- **Built:**
+  - **The boost** (`Boost`). Near misses fill the meter (bottom right, over the health bar):
+    - an oncoming near miss fills 40% of it;
+    - a close pass (squeezing past something in your lane within 1.2 m of its mirror) fills 25% and scores 100.
+
+    Hold **Shift** (or **B** on a controller) to burn it. A full meter lasts 4 s: a 0.7 g shove on top of the engine, and the top speed goes up by 56 mph to at most 168 mph. Flat out on a level road (boosting: two boosts back to back, measured in QA):
+
+    | Car | Usually | Boosting |
+    |---|---|---|
+    | Windstar | 104 mph | 163 mph |
+    | Tercel | 96 mph | 156 mph |
+    | Legend | 133 mph | 166 mph |
+
+    It shows: a flame out of the tailpipe, the view widens and drops back, and the engine roars.
+  - **Losing a cop is now about the boost.**
+    - A chasing deputy drives 9 mph faster than your car can go flat out (up to the cruiser's 130 mph). Flooring it won't shake them; they slowly reel you in.
+    - Two full boosts get you clear, in any car.
+    - Lost now takes 400 m clear for 4 s (was 600 m).
+    - When a chase starts, a hint says how.
+  - **Kalona Cheese** (`Landmarks`, `data/route/landmarks.json`): the Kalona Creamery since 2017, on the corner of 540th St SW, 3.9 miles up. It's built by hand from your photo, sized and placed off the lidar:
+    - the red brick store a story and a half tall, KALONA CHEESE across its steep gray gable;
+    - the one-story front under a gray shingled mansard, with the black KALONA CREAMERY sign over black double doors;
+    - behind it, the plant: a concrete-block wing, the old plant under a tan roof, the brick smokestack, three steel silos and the big metal plant buildings.
+
+    The windows and the sign light up at night, the roofs take the snow, and it's solid. The lidar bake had left the store out (it stands within 14 m of the road, where the bake drops what it takes for road clutter) and called the plant's tanks trees. The corn, fences and deer now keep clear of it.
+  - **Tests.**
+    - A new QA scenario, run for every car in CI: a deputy on your tail at your top speed, then two full boosts. Each loses the deputy 27–33 s into the chase.
+    - The stress test now boosts at random.
+    - Unit tests cover the meter, the boosted top speeds, the deputies' speed, close passes, and where the landmark stands (clear of the road, nothing of the lidar's left inside it).
 
 ### Phase 6: Polish (pick and choose)
 - Engine and crash audio, menus, graphics presets, controller rumble, practice mode, a title screen, and anything that makes your friends laugh.
@@ -401,7 +435,7 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
 
 ## 9. What I need from you (open questions)
 
-1. **Landmarks, in order heading north from Kalona.** I want the 5–15 things you'd point at from the passenger seat: buildings, signs, the hill that gives you air, where cops actually sit, deer spots, a weird mailbox. Rough locations are fine ("just past F62 on the right").
+1. **Landmarks, in order heading north from Kalona.** I want the 5–15 things you'd point at from the passenger seat: buildings, signs, the hill that gives you air, where cops actually sit, deer spots, a weird mailbox. Rough locations are fine ("just past F62 on the right"). *So far: Kalona Cheese (v0.5.1). More are welcome.*
 2. **The cars.** I went with a 1997 Tercel sedan and a 1993 Legend sedan, in each car's real paint colors, all pickable in the garage. Tell me if your Tercel was a coupe or hatch, if the Legend was a coupe, or the actual colors, and I'll match them. Inside-joke details count too: the tape deck, a door that didn't close, a dent.
 3. ~~A phone video of the drive.~~ Not available, so Street View stands in. It needs a **Google Maps API key** saved as a secret in this cloud environment; the free monthly allowance easily covers a few hundred reference frames. Without one, I'll rely on your landmark list and the map data. Needed before Phase 5.
 4. **A gamepad?** It plays fine on keyboard, but tell me if everyone will use controllers.

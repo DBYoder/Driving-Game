@@ -1,7 +1,7 @@
 class_name Hud
 extends CanvasLayer
 ## Trip readout (top left), clock (top right), score and combo (top center), who's
-## chasing you (under the combo), speed and car health (bottom right), scoring popups,
+## chasing you (under the combo), speed, the boost meter and car health (bottom right), scoring popups,
 ## big messages, the results screen, and control hints (bottom left).
 
 const MPH := 2.23694
@@ -23,6 +23,10 @@ var _banner := ""
 var _banner_time := 0.0
 var _speed: Label
 var _health: ProgressBar
+var _boost: ProgressBar
+var _boost_fill: StyleBoxFlat
+var _boost_label: Label
+var _boost_flash := 0.0
 var _message: Label
 var _hint: Label
 var _note: Label  ## a small line over the hints (the radio's song)
@@ -55,10 +59,12 @@ func setup(r: RouteData, c: Car, game_run: Run, cam: ChaseCamera) -> void:
 	_speed = _label(52, Control.PRESET_BOTTOM_RIGHT, Vector2(-28, -20))
 	_speed.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_health = _health_bar()
+	_boost = _boost_bar()
+	car.boost.filled.connect(func(_amount): _boost_flash = 0.6)
 	_message = _label(40, Control.PRESET_CENTER, Vector2(0, -235))  # above the start banner
 	_message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint = _label(15, Control.PRESET_BOTTOM_LEFT, Vector2(24, -16))
-	_hint.text = "W/S or triggers: gas/brake (hold S to reverse)    A/D or stick: steer    Space or A: handbrake\n" \
+	_hint.text = "W/S or triggers: gas/brake (hold S to reverse)    A/D or stick: steer    Space or A: handbrake    Shift or B: boost\n" \
 		+ "C or Y: camera    T or X: tow truck (-500)    R or Back: restart    P or Start: pause    N / B: radio    F2: detail    Esc: quit"
 	_note = _label(20, Control.PRESET_BOTTOM_LEFT, Vector2(24, -66))
 	_popups = VBoxContainer.new()
@@ -95,6 +101,16 @@ func _process(delta: float) -> void:
 	_combo.text = "+%s  x%d" % [_fmt(score_keeper.pot), score_keeper.multiplier] if score_keeper.multiplier > 0 else ""
 	_speed.text = "%d mph" % roundi(absf(car.forward_speed()) * MPH)
 	_health.value = car.health / car.stats.durability * 100.0
+	_boost.value = car.boost.meter * 100.0
+	_boost_flash = maxf(_boost_flash - delta, 0.0)
+	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * 4.0)
+	if car.boost.active:
+		_boost_fill.bg_color = Color(0.45, 0.85, 1.0).lerp(Color(1, 1, 1), pulse * 0.5)
+	elif _boost_flash > 0.0 or car.boost.full():
+		_boost_fill.bg_color = Color(1.0, 0.62, 0.15).lerp(Color(1.0, 0.95, 0.6), pulse if _boost_flash > 0.0 else pulse * 0.4)
+	else:
+		_boost_fill.bg_color = Color(1.0, 0.62, 0.15)
+	_boost_label.modulate.a = 1.0 if car.boost.meter > 0.0 else 0.55
 
 	var chase := cops.status() if cops else ""
 	_chase.text = chase
@@ -231,6 +247,31 @@ func _health_bar() -> ProgressBar:
 	bar.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	bar.position += Vector2(-30, -92)
 	bar.value_changed.connect(func(v): fill.bg_color = Color(0.35, 0.85, 0.35).lerp(Color(0.95, 0.25, 0.2), 1.0 - v / 100.0))
+	return bar
+
+
+## The boost meter, over the health bar, with its name beside it.
+func _boost_bar() -> ProgressBar:
+	var bar := ProgressBar.new()
+	bar.min_value = 0.0
+	bar.max_value = 100.0
+	bar.value = 0.0
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(180, 14)
+	_boost_fill = StyleBoxFlat.new()
+	_boost_fill.bg_color = Color(1.0, 0.62, 0.15)
+	bar.add_theme_stylebox_override("fill", _boost_fill)
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0, 0, 0, 0.5)
+	bar.add_theme_stylebox_override("background", bg)
+	add_child(bar)
+	bar.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT, Control.PRESET_MODE_MINSIZE)
+	bar.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	bar.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	bar.position += Vector2(-30, -112)
+	_boost_label = _label(16, Control.PRESET_BOTTOM_RIGHT, Vector2(-218, -106))
+	_boost_label.text = "BOOST"
+	_boost_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	return bar
 
 

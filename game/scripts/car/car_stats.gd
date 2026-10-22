@@ -71,12 +71,28 @@ const COUNTIES := ["Washington", "Johnson"]  ## whose sheriff's cruisers there a
 
 
 ## Forward force from the engine at a given speed, before traction limits.
-## Constant force off the line, then power-limited, fading out at top speed.
-func drive_force(speed: float) -> float:
-	if speed >= top_speed:
+## Constant force off the line, then power-limited, fading out at top speed (raised by
+## `extra_top` while boosting).
+func drive_force(speed: float, extra_top := 0.0) -> float:
+	var top := top_speed + extra_top
+	if speed >= top:
 		return 0.0
 	var force := minf(max_drive_force, wheel_power / maxf(speed, 1.0))
-	return force * clampf((top_speed - speed) / 4.0, 0.0, 1.0)
+	return force * clampf((top - speed) / 4.0, 0.0, 1.0)
+
+
+## The speed it really tops out at on flat asphalt, flat out: where the engine's push
+## (fading near top_speed) only just covers the air and the tires' drag.
+func flat_out_speed() -> float:
+	var lo := 0.0
+	var hi := top_speed
+	for i in 30:
+		var v := (lo + hi) / 2.0
+		if drive_force(v) > drag * v * v + rolling_resistance * mass * Car.GRAVITY:
+			lo = v
+		else:
+			hi = v
+	return lo
 
 
 ## One of the three real cars (see CARS), tuned from the defaults: springs, tires and the

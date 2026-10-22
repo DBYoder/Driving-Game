@@ -10,6 +10,7 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 
 | | |
 |---|---|
+| ![Kalona Cheese at 540th St, mile 3.9](docs/screenshots/kalona-cheese.png) | ![Boosting away from a Johnson County deputy](docs/screenshots/boost-escape.png) |
 | ![Real farmsteads and tree lines at mile 2, from lidar](docs/screenshots/mile-2-farmsteads.png) | ![Night: headlights, lit windows, yard lights](docs/screenshots/night.png) |
 | ![Harvest dusk: stubble, brown corn, a combine](docs/screenshots/harvest-dusk.png) | ![Thunderstorm](docs/screenshots/thunderstorm.png) |
 | ![Winter near Iowa City](docs/screenshots/winter.png) | ![The garage](docs/screenshots/garage.png) |
@@ -18,6 +19,10 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 | ![A Johnson County deputy on a Windstar's tail](docs/screenshots/speed-trap-chase.png) | ![Deer crossing near the creek at mile 4](docs/screenshots/deer-crossing.png) |
 
 ## Status
+
+**v0.5.1, after the v0.5 playtest:**
+- **The boost.** Near misses fill a boost meter; hold Shift (or B) to burn it. It's the way to lose a cop now: deputies drive a little faster than your car can, and two full boosts leave them behind.
+- **Kalona Cheese**, the old cheese factory and Kalona Creamery store at 540th St, built by hand from a photo at its real spot and size.
 
 **v0.5: it's *our* Highway 1.** Every farmhouse, barn, machine shed, grain bin and
 tree line along the road is where it really is, found in USGS lidar: 2,355 buildings
@@ -49,9 +54,10 @@ game/                  Godot 4.6.3 project (GL Compatibility renderer)
   data/route/          baked road, terrain, horizon, buildings, trees and names (generated, committed)
   scripts/route/       RouteData, TerrainTiles, HorizonTerrain: loading and querying the baked data
   scripts/world/       road and terrain meshes and colliders, streaming, roadside signs,
-                       the lidar buildings and trees (Scenery), weather and black ice
+                       the lidar buildings and trees (Scenery), hand-built landmarks,
+                       weather and black ice
   scripts/car/         raycast car physics, the three cars (CarStats), models and damage,
-                       drivers, engine sound
+                       the boost, drivers, engine sound
   scripts/game/        run rules, scoring and combos, records, the conditions, the radio, QA drives
   scripts/props/       mailboxes, fences, hay bales, corn clumps and the corn canopy
   scripts/traffic/     other road users and crashing into them
@@ -77,6 +83,7 @@ godot --path game -- --car=tercel --station=15000 --view=3  # skip the garage, m
 godot --path game -- --autopilot --autopilot-mph=90       # watch the autopilot drive (and pass)
 godot --path game -- --station=2400 --traffic-near        # start with traffic in view
 godot --path game -- --car=windstar --station=6000 --chase  # a deputy already on your tail
+godot --path game -- --car=windstar --station=6000 --chase --boost  # ...and a full boost burning
 godot --path game -- --station=6600 --deer=25 --view=1     # deer crossing just ahead
 godot --path game -- --condition=night --car=legend        # summer, harvest, night, storm, winter
 godot --path game -- --scenery=0.5                         # half the trees (F2 in the game)
@@ -86,6 +93,7 @@ godot --headless --fixed-fps 60 --path game -- --qa-drive            # autopilot
 godot --headless --fixed-fps 60 --path game -- --qa-stress --seed=1  # hooligan inputs
 godot --headless --fixed-fps 60 --path game -- --qa-drift            # scripted handbrake turn
 godot --headless --fixed-fps 60 --path game -- --qa-cops=bust --no-traffic  # get busted (or =line)
+godot --headless --fixed-fps 60 --path game -- --qa-cops=boost --no-traffic # boost away from a deputy
 godot --headless --fixed-fps 60 --path game -- --qa-deer --no-traffic       # a herd, then a hit
 godot --path game -- --benchmark                                      # fps, draw calls, triangles
 godot --path game -- --car=legend --damage=0.7 --orbit                # look at the damage
@@ -98,6 +106,7 @@ godot --path game -- --tune=handbrake_grip:0.5                        # try a Ca
 pip install -r tools/requirements.txt
 python tools/bake_route.py     # downloads ~190 MB of USGS road data once, caches it in tools/.cache/
 python tools/bake_lidar.py     # buildings and trees from USGS lidar (~1.5 GB once, ~20 min)
+python tools/bake_lidar.py --yards  # after editing game/data/route/landmarks.json
 python tools/bake_places.py    # creek, county and city names for the signs
 python tools/preview_route.py  # writes docs/route-preview/*.png to eyeball the result
 python -m pytest tools/tests

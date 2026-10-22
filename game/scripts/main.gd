@@ -11,6 +11,7 @@ extends Node3D
 ##   --damage=<0..1>      start with the car beaten up (for looking at the damage)
 ##   --orbit              circle the car with the camera (for screenshots)
 ##   --chase              start with a deputy on your tail
+##   --boost              a full boost meter, burned on autopilot from the start (screenshots)
 ##   --deer[=<m>]         send a herd of deer across the road just ahead (45 m)
 ##   --condition=<id>     summer, harvest, night, storm or winter (default: the garage's pick)
 ##   --scenery=<0..1>     how much of the buildings and trees to draw (F2 in the game)
@@ -40,10 +41,22 @@ const LOST_SECONDS := 2.0  ## off the edge of the world this long -> towed back
 const FOG_BEGIN := 450.0
 const FOG_END := 3000.0  ## nothing past this is visible
 
+
+## Floors it on autopilot with the boost held (--boost, for screenshots).
+class BoostDemo:
+	var autopilot := Autopilot.new()
+
+	func update(car: Car, delta: float) -> void:
+		autopilot.target_speed = 100.0
+		autopilot.update(car, delta)
+		car.boost_held = true
+
+
 var route: RouteData
 var fields: Fields
 var streamer: WorldStreamer
 var scenery: Scenery
+var landmarks: Landmarks
 var weather: Weather
 var radio: Radio
 var condition: Condition
@@ -87,6 +100,9 @@ func _ready() -> void:
 	scenery = Scenery.new()
 	add_child(scenery)
 	scenery.setup(route)
+	landmarks = Landmarks.new()
+	add_child(landmarks)
+	landmarks.setup(route)
 	var settings := ConfigFile.new()
 	if not _testing and settings.load(RunTracker.SAVE_PATH) == OK:
 		scenery.density = float(settings.get_value("settings", "scenery", 1.0))
@@ -161,7 +177,9 @@ func _ready() -> void:
 	hud.setup(route, car, run, camera)
 	hud.cops = cops
 	radio.now_playing.connect(func(title): hud.note(title))
-	cops.chase_started.connect(func(county): hud.banner("SPEED TRAP!\n%s County deputy" % county))
+	cops.chase_started.connect(func(county):
+		hud.banner("SPEED TRAP!\n%s County deputy" % county)
+		hud.note("Near misses fill your boost: Shift or B to lose the deputy", 6.0))
 	garage = CarSelect.new()
 	add_child(garage)
 	garage.setup("" if _testing else RunTracker.SAVE_PATH)
@@ -180,6 +198,10 @@ func _ready() -> void:
 	camera.showroom = args.has("orbit")
 	if args.has("chase"):
 		cops.chase_from_behind()
+	if args.has("boost"):
+		car.boost.fill(1.0)
+		_driver = BoostDemo.new()
+		car.driver = _driver
 	if args.has("deer"):
 		deer.cross_now(45.0 if args.deer is bool else float(args.deer))
 	var skip_garage := args.has("car") or _testing or args.has("smoke-test") or args.has("screenshot") \
@@ -335,6 +357,7 @@ func apply_condition(c: Condition) -> void:
 		corn.reset()
 		corn.warm_up()
 	scenery.set_look(c.leaf, c.snow, c.night)
+	landmarks.set_look(c.snow, c.night)
 	weather.apply(c)
 	car.grip_scale = c.grip
 	car.ice_grip = c.ice_grip
@@ -469,6 +492,8 @@ func _smoke_test() -> void:
 			streamer.loaded_tile_count(), streamer.loaded_chunk_count()])
 	if route.buildings.size() < 500 or route.trees.size() / 5 < 5000:
 		problems.append("only %d buildings and %d trees in the data" % [route.buildings.size(), route.trees.size() / 5])
+	if route.landmarks.is_empty() or landmarks.box_count() < 8:
+		problems.append("the Kalona Cheese landmark didn't build (%d landmarks, %d solid boxes)" % [route.landmarks.size(), landmarks.box_count()])
 	scenery.warm_up(route.position_at(route.length * 0.5))
 	if scenery.instance_count() < 100:
 		problems.append("only %d buildings and trees around mid-route" % scenery.instance_count())

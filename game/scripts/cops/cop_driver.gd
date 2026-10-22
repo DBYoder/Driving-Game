@@ -13,6 +13,7 @@ const SHOULDER := 6.0  ## m right of the centerline, where it pulls over (Cops.P
 
 var mode := Mode.PARKED
 var target: Car
+var chase_speed := 58.0  ## m/s flat out (Pursuit.chase_speed)
 
 
 func update(car: Car, delta: float) -> void:
@@ -50,7 +51,7 @@ func _chase(car: Car) -> void:
 	var local := car.global_transform.affine_inverse() * aim
 	car.steer = Autopilot.steer_toward(local, car.stats.steer_limit(speed))
 	# Flat out to catch up, then match their speed a following distance back.
-	var wanted := car.stats.top_speed
+	var wanted := chase_speed
 	if gap < 150.0:
 		wanted = target.linear_velocity.length() + (gap - FOLLOW_GAP) * 0.5
 	if gap < STOP_GAP:
@@ -58,7 +59,7 @@ func _chase(car: Car) -> void:
 	# Facing away from them (after they spun past): slow down to turn around.
 	var off_angle := absf(atan2(local.x, -local.z))
 	wanted = lerpf(wanted, minf(wanted, 8.0), clampf((off_angle - 0.5) / 0.7, 0.0, 1.0))
-	_speed_to(car, clampf(wanted, 0.0, car.stats.top_speed), speed)
+	_speed_to(car, clampf(wanted, 0.0, chase_speed), speed)
 
 
 func _give_up(car: Car) -> void:

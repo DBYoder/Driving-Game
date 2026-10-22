@@ -25,6 +25,9 @@ var buildings: Array = []
 var trees := PackedFloat32Array()
 ## Named creeks, city limits and the county line (tools/bake_places.py).
 var places := {"creeks": [], "cities": [], "counties": []}
+## Hand-built landmarks (data/route/landmarks.json, built by Landmarks): Dictionaries with
+## id, name, x, z and the `clear` rectangles their own buildings fill.
+var landmarks: Array = []
 var _no_pass_north := PackedByteArray()  ## per sample: 1 = solid line for northbound
 var _no_pass_south := PackedByteArray()
 
@@ -64,7 +67,31 @@ static func load_from(dir: String) -> RouteData:
 	var places = _optional_json(dir.path_join("places.json"))
 	if typeof(places) == TYPE_DICTIONARY:
 		r.places = places
+	var landmarks = _optional_json(dir.path_join("landmarks.json"))
+	if typeof(landmarks) == TYPE_DICTIONARY:
+		r.landmarks = landmarks.landmarks
+		r._clear_for_landmarks()
 	return r
+
+
+## Is (x, z) where a landmark stands (inside one of its `clear` rectangles)?
+func in_landmark(x: float, z: float) -> bool:
+	for l: Dictionary in landmarks:
+		for c: Array in l.clear:
+			if x >= c[0] and x <= c[2] and z >= c[1] and z <= c[3]:
+				return true
+	return false
+
+
+## Leave out the lidar's buildings and trees where a landmark stands: its own model
+## replaces them.
+func _clear_for_landmarks() -> void:
+	buildings = buildings.filter(func(b: Dictionary): return not in_landmark(b.x, b.z))
+	var kept := PackedFloat32Array()
+	for i in trees.size() / 5:
+		if not in_landmark(trees[i * 5], trees[i * 5 + 1]):
+			kept.append_array(trees.slice(i * 5, i * 5 + 5))
+	trees = kept
 
 
 ## A data file that may not have been baked: its parsed JSON, or null.
