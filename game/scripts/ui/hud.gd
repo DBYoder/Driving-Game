@@ -134,7 +134,7 @@ func _process(delta: float) -> void:
 	if get_tree().paused:
 		_show("", 40)  # the pause menu says so
 	elif tracker.state == RunTracker.State.READY:
-		_show("Cross the line in Kalona to start the clock", 26)
+		_show("Gas it: the clock starts at the line", 26)
 		_go_flash = 1.2
 	elif tracker.state == RunTracker.State.WRECKED and not show_results:
 		_show(tracker.wreck_reason.to_upper(), 52)

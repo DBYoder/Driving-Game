@@ -2,7 +2,7 @@ extends Node3D
 ## Entry point: loads the baked road, builds the world around the car, and runs the game.
 ##
 ## Command-line options (after `--`):
-##   --station=<m>        start the car here instead of just behind the Kalona start line
+##   --station=<m>        start the car here instead of at the Kalona 4-way stop
 ##   --view=<n>           camera: 0 chase, 1 hood, 2 far chase, 3 drone
 ##   --autopilot          let the autopilot drive (demo mode)
 ##   --autopilot-mph=<n>  the autopilot's cruising speed (default 70)
@@ -41,7 +41,7 @@ extends Node3D
 ##   --screenshot=<path>  let the car settle, save a PNG, exit
 
 const ROUTE_DIR := "res://data/route"
-const SPAWN_BEHIND_START := 25.0
+const SPAWN_BEHIND_START := 3.0  ## stopped at the Kalona stop sign, the bumper at the line
 const LOST_SECONDS := 2.0  ## off the edge of the world this long -> towed back
 const FOG_BEGIN := 450.0
 const FOG_END := 3000.0  ## nothing past this is visible
@@ -62,11 +62,14 @@ var fields: Fields
 var streamer: WorldStreamer
 var scenery: Scenery
 var landmarks: Landmarks
+var intersections: Intersections
+var tire_marks: TireMarks
+var power_lines: PowerLines
 var weather: Weather
 var radio: Radio
 var condition: Condition
 var environment: Environment
-var sky_material: ProceduralSkyMaterial
+var sky_material: ShaderMaterial  ## shaders/sky.gdshader
 var sun: DirectionalLight3D
 var props: PropField
 var traffic: Traffic
@@ -127,6 +130,12 @@ func _ready() -> void:
 	var roadside := Roadside.new()
 	add_child(roadside)
 	roadside.setup(route)
+	intersections = Intersections.new()
+	add_child(intersections)
+	intersections.setup(route)
+	power_lines = PowerLines.new()
+	add_child(power_lines)
+	power_lines.setup(route, streamer.streets)
 
 	var stats := CarStats.preset(args.get("car", "legend"))
 	if args.has("tune"):
@@ -148,6 +157,9 @@ func _ready() -> void:
 	var feel := CarFeel.new()
 	add_child(feel)
 	feel.setup(car, run)
+	tire_marks = TireMarks.new()
+	add_child(tire_marks)
+	tire_marks.setup(car)
 
 	props = PropField.new()
 	add_child(props)
@@ -413,7 +425,7 @@ func _start_demo() -> void:
 ## Where practice runs can start: Kalona, then every mile (with the crossroad there, if
 ## there's one close by).
 func _practice_starts() -> Array:
-	var out: Array = [[route.start_station - SPAWN_BEHIND_START, "Kalona (the start line)"]]
+	var out: Array = [[route.start_station - SPAWN_BEHIND_START, "Kalona (the 4-way stop)"]]
 	var mile := 1
 	while route.start_station + (mile + 0.5) * RouteData.MILE_M < route.finish_station:
 		var s := route.start_station + mile * RouteData.MILE_M
@@ -473,16 +485,17 @@ func apply_settings() -> void:
 	if scenery.density != Settings.scenery:
 		scenery.density = Settings.scenery
 	weather.set_particle_scale(Settings.particles())
+	tire_marks.particle_scale = Settings.particles()
 
 
 ## Light, weather, land, traffic, deer and grip for one of the five conditions.
 func apply_condition(c: Condition) -> void:
 	var harvest_changed := condition == null or condition.harvested != c.harvested
 	condition = c
-	sky_material.sky_top_color = c.sky_top
-	sky_material.sky_horizon_color = c.sky_horizon
-	sky_material.ground_horizon_color = c.haze
-	sky_material.ground_bottom_color = c.haze
+	for pair: Array in [["sky_top_color", c.sky_top], ["sky_horizon_color", c.sky_horizon],
+			["ground_horizon_color", c.haze], ["ground_bottom_color", c.haze], ["cloud_cover", c.cloud_cover],
+			["cloud_color", c.cloud_color], ["cloud_shade", c.cloud_shade], ["stars", c.stars]]:
+		sky_material.set_shader_parameter(pair[0], pair[1])
 	environment.ambient_light_color = c.ambient
 	environment.ambient_light_energy = c.ambient_energy
 	environment.fog_light_color = c.haze
@@ -499,6 +512,8 @@ func apply_condition(c: Condition) -> void:
 	scenery.set_look(c.leaf, c.snow, c.night)
 	landmarks.set_look(c.snow, c.night)
 	weather.apply(c)
+	tire_marks.wet = c.rain > 0.0
+	tire_marks.snowy = c.snow > 0.0
 	car.grip_scale = c.grip
 	car.ice_grip = c.ice_grip
 	car.ice = Weather.ice_patches(route) if c.ice_grip < 1.0 else PackedFloat32Array()
@@ -545,6 +560,8 @@ func _tow() -> void:
 
 ## Put the car on the road and build everything around it right away.
 func _spawn(station: float) -> void:
+	if tire_marks:
+		tire_marks.clear()
 	streamer.warm_up(route.position_at(station))
 	scenery.warm_up(route.position_at(station))
 	car.place_at(station)
@@ -555,12 +572,10 @@ func _spawn(station: float) -> void:
 
 
 func _add_environment() -> void:
-	sky_material = ProceduralSkyMaterial.new()
-	sky_material.sky_top_color = Color(0.36, 0.55, 0.82)
-	sky_material.sky_horizon_color = Color(0.78, 0.83, 0.86)
-	# Below the horizon the sky only shows past the edge of the terrain; make it haze.
-	sky_material.ground_horizon_color = Color(0.76, 0.81, 0.85)
-	sky_material.ground_bottom_color = Color(0.76, 0.81, 0.85)
+	sky_material = ShaderMaterial.new()
+	sky_material.shader = preload("res://shaders/sky.gdshader")
+	# Below the horizon the sky only shows past the edge of the terrain; it's haze (each
+	# condition sets its own: apply_condition).
 	var sky := Sky.new()
 	sky.sky_material = sky_material
 

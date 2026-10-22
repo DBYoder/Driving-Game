@@ -3,8 +3,7 @@ extends RefCounted
 ## The boost meter. Near misses fill it: an oncoming car whistling past your mirror, or
 ## squeezing past something in your lane with almost no room. Hold the boost button to
 ## burn it: a hard shove forward and a higher top speed, more than any deputy's cruiser
-## can match. Two full burns lose a deputy in the Windstar or the Tercel; one does it in
-## the Legend.
+## can match. Two full burns lose a deputy in any of the cars.
 
 const BURN_SECONDS := 4.0  ## a full meter lasts this long
 const THRUST := 7.0  ## m/s² of extra push while burning

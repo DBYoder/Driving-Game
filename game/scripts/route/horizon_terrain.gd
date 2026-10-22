@@ -79,7 +79,7 @@ func build_mesh(i: int) -> ArrayMesh:
 		for col in n:
 			var k := (row0 + row) * cols + col0 + col
 			verts[row * n + col] = Vector3(corner.x + (col0 + col) * step, heights[k], corner.y + (row0 + row) * step)
-			uvs[row * n + col] = Vector2(road_distance[k], 0.0)
+			uvs[row * n + col] = Vector2(road_distance[k], 255.0)  # (no yards out here)
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts

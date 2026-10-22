@@ -418,10 +418,12 @@ func _tire(w: Wheel, forward: Vector3, up: Vector3, com: Vector3, drive: float, 
 
 
 ## Road colliders are tagged "road"; where on the road decides asphalt vs gravel shoulder.
+## Streets are tagged with their own surface.
 func _surface_at(hit: Dictionary) -> String:
 	var collider: Object = hit.collider
-	if collider == null or collider.get_meta("surface", "grass") != "road":
-		return "grass"
+	var tag: String = collider.get_meta("surface", "grass") if collider != null else "grass"
+	if tag != "road":
+		return tag if SURFACES.has(tag) else "grass"
 	var center := route.position_at(station)
 	var offset := absf((hit.position - center).dot(route.right_at(station)))
 	return "asphalt" if offset <= RoadMesher.PAVED_HALF_WIDTH else "gravel"

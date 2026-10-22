@@ -126,7 +126,11 @@ jobs:
               --rendering-driver opengl3 --resolution 1280x720 -- \
               --screenshot="$PWD/build/screenshots/$1.png" --station=$2 --view=$3 $4
           }
-          shoot kalona-start-chase 175 0
+          shoot kalona-start-chase 185 0
+          shoot kalona-4-way-stop 185 0 "--car=legend --no-traffic"
+          shoot kalona-from-above 185 3 "--car=legend --no-traffic"
+          shoot gravel-crossroad 9420 2 "--car=tercel --no-traffic"
+          shoot mormon-trek-finish 24905 0 "--car=windstar --no-traffic"
           shoot mile-1-traffic 2400 0 --traffic-near
           shoot mile-4-props 6150 2
           shoot mile-5-corn 8000 2

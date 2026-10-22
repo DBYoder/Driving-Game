@@ -1,7 +1,8 @@
 class_name RunTracker
 extends RefCounted
-## Times a run: the clock starts when the car crosses the Kalona start line and stops
-## at the US 218 finish, or when the car is wrecked. Keeps the best time and best score
+## Times a run: the clock starts when the car crosses the start line (the stop line at
+## the Kalona 4-way stop) and stops at the finish (the stop line at the Mormon Trek Blvd
+## light in Iowa City), or when the car is wrecked. Keeps the best time and best score
 ## per car in a small save file.
 
 enum State { READY, RUNNING, FINISHED, WRECKED }

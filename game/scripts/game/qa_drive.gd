@@ -22,7 +22,7 @@ const DRIFT_MIN_SLIP := 35.0
 const DRIFT_MAX_RECOVERY := 4.0
 ## The closest each kind of thing may appear (m from the car): past where the haze hides
 ## it, or (detailed tiles, props) where it's a speck replacing nothing much.
-const MIN_POP_IN := {"horizon": 3000.0, "road": 2400.0, "terrain": 1000.0, "props": 1000.0,
+const MIN_POP_IN := {"horizon": 3000.0, "road": 2400.0, "terrain": 1000.0, "streets": 1000.0, "props": 1000.0,
 	"corn": CornField.CLUMP_GONE, "traffic": 1800.0, "deer": 170.0, "scenery": 1000.0}
 const MIN_TRAFFIC_POP_OUT := 800.0
 ## Ticks of visible clipping allowed per kind (contacts can sink in a little for a tick).
@@ -394,7 +394,8 @@ func _finish() -> void:
 				kind, _clips.visible_ticks[kind], _clips.worst[kind], _clips.worst_mile[kind]])
 	var main := get_parent()
 	var pop_in := {"horizon": main.streamer.nearest_pop_in.far, "road": main.streamer.nearest_pop_in.road,
-		"terrain": main.streamer.nearest_pop_in.tile, "props": main.props.nearest_pop_in,
+		"terrain": main.streamer.nearest_pop_in.tile, "streets": main.streamer.nearest_pop_in.street,
+		"props": main.props.nearest_pop_in,
 		"corn": main.corn.nearest_pop_in, "traffic": main.traffic.nearest_pop_in,
 		"deer": main.deer.nearest_pop_in, "scenery": main.scenery.nearest_pop_in}
 	print("  nearest pop-in: %s; traffic gone at %s" % [

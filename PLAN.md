@@ -65,13 +65,16 @@ Built in Phase 0:
 1. `sources.py`: downloads the Iowa road dataset once (~190 MB, cached), and reads just the route's window of the elevation tile over HTTP.
 2. `bake_route.py`:
    - project everything to UTM 15N (meters), with the **origin at the route midpoint** so no point is more than ~12 km from the origin (avoids float jitter at the far end);
-   - find IA 1 between the IA-22 crossing in Kalona and the US-218 crossing, keeping 200 m of road before the start line and 300 m past the finish;
+   - find IA 1 between the IA-22 four-way stop in Kalona and the stop light at Mormon Trek Blvd in Iowa City (the lines are the northbound stop lines), keeping 188 m of road before the start line and 300 m past the finish (Phase 7; it used to run to the US-218 crossing);
    - where IA 1 is divided (through the Kalona intersection and the last half mile before 218), run the road down the middle of the median;
    - resample the centerline every 2 m and smooth it;
    - **fill bridge dips and smooth the elevation profile.** The bare-earth elevation model has bridges removed, so creek crossings and the 218 overpass show up as pits; filling them gives a max grade of 6.2%, which is realistic;
    - find the crossroads (name, side) and the filled-in "bridges";
    - write `game/data/route/`: centerline + crossroads (`route.json`), plus 1,144 terrain tiles with the road bed and ditches carved in.
 3. `preview_route.py`: writes a top-down map and an elevation-profile PNG to `docs/route-preview/`. **You check it: "does this look like the road?"**
+4. `bake_places.py` (Phase 5): creek, county and city names; the city limits (Phase 7).
+5. `bake_streets.py` (Phase 7): the side roads and town streets within 700 m, and their verges in `terrain_dist.bin`.
+6. `bake_lidar.py` (Phase 5): buildings, trees and farmyards (lawns all through town).
 
 Still to come: crop data (`fetch_cdl.py`, Phase 5) and passing / no-passing zones (Phase 2).
 
@@ -208,6 +211,7 @@ Keyboard and Xbox-style gamepad from day one, both handled natively by Godot. St
   | Mid-route woods (mile 6) | 22 fps, 84k | 12 fps, 186k | 15 fps, 136k |
 
   A software renderer is the worst case: any real GPU draws 200k triangles without noticing. The real check is a friend's weakest PC (§9).
+- **The v0.7 additions' cost** (streets, power lines, the sky, tire marks; the same software renderer, v0.6 and v0.7 side by side): Kalona 14 → 15 fps (233 → 236 draw calls), mile 6 13 → 12 fps (187 → 211 draw calls). About the same.
 
 ---
 
@@ -452,7 +456,21 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
     - `--qa-menus` clicks through the whole flow the way a player would, and CI runs it. The flow: title, settings, records, a practice run from mile 4 (gas, horn), the pause menu, Change car, back to the title, a real run, pause, quit to the title.
     - Unit tests cover the settings (presets, steps, saving), a menu's keys, practice runs saving nothing, the sounds, the horn spooking deer, and the run titles.
 
-**Scope-creep parking lot** (not planned; pick from here for what's next): multiplayer, ghosts, a web build, steering wheels, extending into Iowa City, a southbound run.
+### Phase 7: v0.7 "Graphical polish"
+- After the v0.6 playtest: "focus on graphical polish, and move the starting location back slightly so it starts at the 4 way stop in Kalona and extend the end of the run so it finishes at the first stop light in Iowa City", and the corn "can pop in and out in a wave motion". The start should show the 4-way stop explicitly: a stop sign, and you accelerate through the intersection.
+- **Built:**
+  - **The corn wave, fixed.** The corn canopy used to sink into the ground around the car, where the detailed clumps are. Its grid is 16–32 m, too coarse for that: whole triangles tilted up through the clumps as the car went by, so the corn seemed to pop in and out in a wave. Now the canopy is cut away per pixel within 84 m of the car, and the clumps stand out to 92 m and sink under the canopy by 100 m.
+  - **The real start and finish.** The bake now finds both ends from the cross streets (`tools/config.py`): the run goes from the northbound stop line at the IA-22 four-way stop in Kalona (12 m short of the middle of the intersection) to the stop line at Mormon Trek Blvd, the first stop light in Iowa City, past the US-218 interchange: 15.37 miles. The origin is pinned, so the buildings, trees and landmark keep their places; `bake_lidar.py --extend` re-baked just the lidar tiles near the new end (257 more buildings, 2,600 more trees).
+  - **The 4-way stop** (`Intersections`). You start stopped at the stop sign, your bumper at the line. Stop signs with ALL WAY plates and street-name blades on all four corners, stop lines across every lane, and an Amish buggy waiting its turn on E Ave. A checkered KALONA · START banner over the line.
+  - **The stop light** at Mormon Trek: signal heads on mast arms over every approach, cycling green, yellow, all red, then the cross street (never green both ways). An IOWA CITY · FINISH banner over the stop line.
+  - **Side roads and town streets** (`tools/bake_streets.py`, `Streets`). Every road within 700 m of the highway from the road data: paved in town and on the highways (IA 22 gets a dashed center line, Mormon Trek four lanes), gravel out in the country (two paler wheel tracks), and private lanes. They sit just above the ground, and where they cross the highway's ditch they ride a fill up to the highway's level; their ends follow the edge of its pavement. They stream in with the terrain, with colliders that grip like asphalt or gravel, so you can drive down them. The grass verges run along them and the corn keeps off them.
+  - **Towns** are lawns and houses: no crops inside the Kalona and Iowa City limits (`bake_places.py` writes the city outlines). Farmyards get mown lawns around the buildings too.
+  - **Power lines** (`PowerLines`): wooden poles every 46 m just inside the fence, with crossarms, insulators and three sagging wires. The line crosses the road at a crossroad every few miles and steps aside for crossroads, streets, bridges and the landmark. The poles are solid.
+  - **The sky** (`sky.gdshader`): clouds for each condition (fair-weather in summer, lit orange at harvest dusk, overcast in the storm and winter), the sun or moon, and stars at night.
+  - **Tire marks and dust** (`TireMarks`): black skid marks when the tires slide on the asphalt, ruts in the gravel and grass, and dust off gravel and dirt, smoke from a hard slide, spray in the rain and snow in winter. The Low preset halves the dust.
+  - **Tests.** Unit tests cover the stop-line-to-stop-line route, where the car starts, the 4-way stop, the light's cycle, the streets (meeting the highway at its edge and level, never under the ground, the lookup, the surfaces), no crops in town, the power line, the tire marks and the clouds; Python tests cover the street bake. The QA drive also checks streets don't pop in (they arrive ~1.3 km out). Every QA drive and scenario passes, and the frame rate is about what v0.6's was (§5.4).
+
+**Scope-creep parking lot** (not planned; pick from here for what's next): multiplayer, ghosts, a web build, steering wheels, a southbound run, traffic on the side roads.
 
 ---
 

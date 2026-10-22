@@ -25,6 +25,10 @@ var buildings: Array = []
 var trees := PackedFloat32Array()
 ## Named creeks, city limits and the county line (tools/bake_places.py).
 var places := {"creeks": [], "cities": [], "counties": []}
+## Side roads and town streets (tools/bake_streets.py): Dictionaries with name, kind
+## ("paved", "gravel", "lane"), half_width, joins ([start, end] meet IA 1) and points
+## (PackedFloat32Array, 5 per point: x, left edge y, middle y, right edge y, z).
+var streets: Array = []
 ## Hand-built landmarks (data/route/landmarks.json, built by Landmarks): Dictionaries with
 ## id, name, x, z and the `clear` rectangles their own buildings fill.
 var landmarks: Array = []
@@ -67,6 +71,11 @@ static func load_from(dir: String) -> RouteData:
 	var places = _optional_json(dir.path_join("places.json"))
 	if typeof(places) == TYPE_DICTIONARY:
 		r.places = places
+	var streets = _optional_json(dir.path_join("streets.json"))
+	if typeof(streets) == TYPE_DICTIONARY:
+		for st: Dictionary in streets.streets:
+			st.points = PackedFloat32Array(st.points)
+			r.streets.append(st)
 	var landmarks = _optional_json(dir.path_join("landmarks.json"))
 	if typeof(landmarks) == TYPE_DICTIONARY:
 		r.landmarks = landmarks.landmarks

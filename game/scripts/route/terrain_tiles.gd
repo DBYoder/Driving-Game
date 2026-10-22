@@ -146,7 +146,8 @@ func build_mesh(i: int, lod := 0) -> ArrayMesh:
 					for dc in range(maxi(fc - skip, 0), mini(fc + skip + 1, grid)):
 						h = minf(h, heights[base + dr * grid + dc])
 			verts[row * n + col] = Vector3(ox + fc * step, h, oz + fr * step)
-			uvs[row * n + col] = Vector2(road_distance[base + fr * grid + fc], 0.0)
+			var yard := 255.0 if yard_distance.is_empty() else float(yard_distance[base + fr * grid + fc])
+			uvs[row * n + col] = Vector2(road_distance[base + fr * grid + fc], yard)
 
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)

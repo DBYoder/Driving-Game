@@ -1,7 +1,7 @@
 class_name Roadside
 extends Node3D
-## Street-name signs at the real crossroads, green mile markers, and the start and finish
-## banners. From the map data (tools/bake_places.py): the names of the creeks at their
+## Street-name signs at the real crossroads and green mile markers (the start and finish
+## intersections have their own: Intersections). From the map data (tools/bake_places.py): the names of the creeks at their
 ## bridges, the county line and the Iowa City limit with its population. And the usual:
 ## 55 mph once out of Kalona, IOWA 1 route markers.
 
@@ -22,7 +22,7 @@ func setup(r: RouteData) -> void:
 	var gray := _material(POST_GRAY)
 
 	for c in route.crossroads:
-		if c.kind == "ramp":
+		if c.kind == "ramp" or Intersections.at_line(route, c):
 			continue
 		var text: String = c.name
 		if c.route != "":
@@ -34,8 +34,6 @@ func setup(r: RouteData) -> void:
 		_add_marker(route.start_station + mile * RouteData.MILE_M, mile, green, gray)
 		mile += 1
 
-	_add_banner(route.start_station, "KALONA\nSTART")
-	_add_banner(route.finish_station, "IOWA CITY\nFINISH")
 
 	var white := _material(WHITE)
 	for c: Dictionary in route.places.creeks:
@@ -141,14 +139,6 @@ func _add_marker(station: float, mile: int, face: Material, post: Material) -> v
 	var label := _label(str(mile), 56)
 	label.position = Vector3(0, 1.3, 0.02)
 	label.visibility_range_end = SIGN_RANGE
-	holder.add_child(label)
-
-
-func _add_banner(station: float, text: String) -> void:
-	var holder := _place(station, 0.0)
-	var label := _label(text, 160)
-	label.position = Vector3(0, 7.0, 0)
-	label.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
 	holder.add_child(label)
 
 

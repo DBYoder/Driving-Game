@@ -15,7 +15,7 @@ const MIX_RATE := 22050.0
 var car: Car
 var camera: Camera3D
 var env: Environment
-var sky: ProceduralSkyMaterial
+var sky: ShaderMaterial
 var condition: Condition
 var gust := 0.0  ## side pressure right now, N/m² (QA and the HUD can read it)
 var flashes := 0
@@ -37,7 +37,7 @@ var _brown := 0.0
 var _hiss := 0.0
 
 
-func setup(c: Car, cam: Camera3D, environment: Environment, sky_material: ProceduralSkyMaterial) -> void:
+func setup(c: Car, cam: Camera3D, environment: Environment, sky_material: ShaderMaterial) -> void:
 	car = c
 	camera = cam
 	env = environment
@@ -163,11 +163,11 @@ func _lightning(delta: float) -> void:
 		# Two quick pulses.
 		var lit := (_flash < 0.07) or (_flash > 0.14 and _flash < 0.26)
 		env.ambient_light_energy = _base_ambient + (2.2 if lit else 0.0)
-		sky.sky_top_color = _base_sky.lerp(Color(0.85, 0.88, 1.0), 0.8 if lit else 0.0)
+		sky.set_shader_parameter("sky_top_color", _base_sky.lerp(Color(0.85, 0.88, 1.0), 0.8 if lit else 0.0))
 		if _flash > 0.3:
 			_flash = -1.0
 			env.ambient_light_energy = _base_ambient
-			sky.sky_top_color = _base_sky
+			sky.set_shader_parameter("sky_top_color", _base_sky)
 	if _thunder_in >= 0.0:
 		_thunder_in -= delta
 		if _thunder_in < 0.0:

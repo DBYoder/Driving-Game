@@ -2,10 +2,10 @@ class_name WorldStreamer
 extends Node3D
 ## Keeps the world around a focus point built and frees what's far away: the detailed
 ## terrain tiles of the corridor (each with the corn canopy over its corn fields), the
-## road, and the coarse horizon ground under and beyond them. Pieces close to the focus
-## also get collision, built from the same triangles that are drawn, so what the tires
-## touch is exactly what you see. Building is spread over frames (BUILD_BUDGET_USEC of
-## work per frame) so driving doesn't hitch.
+## road, the side roads and streets, and the coarse horizon ground under and beyond
+## them. Pieces close to the focus also get collision, built from the same triangles that
+## are drawn, so what the tires touch is exactly what you see. Building is spread over
+## frames (BUILD_BUDGET_USEC of work per frame) so driving doesn't hitch.
 ##
 ## Each kind of piece appears far enough out that the haze hides it arriving: the
 ## horizon past where the fog is total, the road deep in the haze, and the detailed
@@ -17,6 +17,7 @@ const RADII := {
 	"tile": [1250.0, 1550.0],
 	"road": [2700.0, 3000.0],
 	"far": [3600.0, 4000.0],
+	"street": [1300.0, 1600.0],
 }
 const COLLISION_RADII := [250.0, 400.0]
 ## Past these distances tiles and road use their far-away meshes (lod 1), and switch
@@ -35,13 +36,15 @@ var canopy_material: ShaderMaterial  ## shared by every tile's corn canopy
 var focus := Vector3.ZERO
 ## The closest each kind of piece has been to the focus when it appeared, after the
 ## initial build: how close to the camera things pop in (checked by the QA drive).
-var nearest_pop_in := {"tile": INF, "road": INF, "far": INF}
+var nearest_pop_in := {"tile": INF, "road": INF, "far": INF, "street": INF}
+var streets: Streets
 
 var _road: RoadMesher
 var _terrain_material: ShaderMaterial
 var _road_material: ShaderMaterial
-var _meshes := {}  ## "tile:12" / "road:3" / "far:40" -> MeshInstance3D
-var _bodies := {}  ## "tile:12" / "road:3" -> StaticBody3D
+var _street_material: ShaderMaterial
+var _meshes := {}  ## "tile:12" / "road:3" / "far:40" / "street:7" -> MeshInstance3D
+var _bodies := {}  ## "tile:12" / "road:3" / "street:7" -> its StaticBody3D(s)
 var _queue: Array = []  ## [key, priority, lod], most urgent first
 var _warming_up := false
 
@@ -54,16 +57,19 @@ func setup(r: RouteData) -> void:
 	_terrain_material.shader = preload("res://shaders/terrain.gdshader")
 	_terrain_material.set_shader_parameter("field_offset", fields.offset)
 	_terrain_material.set_shader_parameter("verge_width", CornField.VERGE - 2.0)
+	_terrain_material.set_shader_parameter("yard_width", CornField.YARD)
 	canopy_material = ShaderMaterial.new()
 	canopy_material.shader = preload("res://shaders/corn_canopy.gdshader")
 	canopy_material.set_shader_parameter("field_offset", fields.offset)
 	canopy_material.set_shader_parameter("field_size", Fields.FIELD_SIZE)
 	canopy_material.set_shader_parameter("verge", CornField.VERGE)
 	canopy_material.set_shader_parameter("height", CornCanopy.HEIGHT)
-	canopy_material.set_shader_parameter("clear_inner", CornCanopy.CLEAR_INNER)
-	canopy_material.set_shader_parameter("clear_outer", CornCanopy.CLEAR_OUTER)
+	canopy_material.set_shader_parameter("clear_radius", CornCanopy.CLEAR_RADIUS)
 	_road_material = ShaderMaterial.new()
 	_road_material.shader = preload("res://shaders/road.gdshader")
+	streets = Streets.new(r)
+	_street_material = ShaderMaterial.new()
+	_street_material.shader = preload("res://shaders/street.gdshader")
 
 
 ## Build everything around `pos` right now (before the first frame, or after a teleport).
@@ -111,6 +117,8 @@ func _distance(kind: String, index: int) -> float:
 		"road":
 			var c := _road.chunk_center(index)
 			return maxf(Vector3(c.x, 0.0, c.z).distance_to(flat_focus) - ROAD_HALF_LENGTH, 0.0)
+		"street":
+			return maxf(streets.cell_center(index).distance_to(flat_focus) - Streets.CELL_HALF_DIAGONAL, 0.0)
 		_:
 			var half := route.horizon.chunk_size() * sqrt(0.5)
 			return maxf(route.horizon.chunk_center(index).distance_to(flat_focus) - half, 0.0)
@@ -124,6 +132,8 @@ func _refresh_queue() -> void:
 		_consider("road", c)
 	for c in route.horizon.chunk_count():
 		_consider("far", c)
+	for c in streets.cell_count():
+		_consider("street", c)
 	_queue.sort_custom(func(a, b): return a[1] < b[1])
 
 
@@ -172,6 +182,8 @@ func apply_condition(c: Condition) -> void:
 	_road_material.set_shader_parameter("asphalt", c.asphalt)
 	_road_material.set_shader_parameter("gravel", c.gravel)
 	_road_material.set_shader_parameter("verge", c.road_verge)
+	for pair: Array in [["asphalt", c.asphalt], ["gravel", c.gravel], ["verge", c.road_verge]]:
+		_street_material.set_shader_parameter(pair[0], pair[1])
 	if fields.harvested != c.harvested:
 		fields.harvested = c.harvested
 		for key: String in _meshes:
@@ -226,13 +238,15 @@ func _build_next() -> void:
 				mesh = _road.build_chunk(index, ROAD_FAR_STEP if lod == 1 else 1)
 			"tile":
 				mesh = route.terrain.build_mesh(index, lod)
+			"street":
+				mesh = streets.build_cell(index)
 			_:
 				mesh = route.horizon.build_mesh(index)
 		if _meshes.has(key):
 			_meshes[key].mesh = mesh
 		else:
 			var node := MeshInstance3D.new()
-			node.material_override = _road_material if kind == "road" else _terrain_material
+			node.material_override = {"road": _road_material, "street": _street_material}.get(kind, _terrain_material)
 			node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			node.mesh = mesh
 			add_child(node)
@@ -243,12 +257,36 @@ func _build_next() -> void:
 		if kind == "tile":
 			_set_canopy(_meshes[key], index, lod)
 	if kind != "far" and d <= COLLISION_RADII[0] and not _bodies.has(key):
-		var body := StaticBody3D.new()
-		body.collision_layer = 1 << (Car.WORLD_LAYER - 1)
-		body.collision_mask = 0
-		body.set_meta("surface", "road" if kind == "road" else "grass")
-		var shape := CollisionShape3D.new()
-		shape.shape = _meshes[key].mesh.create_trimesh_shape()
-		body.add_child(shape)
+		var body: Node3D
+		if kind == "street":
+			body = _street_bodies(_meshes[key].mesh)
+		else:
+			body = _body(_meshes[key].mesh.create_trimesh_shape(), "road" if kind == "road" else "grass")
 		add_child(body)
 		_bodies[key] = body
+
+
+func _body(shape: Shape3D, surface: String) -> StaticBody3D:
+	var body := StaticBody3D.new()
+	body.collision_layer = 1 << (Car.WORLD_LAYER - 1)
+	body.collision_mask = 0
+	body.set_meta("surface", surface)
+	var holder := CollisionShape3D.new()
+	holder.shape = shape
+	body.add_child(holder)
+	return body
+
+
+## A street cell's collision: a body per surface, tagged asphalt or gravel (Car._surface_at).
+func _street_bodies(mesh: ArrayMesh) -> Node3D:
+	var holder := Node3D.new()
+	for k in mesh.get_surface_count():
+		var arrays := mesh.surface_get_arrays(k)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var faces := PackedVector3Array()
+		for i: int in arrays[Mesh.ARRAY_INDEX]:
+			faces.append(verts[i])
+		var shape := ConcavePolygonShape3D.new()
+		shape.set_faces(faces)
+		holder.add_child(_body(shape, mesh.surface_get_name(k)))
+	return holder

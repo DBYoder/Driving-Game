@@ -26,6 +26,7 @@ class Road:
     mtfcc: str
     state_routes: set[str]
     us_routes: set[str]
+    county_routes: set[str] = field(default_factory=set)
     lines: list[np.ndarray] = field(default_factory=list)  # lon/lat
 
 
@@ -58,11 +59,13 @@ def read_roads(bbox) -> list[Road]:
     for i, wkb in enumerate(geoms):
         geom = shapely.from_wkb(wkb)
         parts = getattr(geom, "geoms", [geom])
+        name = fields[col["name"]][i] or ""
         roads.append(Road(
-            name=fields[col["name"]][i] or "",
+            name=config.NAME_FIXES.get(name, name),
             mtfcc=fields[col["mtfcc_code"]][i] or "",
             state_routes=vals(i, "state_route", "state_route_a", "state_route_b", "state_route_c"),
             us_routes=vals(i, "us_route", "us_route_a", "us_route_b", "us_route_c"),
+            county_routes=vals(i, "county_route"),
             lines=[np.asarray(p.coords)[:, :2] for p in parts if len(p.coords) >= 2],
         ))
     return roads

@@ -1,7 +1,8 @@
 # Highway 1
 
 A tiny, private, chaotic arcade driving game set on 15 real miles of **Iowa Highway 1,
-from the IA-22 four-way stop in Kalona to the US-218 interchange at Iowa City.**
+from the IA-22 four-way stop in Kalona to the first stop light in Iowa City (Mormon
+Trek Blvd).**
 Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 
 **Play it:** grab `HighwayOne-windows.zip` from the
@@ -10,6 +11,8 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 
 | | |
 |---|---|
+| ![Stopped at the four-way stop in Kalona, a buggy waiting its turn](docs/screenshots/kalona-4-way-stop.png) | ![The finish: the stop light at Mormon Trek Blvd](docs/screenshots/mormon-trek-finish.png) |
+| ![Kalona from above: streets, houses and lawns](docs/screenshots/kalona-from-above.png) | ![A gravel crossroad and the power line, mile 5.7](docs/screenshots/gravel-crossroad.png) |
 | ![The title screen](docs/screenshots/title.png) | ![Settings](docs/screenshots/settings.png) |
 | ![Kalona Cheese at 540th St, mile 3.9](docs/screenshots/kalona-cheese.png) | ![Boosting away from a Johnson County deputy](docs/screenshots/boost-escape.png) |
 | ![Real farmsteads and tree lines at mile 2, from lidar](docs/screenshots/mile-2-farmsteads.png) | ![Night: headlights, lit windows, yard lights](docs/screenshots/night.png) |
@@ -20,6 +23,15 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 | ![A Johnson County deputy on a Windstar's tail](docs/screenshots/speed-trap-chase.png) | ![Deer crossing near the creek at mile 4](docs/screenshots/deer-crossing.png) |
 
 ## Status
+
+**v0.7: graphical polish, and the real start and finish.**
+- **The run** starts stopped at the stop sign at the IA-22 four-way stop in Kalona (stop signs and ALL WAY plates on every corner, stop lines, an Amish buggy waiting its turn) and ends at the first stop light in Iowa City, at Mormon Trek Blvd (signals that cycle, on mast arms). 15.4 miles.
+- **Side roads and streets:** every road within 700 m of the highway, from the USGS road data: paved in town and on the highways, gravel out in the country. You can drive down them.
+- **Towns** are lawns and houses, not corn; farmyards get lawns too.
+- **Power lines** along the highway, crossing over now and then.
+- **The sky** has clouds for each condition (and stars at night).
+- **Tires** leave skid marks on the asphalt and ruts in the gravel and grass, and kick up dust, smoke, spray or snow.
+- **Fixed:** the corn popping in and out in a wave as you drive.
 
 **v0.6: polish.**
 - **Menus:** a title screen (your last car cruising up the road), a pause menu on Esc, settings and a records table.
@@ -50,7 +62,7 @@ off; you pick one and a paint color in the garage. They drive the actual Highway
 real curves, hills, crossroads, street names and passing zones from USGS data, with a
 long view (haze out to 3 km) and deep corn fields.
 
-It's a score attack from Kalona to the US-218 overpass: smash mailboxes, fences and hay
+It's a score attack from Kalona to Iowa City: smash mailboxes, fences and hay
 bales, plow corn, get air, near-miss oncoming traffic, get around Amish buggies and
 tractors, and don't wreck. Low-poly, built to run on a potato. See the roadmap in
 PLAN.md for what's next.
@@ -61,11 +73,12 @@ PLAN.md for what's next.
 game/                  Godot 4.6.3 project (GL Compatibility renderer)
   data/route/          baked road, terrain, horizon, buildings, trees and names (generated, committed)
   scripts/route/       RouteData, TerrainTiles, HorizonTerrain: loading and querying the baked data
-  scripts/world/       road and terrain meshes and colliders, streaming, roadside signs,
-                       the lidar buildings and trees (Scenery), hand-built landmarks,
-                       weather and black ice
+  scripts/world/       road, street and terrain meshes and colliders, streaming, roadside
+                       signs, the start and finish intersections, power lines, the lidar
+                       buildings and trees (Scenery), hand-built landmarks, weather and
+                       black ice
   scripts/car/         raycast car physics, the three cars (CarStats), models and damage,
-                       the boost, drivers, engine sound
+                       the boost, drivers, engine sound, skid marks and dust
   scripts/game/        run rules, scoring and combos, records, the conditions, the radio, sound
                        effects, run titles, QA drives
   scripts/props/       mailboxes, fences, hay bales, corn clumps and the corn canopy
@@ -74,9 +87,9 @@ game/                  Godot 4.6.3 project (GL Compatibility renderer)
   scripts/hazards/     deer
   scripts/ui/          the HUD, results, the garage (car select), the title screen and menus
   scripts/autoload/    the controls and the player's settings
-  shaders/             flat-shaded terrain and road paint
+  shaders/             flat-shaded terrain, road and street paint, the corn canopy, the sky
   tests/               headless GDScript tests
-tools/                 Python pipeline that bakes the road, buildings, trees and names from USGS data
+tools/                 Python pipeline that bakes the road, streets, buildings, trees and names from USGS data
 docs/                  route previews, screenshots, the README that ships in the zip
 .github/workflows/     CI: tests, Windows/Linux export, screenshots, releases
 ```
@@ -119,9 +132,11 @@ godot --path game -- --tune=handbrake_grip:0.5                        # try a Ca
 ```sh
 pip install -r tools/requirements.txt
 python tools/bake_route.py     # downloads ~190 MB of USGS road data once, caches it in tools/.cache/
+python tools/bake_places.py    # creek, county and city names for the signs, and the city limits
+python tools/bake_streets.py   # the side roads and town streets
 python tools/bake_lidar.py     # buildings and trees from USGS lidar (~1.5 GB once, ~20 min)
 python tools/bake_lidar.py --yards  # after editing game/data/route/landmarks.json
-python tools/bake_places.py    # creek, county and city names for the signs
+python tools/bake_lidar.py --extend OLD/route.json  # just the tiles near road added past the old end
 python tools/preview_route.py  # writes docs/route-preview/*.png to eyeball the result
 python -m pytest tools/tests
 ```

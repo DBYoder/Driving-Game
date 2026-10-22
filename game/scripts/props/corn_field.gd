@@ -4,10 +4,11 @@ extends Node3D
 ## in every corn field around the car, however deep into the field: built BLOCK meters
 ## square at a time, a few milliseconds per physics tick so driving never hitches, and
 ## freed once the car is far away. Past them the rest of each field is the corn canopy
-## that comes with the terrain (CornCanopy). The canopy sinks out of the way within
-## CornCanopy.CLEAR_INNER of the car, and the clumps sink into the ground between
-## CLUMP_FULL and CLUMP_GONE, where the canopy is already back up around them, so the
-## hand-off can't be seen.
+## that comes with the terrain (CornCanopy). The canopy isn't drawn within
+## CornCanopy.CLEAR_RADIUS of the car; the clumps stand full height a little further
+## out than that (so the canopy's cut edge is always behind a wall of them), then sink
+## into the ground under the canopy between CLUMP_FULL and CLUMP_GONE. Nothing moves
+## but the clumps, each as a whole, out of sight, so the hand-off can't be seen.
 ##
 ## Driving into it flattens everything the car's body touches, slows you down and scores
 ## by the meter. Flattened corn stays flat for the rest of the run.
@@ -19,8 +20,8 @@ const CELLS_PER_BLOCK := 40
 const BLOCK := SPACING * CELLS_PER_BLOCK  ## meters per side of a square of clumps
 const BUILD_RADIUS := 120.0  ## blocks with any part this close to the car are built...
 const FREE_RADIUS := 150.0  ## ...and freed once every part of them is further than this
-const CLUMP_FULL := 90.0  ## clumps are full height out to here from the car...
-const CLUMP_GONE := 98.0  ## ...and down in the ground by here
+const CLUMP_FULL := 92.0  ## clumps are full height out to here from the car...
+const CLUMP_GONE := 100.0  ## ...and down in the ground (under the canopy) by here
 const POINTS_PER_METER := 5
 const DRAG := 700.0  ## N per m/s of speed while plowing
 const BUILD_BUDGET_USEC := 2000.0

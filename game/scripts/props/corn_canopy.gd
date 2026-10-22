@@ -4,8 +4,10 @@ extends RefCounted
 ## HEIGHT above the ground, and walls of stalks where the corn meets the grass strip
 ## along the road or a field of something else. One mesh per terrain tile, on a grid a
 ## lot coarser than the tile's; corn_canopy.gdshader trims it exactly to the field and
-## verge edges, and sinks it out of the way within CLEAR_INNER of the car, where the
-## real clumps are (CornField).
+## verge edges, and leaves it out within CLEAR_RADIUS of the car, where the real clumps
+## are (CornField). It used to sink out of the way instead, but its grid is too coarse
+## for that: whole triangles tilted up through the clumps as the car went by, and the
+## corn seemed to pop in and out in a wave.
 ##
 ## Mesh attributes: UV.x = meters from the road centerline (shortened near buildings: see
 ## CornField.clearance), UV.y = meters along a wall
@@ -14,8 +16,7 @@ extends RefCounted
 ## (verge walls) or across the field edge (field walls).
 
 const HEIGHT := 2.5  ## its ragged top comes to about the clumps' height
-const CLEAR_INNER := 70.0  ## sunk into the ground this close to the car...
-const CLEAR_OUTER := 80.0  ## ...and full height from here
+const CLEAR_RADIUS := 84.0  ## not drawn this close to the car (cut per pixel)
 const WALL_FOOT := 0.3  ## walls start this far below the ground, so slopes don't show a gap
 
 

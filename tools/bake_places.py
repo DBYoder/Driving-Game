@@ -4,7 +4,8 @@
 
 Writes game/data/route/places.json: where IA 1 crosses each named creek (USGS National
 Hydrography Dataset), enters and leaves each city (with its population) and crosses
-the county line (USGS Governmental Units), as stations along the route.
+the county line (USGS Governmental Units), as stations along the route; and the city
+limits near the road ("towns", game x/z outlines), where there are lawns, not crops.
 """
 
 from __future__ import annotations
@@ -96,6 +97,8 @@ def main():
 
     govt = cached_gpkg(GOVT_URL, "govt")
     cities = []
+    towns = []
+    near = route.buffer(config.CORRIDOR_HALF_WIDTH_M)
     meta, _, geoms, fields = pyogrio.raw.read(govt, layer="GU_IncorporatedPlace", bbox=(lon0, lat0, lon1, lat1),
                                               columns=["PLACE_NAME", "POPULATION"])
     for wkb, name, pop in zip(geoms, fields[0], fields[1]):
@@ -104,6 +107,12 @@ def main():
             ahead = route.interpolate(s + 5.0)
             cities.append({"station": round(float(s), 1), "name": str(name), "population": int(pop or 0),
                            "entering": bool(area.contains(ahead))})
+        part = area.intersection(near).simplify(4.0)
+        for poly in getattr(part, "geoms", [part]):
+            if poly.geom_type == "Polygon" and poly.area > 1000.0:
+                ring = np.asarray(poly.exterior.coords)[:-1]
+                towns.append({"name": str(name), "outline": [round(float(v), 1) for e, n in ring
+                                                             for v in (e - o["easting"], o["northing"] - n)]})
     cities = merge_close(cities, "name", 50.0)
 
     counties = []
@@ -125,6 +134,7 @@ def main():
         "creeks": creeks,
         "cities": cities,
         "counties": counties,
+        "towns": towns,
     }
     (config.OUT_DIR / "places.json").write_text(json.dumps(out, indent=1))
     start = route_json["start_station"]

@@ -1,7 +1,9 @@
 // The corn canopy (CornCanopy): the top of a corn field seen from a distance, and its
 // walls of stalks where it meets the grass strip along the road or another crop. Trimmed
-// per pixel to the real field and verge edges, and sunk into the ground near the car,
-// where the real clumps stand instead. Looks like corn.gdshader's clumps from the side.
+// per pixel to the real field and verge edges, and to a circle around the car, where the
+// real clumps stand instead (they reach a little past it, so its cut edge is hidden
+// behind them). Nothing here moves: sinking it vertex by vertex on its coarse grid
+// tilted whole triangles through the clumps. Looks like corn.gdshader's clumps from the side.
 shader_type spatial;
 render_mode unshaded, cull_disabled;
 
@@ -13,9 +15,7 @@ uniform float field_size = 402.336;
 uniform float verge = 26.0;
 uniform float height = 2.5;
 uniform vec3 clear_center;  // the car
-uniform float clear_inner = 70.0;
-uniform float clear_outer = 80.0;
-uniform float sink = 0.6;
+uniform float clear_radius = 84.0;
 
 varying vec3 world_pos;
 varying vec2 wall_normal;
@@ -42,9 +42,6 @@ bool corn_at(vec2 xz) {
 }
 
 void vertex() {
-	vec3 w = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	float up = smoothstep(clear_inner, clear_outer, distance(w.xz, clear_center.xz));
-	VERTEX.y -= (UV2.y + sink) * (1.0 - up);
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	wall_normal = NORMAL.xz;
 	road_dist = UV.x;
@@ -55,6 +52,9 @@ void vertex() {
 
 void fragment() {
 	vec2 xz = world_pos.xz;
+	if (distance(xz, clear_center.xz) < clear_radius) {
+		discard;  // the clumps are here
+	}
 	if (kind < 0.5) {
 		// The top: leaves with tassels poking up, evening out to their average color where
 		// they're too small to see, so it doesn't shimmer in the distance.

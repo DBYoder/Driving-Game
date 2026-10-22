@@ -1,4 +1,4 @@
-"""Bake IA 1 (Kalona -> US 218) into game data.
+"""Bake IA 1 (Kalona's 4-way stop -> Iowa City's first stop light) into game data.
 
     python tools/bake_route.py
 
@@ -6,7 +6,7 @@ Writes game/data/route/route.json and terrain.bin. Downloads are cached in
 tools/.cache/, so re-running is quick and works offline after the first time.
 
 Game coordinates (Godot convention, meters): x = east, y = up, z = south,
-relative to an origin at the route midpoint so nothing is more than ~12 km away.
+relative to an origin near the route midpoint (config.ORIGIN) so nothing is more than ~13 km away.
 """
 
 from __future__ import annotations
@@ -53,11 +53,14 @@ def find_route(roads, to_utm):
 
     start_lines = [ln for r in roads if config.START_STATE in r.state_routes
                    and config.ROUTE_STATE not in r.state_routes for ln in r.lines]
-    finish_lines = [ln for r in roads if config.FINISH_US in r.us_routes for ln in r.lines]
-    start_pt = crossing_point(raw, start_lines)
-    finish_pt = crossing_point(raw, finish_lines)
-    if start_pt is None or finish_pt is None:
-        raise RuntimeError("could not find the IA 22 or US 218 crossing on IA 1")
+    finish_lines = [ln for r in roads if r.name == config.FINISH_ROAD for ln in r.lines]
+    start_cross = crossing_point(raw, start_lines)
+    finish_cross = crossing_point(raw, finish_lines)
+    if start_cross is None or finish_cross is None:
+        raise RuntimeError("could not find the IA 22 crossing or the finish crossing on IA 1")
+    # Start and finish at the stop lines, short of the middle of the 4-way stop and the light.
+    start_pt = raw.interpolate(raw.project(start_cross) - config.STOP_LINE_M)
+    finish_pt = raw.interpolate(raw.project(finish_cross) - config.STOP_LINE_M)
 
     s0 = raw.project(start_pt) - config.PRE_ROLL_M
     s1 = raw.project(finish_pt) + config.RUN_OUT_M
@@ -128,7 +131,7 @@ def base_name(name: str) -> str:
 
 def passing_zones(xy, profile, start_s, finish_s):
     """Solid-line (no passing) zones for each direction, from sight distance, plus
-    through Kalona and the divided stretch at the US 218 interchange."""
+    through Kalona and the divided stretch from the US 218 interchange to the finish."""
     out = {}
     for direction in ("northbound", "southbound"):
         if direction == "northbound":
@@ -306,8 +309,7 @@ def main():
     dem = dem_sampler(xy[:, 0].min() - pad, xy[:, 1].min() - pad, xy[:, 0].max() + pad, xy[:, 1].max() + pad)
     profile, bridges = road_profile(xy, dem)
 
-    mid = len(xy) // 2
-    origin = (round(float(xy[mid, 0])), round(float(xy[mid, 1])), round(float(profile[mid])))
+    origin = config.ORIGIN
     e0, n0, h0 = origin
     to_geo = Transformer.from_crs(config.UTM_CRS, config.GEO_CRS, always_xy=True)
     lon0, lat0 = to_geo.transform(e0, n0)

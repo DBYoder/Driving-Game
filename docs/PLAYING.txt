@@ -17,9 +17,10 @@ HOW TO PLAY
 -----------
 The title screen: Drive, Practice, Records, Settings or Quit. Then pick a car, a paint
 color and the conditions in the garage, and get from Kalona to Iowa City causing as
-much chaos as you can. The clock and the scoring start when you cross the line at
-the IA-22 four-way stop in Kalona and stop at the US-218 overpass. Your best score and
-best time are saved for each car in each of the conditions.
+much chaos as you can. You start stopped at the stop sign at the IA-22 four-way stop
+in Kalona; the clock and the scoring start when you cross the line, and stop at the
+first stop light in Iowa City, at Mormon Trek Blvd. Your best score and best time are
+saved for each car in each of the conditions.
 
 
 THE CARS
@@ -156,6 +157,14 @@ Mute                          M
 
 WHAT'S IN THIS BUILD
 --------------------
+v0.7: the run now starts at the four-way stop in Kalona (stop signs on every corner, an
+Amish buggy waiting its turn) and ends at the stop light at Mormon Trek Blvd in Iowa
+City, 15.4 miles. The side roads and town streets are there now, paved in town and
+gravel out in the country (you can drive down them), Kalona is lawns and houses
+instead of corn, power lines run along the highway, the sky has clouds (and stars at
+night), and tires leave skid marks, ruts and dust. The corn no longer pops in and out
+in a wave as you drive.
+
 v0.6: a title screen, a pause menu (Esc), settings for slow and fast PCs, a records
 table, practice runs from any mile, crash and smash sounds, squealing tires, a horn
 for every car, controller rumble, and a title for every run on the results screen.

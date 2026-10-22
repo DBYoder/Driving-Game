@@ -48,3 +48,42 @@ def test_coarse_floor_stays_under_the_fine_ground():
                       + q[1, 0] * (1 - u) * v + q[1, 1] * u * v)
             under = fine[k + r * k:k + (r + 1) * k + 1, k + c * k:k + (c + 1) * k + 1]
             assert (interp <= under + 1e-9).all()
+
+
+def test_street_kinds():
+    from bake_streets import street_kind
+    from sources import Road
+    county = Road(name="500th St SW", mtfcc="S1400", state_routes=set(), us_routes=set())
+    assert street_kind(county, in_town=False) == "gravel"   # most county roads
+    assert street_kind(county, in_town=True) == "paved"     # town streets
+    hwy = Road(name="State Hwy 22", mtfcc="S1200", state_routes={"22"}, us_routes=set())
+    assert street_kind(hwy, in_town=False) == "paved"
+    lane = Road(name="", mtfcc="S1740", state_routes=set(), us_routes=set())
+    assert street_kind(lane, in_town=False) == "lane"
+    alley = Road(name="", mtfcc="S1730", state_routes=set(), us_routes=set())
+    assert street_kind(alley, in_town=True) is None
+
+
+def test_run_on_extends_free_ends_straight():
+    from bake_streets import run_on
+    line = shapely.LineString([(0.0, 0.0), (10.0, 0.0), (10.0, 10.0)])
+    out = np.asarray(run_on(line, True, True, 1.5).coords)
+    assert np.allclose(out[0], [-1.5, 0.0]) and np.allclose(out[-1], [10.0, 11.5])
+    assert len(np.asarray(run_on(line, False, False, 1.5).coords)) == 3
+
+
+def test_streets_climb_out_of_the_ditch_to_meet_ia1():
+    from scipy.spatial import cKDTree
+    from bake_streets import JOIN_FULL_M, JOIN_RAISE_M, surface_heights
+
+    class FlatGround:  # 1.25 m below the road everywhere (as in the ditch)
+        def at(self, x, z):
+            return np.full(len(np.atleast_1d(x)), -1.25)
+
+    # IA 1 runs north-south along x = 0 at height 0; a street heads east from its edge.
+    ia1 = np.column_stack([np.zeros(201), np.linspace(-200.0, 200.0, 201)])
+    street = np.column_stack([np.arange(4.3, 80.0, 3.0), np.zeros(26)])
+    h = surface_heights(street, 3.2, 0.12, FlatGround(), cKDTree(ia1), np.zeros(201))
+    assert np.allclose(h[street[:, 0] < JOIN_FULL_M - 3.3], JOIN_RAISE_M)  # level with IA 1 over the ditch
+    assert np.allclose(h[-1], -1.25 + 0.12)                                  # back on the ground
+    assert np.all(np.diff(h[:, 1]) <= 1e-9)                                  # one smooth ramp down

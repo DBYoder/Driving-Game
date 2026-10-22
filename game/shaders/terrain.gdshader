@@ -1,4 +1,6 @@
-// Flat-shaded farmland: a patchwork of quarter-quarter-section fields with grass along the road.
+// Flat-shaded farmland: a patchwork of quarter-quarter-section fields with grass along the
+// roads, and mown lawns around the farmsteads and all through town.
+// UV.x = meters from the road, UV.y = meters from the nearest building (0 in town).
 shader_type spatial;
 render_mode diffuse_lambert, specular_disabled;
 
@@ -14,9 +16,11 @@ uniform vec3 verge : source_color = vec3(0.47, 0.57, 0.29);
 uniform float field_size = 402.336;
 uniform vec2 field_offset = vec2(0.0);
 uniform float verge_width = 16.0;
+uniform float yard_width = 24.0;
 
 varying vec3 world_pos;
 varying float road_dist;
+varying float yard_dist;
 
 // 32-bit integer hash of a field cell to [0, 1). Must match Fields.cell_hash() in
 // scripts/world/fields.gd so game logic (corn to plow) agrees with what's drawn.
@@ -31,6 +35,7 @@ float cell_hash(vec2 cell) {
 void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	road_dist = UV.x;
+	yard_dist = UV.y;
 }
 
 void fragment() {
@@ -45,5 +50,7 @@ void fragment() {
 	vec3 crop = h < 0.45 ? (cut ? stubble * (0.93 + 0.07 * step(0.5, fract(world_pos.x / 0.76))) : corn)
 		: (h < 0.85 ? soybeans : (h < 0.93 ? hay : pasture));
 	crop *= 0.94 + 0.12 * cell_hash(cell + vec2(17.0, 31.0));
+	vec3 lawn = verge * vec3(0.92, 1.08, 0.86);
+	crop = mix(lawn, crop, smoothstep(yard_width - 8.0, yard_width, yard_dist));
 	ALBEDO = mix(verge, crop, smoothstep(verge_width - 3.0, verge_width + 3.0, road_dist));
 }

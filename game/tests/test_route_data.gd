@@ -51,7 +51,8 @@ func test_crossroads_are_in_order_and_named() -> void:
 		names.append(c.name)
 	for expected in ["Johnson-Washington Rd SW", "540th St SW", "Sharon Center Rd SW", "Naples Ave SW"]:
 		check(expected in names, "%s is on the route" % expected)
-	check(route.next_crossroad(route.start_station + 1.0).name == "W H Ave", "first crossroad north of the start")
+	check(route.next_crossroad(route.start_station + 1.0).name == "E Ave", "the 4-way stop at the start")
+	check(route.next_crossroad(route.start_station + 20.0).name == "W H Ave", "then the first crossroad out of it")
 
 
 func test_passing_zones() -> void:

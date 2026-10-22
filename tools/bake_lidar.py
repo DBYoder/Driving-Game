@@ -1,12 +1,14 @@
 """Find the real buildings and trees along the route in the USGS lidar.
 
-    python tools/bake_lidar.py      (after bake_route.py)
+    python tools/bake_lidar.py      (after bake_route.py and bake_places.py)
 
 Writes game/data/route/structures.json (one footprint, height and kind per building),
 trees.bin, and yard_dist.bin (meters from the nearest building at every terrain tile
-vertex, so the game keeps corn out of farmyards). `--yards` redoes only the last from
-structures.json. The point clouds come from the 2019 eastern Iowa flight (leaf-off, in
-spring), read from the public Entwine copy on AWS and cached in tools/.cache/ept/. The
+vertex, so the game keeps corn out of farmyards; 0 everywhere in town, from places.json).
+`--yards` redoes only the last from structures.json. `--extend OLD_ROUTE.json` re-bakes
+only the tiles near road added past the end of an older route.json and swaps them in.
+The point clouds come from the 2019 eastern Iowa flight (leaf-off, in spring), read
+from the public Entwine copy on AWS and cached in tools/.cache/ept/. The
 first run downloads ~1.5 GB; re-runs are offline.
 
 The points are only sorted into ground and "unclassified", so the rest is done here:
@@ -24,6 +26,7 @@ from __future__ import annotations
 import json
 import math
 import time
+from pathlib import Path
 
 import numpy as np
 import shapely
@@ -234,42 +237,37 @@ def landmark_footprints() -> list[dict]:
     return out
 
 
+def in_towns(route: dict) -> np.ndarray:
+    """Per terrain tile vertex: inside city limits (game/data/route/places.json "towns")."""
+    t = route["terrain"]
+    size, grid = t["tile_size_m"], t["grid"]
+    out = np.zeros((len(t["tiles"]), grid, grid), dtype=bool)
+    path = config.OUT_DIR / "places.json"
+    towns = json.loads(path.read_text()).get("towns", []) if path.exists() else []
+    if not towns:
+        return out
+    area = shapely.union_all([shapely.Polygon(np.reshape(tw["outline"], (-1, 2))) for tw in towns])
+    shapely.prepare(area)
+    local = np.arange(grid) * (size / (grid - 1))
+    lx, lz = np.meshgrid(local, local)
+    for k, (a, b, _) in enumerate(t["tiles"]):
+        out[k] = shapely.contains_xy(area, a * size + lx, b * size + lz)
+    return out
+
+
 def write_yards(route: dict, structures: list[dict]) -> None:
     yards = yard_distances(route, structures + landmark_footprints())
+    yards[in_towns(route)] = 0  # all lawns in town: no crops
+
     yards.tofile(config.OUT_DIR / "yard_dist.bin")
     print(f"yards: {(yards < 30).sum()} terrain vertices within 30 m of a building")
 
 
-def main():
-    import sys
-    out_dir = config.OUT_DIR
-    if "--reclassify" in sys.argv:  # new kind rules, same footprints
-        path = out_dir / "structures.json"
-        data = json.loads(path.read_text())
-        for b in data["buildings"]:
-            if b["kind"] != "bin":  # (round ones already found stay bins)
-                b["kind"] = building_kind(b["length"], b["width"], b["height"], 1.0)
-        path.write_text(json.dumps(data, separators=(",", ":")))
-        kinds = {k: sum(1 for b in data["buildings"] if b["kind"] == k) for k in ("house", "barn", "shed", "bin")}
-        print(f"buildings: {len(data['buildings'])} {kinds}")
-        return
-    if "--yards" in sys.argv:
-        route = json.loads((out_dir / "route.json").read_text())
-        write_yards(route, json.loads((out_dir / "structures.json").read_text())["buildings"])
-        return
-    route = json.loads((out_dir / "route.json").read_text())
-    o = route["origin"]
-    pts = np.array(route["points"]).reshape(-1, 3)
-    route_xy = np.column_stack([pts[:, 0] + o["easting"], o["northing"] - pts[:, 2]])
-    route_tree = cKDTree(route_xy)
-    roads = read_roads(config.ROAD_BBOX)
-    project_roads(roads)
-    other = shapely.MultiLineString([ln for r in roads for ln in r.lines if config.ROUTE_STATE not in r.state_routes])
-    other_area = shapely.prepared.prep(other.buffer(OTHER_ROAD_CLEAR_M))
-
+def bake_tiles(tiles, route_tree, other_area) -> tuple[list[dict], list[tuple]]:
+    """Buildings and trees (UTM) in the cores of these lidar tiles, kept if they're within
+    the corridor along the route but clear of it and of the other roads."""
     reader = EptReader()
     tile, margin, cell = config.LIDAR_TILE_M, config.LIDAR_MARGIN_M, config.LIDAR_CELL_M
-    tiles = corridor_tiles(route_xy, config.LIDAR_HALF_WIDTH_M, tile)
     buildings, trees = [], []
     t0 = time.time()
     for done, (a, b) in enumerate(tiles):
@@ -316,24 +314,89 @@ def main():
             trees.append(tr)
         if done % 10 == 0 or done == len(tiles) - 1:
             print(f"tile {done + 1}/{len(tiles)}: {len(buildings)} buildings, {len(trees)} trees, {time.time() - t0:.0f} s")
+    return buildings, trees
 
-    # Game coordinates: x = east, z = south of the origin.
-    structures = [{
+
+def main():
+    import sys
+    out_dir = config.OUT_DIR
+    if "--reclassify" in sys.argv:  # new kind rules, same footprints
+        path = out_dir / "structures.json"
+        data = json.loads(path.read_text())
+        for b in data["buildings"]:
+            if b["kind"] != "bin":  # (round ones already found stay bins)
+                b["kind"] = building_kind(b["length"], b["width"], b["height"], 1.0)
+        path.write_text(json.dumps(data, separators=(",", ":")))
+        kinds = {k: sum(1 for b in data["buildings"] if b["kind"] == k) for k in ("house", "barn", "shed", "bin")}
+        print(f"buildings: {len(data['buildings'])} {kinds}")
+        return
+    if "--yards" in sys.argv:
+        route = json.loads((out_dir / "route.json").read_text())
+        write_yards(route, json.loads((out_dir / "structures.json").read_text())["buildings"])
+        return
+    route = json.loads((out_dir / "route.json").read_text())
+    o = route["origin"]
+    pts = np.array(route["points"]).reshape(-1, 3)
+    route_xy = np.column_stack([pts[:, 0] + o["easting"], o["northing"] - pts[:, 2]])
+    route_tree = cKDTree(route_xy)
+    roads = read_roads(config.ROAD_BBOX)
+    project_roads(roads)
+    other = shapely.MultiLineString([ln for r in roads for ln in r.lines if config.ROUTE_STATE not in r.state_routes])
+    other_area = shapely.prepared.prep(other.buffer(OTHER_ROAD_CLEAR_M))
+    tile = config.LIDAR_TILE_M
+    if "--extend" in sys.argv:
+        # The route got longer (same origin, same road up to the old end): bake just the
+        # tiles near the new road and swap them in, keeping everything else as it was.
+        old = json.loads(Path(sys.argv[sys.argv.index("--extend") + 1]).read_text())
+        old_n = len(old["points"]) // 3
+        tiles = corridor_tiles(route_xy[max(old_n - 1, 0):], config.LIDAR_HALF_WIDTH_M, tile)
+        print(f"re-baking {len(tiles)} tiles past the old end")
+        fresh_b, fresh_t = bake_tiles(tiles, route_tree, other_area)
+        redone = {(int(a), int(b)) for a, b in tiles}
+
+        def in_redone(e, nn):
+            return (math.floor(e / tile), math.floor(nn / tile)) in redone
+
+        data = json.loads((out_dir / "structures.json").read_text())
+        kept = [s for s in data["buildings"] if not in_redone(s["x"] + o["easting"], o["northing"] - s["z"])]
+        old_trees = np.fromfile(out_dir / "trees.bin", dtype="<f4").reshape(-1, 5)
+        keep = np.array([not in_redone(x + o["easting"], o["northing"] - z) for x, z in old_trees[:, :2]], dtype=bool)
+        print(f"kept {len(kept)}/{len(data['buildings'])} buildings and {keep.sum()}/{len(old_trees)} trees")
+        structures = kept + game_structures(fresh_b, o)
+        trees = old_trees[keep]
+        if fresh_t:
+            trees = np.vstack([trees, game_trees(fresh_t, o)])
+        write_structures(out_dir, structures, trees, route)
+        return
+    tiles = corridor_tiles(route_xy, config.LIDAR_HALF_WIDTH_M, tile)
+    buildings, trees = bake_tiles(tiles, route_tree, other_area)
+    write_structures(out_dir, game_structures(buildings, o), game_trees(trees, o), route)
+
+
+def game_structures(buildings: list[dict], o: dict) -> list[dict]:
+    """Game coordinates: x = east, z = south of the origin."""
+    return [{
         "x": round(bl["e"] - o["easting"], 2), "z": round(o["northing"] - bl["n"], 2),
         "length": round(bl["length"], 2), "width": round(bl["width"], 2),
         "yaw": round(bl["yaw"], 4), "height": round(bl["height"], 2), "kind": bl["kind"],
     } for bl in buildings]
+
+
+def game_trees(trees: list[tuple], o: dict) -> np.ndarray:
+    return np.array([(e - o["easting"], o["northing"] - nn, h, r, c) for e, nn, h, r, c in trees], dtype="<f4").reshape(-1, 5)
+
+
+def write_structures(out_dir, structures: list[dict], arr: np.ndarray, route: dict) -> None:
     (out_dir / "structures.json").write_text(json.dumps({
         "source": "USGS 3DEP lidar, IA Eastern 2019 (public domain), via the usgs-lidar-public Entwine copy",
         "note": "yaw: long side (length) counterclockwise from east, radians; x east, z south (game meters)",
         "buildings": structures,
     }, separators=(",", ":")))
-    arr = np.array([(e - o["easting"], o["northing"] - nn, h, r, c) for e, nn, h, r, c in trees], dtype="<f4")
-    arr.tofile(out_dir / "trees.bin")
+    arr.astype("<f4").tofile(out_dir / "trees.bin")
     write_yards(route, structures)
     kinds = {k: sum(1 for s in structures if s["kind"] == k) for k in ("house", "barn", "shed", "bin")}
     print(f"buildings: {len(structures)} {kinds}")
-    print(f"trees: {len(trees)}, {int(arr[:, 4].sum()) if len(arr) else 0} conifers")
+    print(f"trees: {len(arr)}, {int(arr[:, 4].sum()) if len(arr) else 0} conifers")
 
 
 if __name__ == "__main__":

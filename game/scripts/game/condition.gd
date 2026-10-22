@@ -21,6 +21,10 @@ var sun_color := Color(1.0, 1.0, 1.0)
 var sun_energy := 1.1
 var fog_begin := 450.0
 var fog_end := 3000.0
+var cloud_cover := 0.32  ## share of the sky (sky.gdshader)
+var cloud_color := Color(1.0, 1.0, 1.0)  ## sunlit
+var cloud_shade := Color(0.70, 0.74, 0.80)  ## underneath
+var stars := 0.0
 
 # The land
 var corn_leaf := Color(0.20, 0.40, 0.12)
@@ -70,6 +74,9 @@ static func preset(condition_id: String) -> Condition:
 			c.sun_energy = 0.95
 			c.fog_begin = 350.0
 			c.fog_end = 2600.0
+			c.cloud_cover = 0.3
+			c.cloud_color = Color(1.0, 0.72, 0.52)
+			c.cloud_shade = Color(0.50, 0.42, 0.50)
 			c.corn_leaf = Color(0.52, 0.42, 0.24)
 			c.corn_tassel = Color(0.66, 0.56, 0.36)
 			c.corn_ground = Color(0.55, 0.46, 0.28)
@@ -96,6 +103,10 @@ static func preset(condition_id: String) -> Condition:
 			c.sun_energy = 0.12
 			c.fog_begin = 250.0
 			c.fog_end = 2400.0
+			c.cloud_cover = 0.22
+			c.cloud_color = Color(0.13, 0.15, 0.21)
+			c.cloud_shade = Color(0.04, 0.05, 0.08)
+			c.stars = 1.0
 			c.night = 1.0
 			c.deer_rate = 3.0
 		"storm":
@@ -111,6 +122,9 @@ static func preset(condition_id: String) -> Condition:
 			c.sun_energy = 0.45
 			c.fog_begin = 120.0
 			c.fog_end = 1500.0
+			c.cloud_cover = 0.95
+			c.cloud_color = Color(0.40, 0.43, 0.46)
+			c.cloud_shade = Color(0.20, 0.22, 0.24)
 			c.corn_leaf = Color(0.16, 0.33, 0.12)
 			c.corn_ground = Color(0.26, 0.36, 0.16)
 			c.asphalt = Color(0.10, 0.10, 0.11)
@@ -131,6 +145,9 @@ static func preset(condition_id: String) -> Condition:
 			c.sun_energy = 0.7
 			c.fog_begin = 60.0
 			c.fog_end = 900.0
+			c.cloud_cover = 0.8
+			c.cloud_color = Color(0.88, 0.90, 0.93)
+			c.cloud_shade = Color(0.64, 0.67, 0.72)
 			c.corn_ground = Color(0.86, 0.87, 0.88)
 			c.soybeans = Color(0.88, 0.89, 0.90)
 			c.hay = Color(0.84, 0.85, 0.85)
