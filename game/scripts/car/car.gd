@@ -171,8 +171,10 @@ func apply_hit(damage: float, smash := false, toward_hit := Vector3.ZERO) -> voi
 
 
 ## Put the car on the road at a station, in the northbound lane, stopped.
-func place_at(s: float, lane_offset := 1.83) -> void:
+func place_at(s: float, lane_offset := NAN) -> void:
 	station = s
+	if is_nan(lane_offset):
+		lane_offset = route.lane_offset(s)
 	var pos := route.position_at(s) + route.right_at(s) * lane_offset
 	var ahead := route.position_at(s + 5.0) + route.right_at(s + 5.0) * lane_offset
 	ahead.y = pos.y

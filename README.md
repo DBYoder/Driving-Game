@@ -39,6 +39,10 @@ have real bridges where they cross a creek or river: a concrete deck, guardrails
 end markers and the water underneath. Highway 1 also gains its missing Old Mans Creek sign.
 And the three cars are rebuilt after photos of the real ones: rounded bodies, flush side
 glass between real pillars, their own lights, grilles, trim and wheels, in the photos' colors.
+And the four-way stop where both runs start is laid out like the real one: concrete, IA 1's
+left-turn lanes, a free right turn round every corner with its gore striped and a YIELD
+sign, IA-1 painted across the lane, light poles over the turning lanes, and the KALONA
+welcome sign by the flagpole on the southwest corner.
 
 **v0.7.2:** an in-car view with a working dash (speedometer, tachometer, fuel, temperature, odometer, warning lights, the radio's clock): press C or Y. And no more tires poking through the bodywork: every car has wheel arches now, and a test throws each one through every pose to make sure.
 

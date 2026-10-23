@@ -157,6 +157,7 @@ jobs:
           shoot kalona-start-chase 185 0
           shoot kalona-4-way-stop 185 0 "--car=legend --no-traffic"
           shoot kalona-from-above 185 3 "--car=legend --no-traffic"
+          shoot kalona-4-way-night 185 3 "--car=legend --condition=night --no-traffic"
           shoot gravel-crossroad 9420 2 "--car=tercel --no-traffic"
           shoot mormon-trek-finish 24905 0 "--car=windstar --no-traffic"
           shoot mile-1-traffic 2400 0 --traffic-near

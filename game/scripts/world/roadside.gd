@@ -23,7 +23,7 @@ func setup(r: RouteData) -> void:
 	var gray := _material(POST_GRAY)
 
 	for c in route.crossroads:
-		if c.kind == "ramp" or Intersections.at_line(route, c):
+		if c.kind == "ramp" or Intersections.at_line(route, c) or route.in_junction(c.station):
 			continue
 		var text: String = c.name
 		if c.route != "":
@@ -155,6 +155,11 @@ func _place(station: float, offset: float) -> Node3D:
 	var deck := route.deck_at(station)
 	if not deck.is_empty():  # not out over the river: past the bridge
 		station = float(deck[1]) + RouteData.RAIL_APPROACH_M + 10.0
+	for i in 60:  # not out on the 4-way's pavement (a turning lane): on past it
+		var at := route.position_at(station) + route.right_at(station) * offset
+		if not route.near_junction(at.x, at.z):
+			break
+		station += 4.0
 	var holder := Node3D.new()
 	add_child(holder)
 	var pos := route.position_at(station) + route.right_at(station) * offset

@@ -114,7 +114,20 @@ func test_wellman_finish_is_a_stop_sign_not_a_light() -> void:
 	check(not x22.finish_crossroad.is_empty() and String(x22.finish_crossroad.name).begins_with("8th Ave"),
 		"the finish is at 8th Ave")
 	# The 4-way stop's four, and 8th Ave's two, one each way in.
-	check(x22.stop_signs >= 6, "stop signs at both ends (%d)" % x22.stop_signs)
+	check(x22.stop_signs == 6, "stop signs at both ends (%d)" % x22.stop_signs)
+	# 8th Ave is a two-way stop: its signs face 8th Ave, with no ALL WAY plate, and
+	# IA 22 goes through.
+	var tangent := hw22.tangent_at(hw22.finish_station)
+	var at_finish := 0
+	for holder in x22.get_children():
+		var texts: Array = holder.get_children().filter(func(n): return n is Label3D).map(func(n): return n.text)
+		if not texts.has("STOP") or holder.position.distance_to(hw22.position_at(hw22.finish_station)) > 40.0:
+			continue
+		at_finish += 1
+		var faces: Vector3 = -holder.transform.basis.z
+		check(not texts.has("ALL WAY"), "8th Ave's stop signs have no ALL WAY plate")
+		check(absf(faces.dot(tangent)) < 0.5, "8th Ave's stop signs face 8th Ave, not IA 22 (%.2f)" % faces.dot(tangent))
+	check(at_finish == 2, "two stop signs at 8th Ave (%d)" % at_finish)
 	x22.free()
 	var x1 := Intersections.new()
 	x1.setup(hw1)

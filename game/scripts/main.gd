@@ -64,6 +64,7 @@ var streamer: WorldStreamer
 var scenery: Scenery
 var landmarks: Landmarks
 var intersections: Intersections
+var junction: Junction
 var bridges: Bridges
 var tire_marks: TireMarks
 var power_lines: PowerLines
@@ -144,6 +145,9 @@ func _ready() -> void:
 	var roadside := Roadside.new()
 	add_child(roadside)
 	roadside.setup(route)
+	junction = Junction.new()
+	add_child(junction)
+	junction.setup(route)
 	intersections = Intersections.new()
 	add_child(intersections)
 	intersections.setup(route)
@@ -551,6 +555,7 @@ func apply_condition(c: Condition) -> void:
 		corn.warm_up()
 	scenery.set_look(c.leaf, c.snow, c.night)
 	landmarks.set_look(c.snow, c.night)
+	junction.apply_condition(c)
 	bridges.set_look(c.snow)
 	weather.apply(c)
 	tire_marks.wet = c.rain > 0.0

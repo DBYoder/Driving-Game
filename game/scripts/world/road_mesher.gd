@@ -72,6 +72,7 @@ func chunk_center(c: int) -> Vector3:
 
 ## A chunk's mesh, with a row of vertices every `step` route samples (1 up close, more
 ## for far away). Every step includes the chunk's end rows, so neighbors always meet.
+## The Kalona 4-way's stretch is left out (Junction paves it), with rows on its ends.
 func build_chunk(c: int, step := 1) -> ArrayMesh:
 	var i0 := c * CHUNK_SAMPLES
 	var i1 := mini(i0 + CHUNK_SAMPLES, route.points.size() - 1)
@@ -79,6 +80,13 @@ func build_chunk(c: int, step := 1) -> ArrayMesh:
 	for i in range(i0, i1, step):
 		rows.append(i)
 	rows.append(i1)
+	var gap := Vector2i(-1, -1)
+	if route.junction_gap.y > 0.0:
+		gap = Vector2i(roundi(route.junction_gap.x / route.spacing), roundi(route.junction_gap.y / route.spacing))
+		for g in [gap.x, gap.y]:
+			if g > i0 and g < i1 and not rows.has(g):
+				rows.append(g)
+		rows.sort()
 	var cols := SECTION.size()
 	var verts := PackedVector3Array()
 	var uvs := PackedVector2Array()
@@ -97,6 +105,8 @@ func build_chunk(c: int, step := 1) -> ArrayMesh:
 			lines.append(solid)
 			decks.append(Color(1, 0, 0) if on_deck else Color(0, 0, 0))
 	for row in rows.size() - 1:
+		if rows[row] >= gap.x and rows[row + 1] <= gap.y:
+			continue  # the 4-way's own pavement
 		for col in cols - 1:
 			var a := row * cols + col
 			var b := a + 1

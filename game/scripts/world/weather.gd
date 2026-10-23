@@ -99,6 +99,7 @@ static func ice_patches(route: RouteData) -> PackedFloat32Array:
 		var hint := route.terrain.station_hint(x, z)
 		if hint >= 0.0:
 			spots.append(route.nearest_station(Vector3(x, 0, z), hint, 300.0))
+	spots = spots.filter(func(s: float) -> bool: return not route.in_junction(s))  # concrete there, and it'd never show
 	spots.sort()
 	var out := PackedFloat32Array()
 	for s in spots:

@@ -1,12 +1,13 @@
 class_name Intersections
 extends Node3D
 ## The two intersections the run goes between. Both routes start at the 4-way stop where
-## IA 1 meets IA 22 in Kalona: stop signs with ALL WAY plates on all four corners, stop
-## lines painted across each lane, and an Amish buggy waiting its turn. Highway 1 starts
-## from a standstill at its stop line coming up from the south; Highway 22 in the
-## intersection itself, pointed west straight out of it. Highway 1 ends at the traffic
-## lights at Mormon Trek Blvd in Iowa City, which cycle like real ones; Highway 22 where
-## 8th Ave stops for it in Wellman. A banner over the road marks each line.
+## IA 1 meets IA 22 in Kalona (Junction lays it out like the real one): a stop sign with an
+## ALL WAY plate each way in, a YIELD sign where each free right turn joins, and an Amish
+## buggy waiting its turn. Highway 1 starts from a standstill at its stop line coming up
+## from the south; Highway 22 in the intersection itself, pointed west straight out of it.
+## Highway 1 ends at the traffic lights at Mormon Trek Blvd in Iowa City, which cycle like
+## real ones; Highway 22 where 8th Ave stops for it in Wellman (a two-way stop: IA 22 goes
+## through). A banner over the road marks each line.
 ##
 ## "IA 1" in here is whichever highway the route follows; "northbound" is our way.
 
@@ -29,6 +30,7 @@ var start_crossroad := {}
 var finish_crossroad := {}
 var buggy: StaticBody3D  ## waiting at the 4-way stop
 var stop_signs := 0
+var yield_signs := 0
 var signal_heads: Array[Dictionary] = []  ## {lamps: [red, yellow, green] meshes, ia1: bool}
 var _time := 0.0
 var _shown := ""  ## the phase the lamps show
@@ -39,7 +41,10 @@ func setup(r: RouteData) -> void:
 	route = r
 	start_crossroad = _crossroad_near(r.start_station)
 	finish_crossroad = _crossroad_near(r.finish_station)
-	_build_stop(r.start_station, start_crossroad)
+	if r.junction.is_empty():
+		_build_stop(r.start_station, start_crossroad)
+	else:
+		_build_junction_signs()
 	var finish_banner := "%s  ·  FINISH" % String(r.info.to).to_upper()
 	if r.info.finish == "light":
 		_build_lights(r.finish_station, finish_crossroad)
@@ -144,6 +149,18 @@ func approaches(station: float) -> Array[Dictionary]:
 
 # --- The 4-way stop -------------------------------------------------------------------
 
+## The 4-way's signs, where the junction has them (the stop lines are its paint), and the
+## buggy at its stop line on the side you see from the start.
+func _build_junction_signs() -> void:
+	var j: Dictionary = route.junction
+	for s: Dictionary in j.stops:
+		_stop_sign(_facing(Vector3(s.x, float(s.y) - 0.15, s.z), Vector3(s.forward[0], 0.0, s.forward[1])), s.street)
+	for s: Dictionary in j.yields:
+		_yield_sign(_facing(Vector3(s.x, float(s.y) - 0.25, s.z), Vector3(s.forward[0], 0.0, s.forward[1])))
+	var b: Dictionary = j.buggy
+	_add_buggy(Vector3(b.x, b.y, b.z), Vector3(b.forward[0], 0.0, b.forward[1]))
+
+
 ## `start` is the start line: our stop line on Highway 1, past the middle on Highway 22
 ## (route.info.start_stop_line).
 func _build_stop(start: float, crossroad: Dictionary) -> void:
@@ -235,6 +252,41 @@ func _stop_sign(holder: Node3D, street: String, all_way := true) -> void:
 		name_label.position = Vector3(0, 0, 0.012 * side)
 		name_label.rotation.y = 0.0 if side > 0.0 else PI
 		blade.add_child(name_label)
+
+
+## A YIELD sign: a red triangle point down, white inside, YIELD in red.
+func _yield_sign(holder: Node3D) -> void:
+	yield_signs += 1
+	var gray := _material(Color(0.55, 0.55, 0.57))
+	_box(holder, Vector3(0.07, 2.9, 0.07), Vector3(0, 1.45, 0), gray)
+	var face := Vector3(0, 2.35, 0.05)
+	_triangle(holder, 0.55, face + Vector3(0, 0, -0.015), gray)  # the back
+	_triangle(holder, 0.55, face, _material(RED.darkened(0.15)))
+	_triangle(holder, 0.34, face + Vector3(0, 0.03, 0.006), _material(Color.WHITE))
+	var word := _label("YIELD", 20, RED.darkened(0.15))
+	word.position = face + Vector3(0, 0.1, 0.02)
+	holder.add_child(word)
+
+
+## A flat triangle, point down, facing +Z (the driver) and seen from behind too, `radius`
+## to its corners.
+func _triangle(holder: Node3D, radius: float, pos: Vector3, material: Material) -> void:
+	var a := Vector3(-radius * 0.866, radius * 0.5, 0.0)
+	var b := Vector3(radius * 0.866, radius * 0.5, 0.0)
+	var c := Vector3(0.0, -radius, 0.0)
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = PackedVector3Array([a, b, c, a, c, b])
+	arrays[Mesh.ARRAY_NORMAL] = PackedVector3Array([Vector3.BACK, Vector3.BACK, Vector3.BACK,
+		Vector3.FORWARD, Vector3.FORWARD, Vector3.FORWARD])
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.material_override = material
+	node.position = pos
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	holder.add_child(node)
 
 
 func _octagon(holder: Node3D, radius: float, pos: Vector3, material: Material) -> void:

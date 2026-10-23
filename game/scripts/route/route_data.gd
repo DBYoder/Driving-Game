@@ -10,6 +10,8 @@ extends RefCounted
 const MILE_M := 1609.344
 const RAILED_BRIDGE_M := 3.0  ## a bridge standing this high has a deck and guardrails (tools/config.py)
 const RAIL_APPROACH_M := 25.0  ## the guardrails run on this far past each end of the deck
+const LANE := 1.83  ## the middle of a lane, off the centerline, on a two-lane road
+const JUNCTION_CLEAR := 3.0  ## nothing roadside stands this close to the 4-way's pavement
 
 var id := Routes.DEFAULT  ## the route's folder name (one of Routes.IDS)
 var info: Dictionary  ## what the game knows about it besides the data (Routes.INFO)
@@ -46,6 +48,14 @@ var landmarks: Array = []
 ## [x0, z0, x1, z1] square to the compass, or [x, z, half_x, half_z, yaw] turned with the
 ## building (yaw like rotation.y).
 var landmark_boxes: Array = []
+## The Kalona 4-way stop where both runs start, laid out like the real one (the route's
+## junction.json, from tools/junction.py; Junction builds it). Its pavement replaces the
+## road between junction_gap's stations. Empty if not baked.
+var junction := {}
+var junction_gap := Vector2(-1.0, -1.0)
+var _junction_outline := PackedVector2Array()  ## the edge of its pavement
+var _junction_near := PackedVector2Array()  ## ...and JUNCTION_CLEAR m out from it
+var _junction_box := Rect2()  ## round the second
 var _no_pass_north := PackedByteArray()  ## per sample: 1 = solid line for northbound
 var _no_pass_south := PackedByteArray()
 
@@ -103,7 +113,62 @@ static func load_from(dir: String) -> RouteData:
 				else:
 					r.landmark_boxes.append([Vector2(c[0] + c[2], c[1] + c[3]) / 2.0, Vector2(c[2] - c[0], c[3] - c[1]) / 2.0, 0.0])
 		r._clear_for_landmarks()
+	var junction = _optional_json(dir.path_join("junction.json"))
+	if typeof(junction) == TYPE_DICTIONARY:
+		r._set_junction(junction)
 	return r
+
+
+func _set_junction(j: Dictionary) -> void:
+	junction = j
+	junction_gap = Vector2(j.gap[0], j.gap[1])
+	var flat: Array = j.outline
+	for i in flat.size() / 2:
+		_junction_outline.append(Vector2(flat[i * 2], flat[i * 2 + 1]))
+	var grown := Geometry2D.offset_polygon(_junction_outline, JUNCTION_CLEAR)
+	_junction_near = grown[0] if not grown.is_empty() else _junction_outline
+	_junction_box = Rect2(_junction_near[0], Vector2.ZERO)
+	for v in _junction_near:
+		_junction_box = _junction_box.expand(v)
+	# The ground under its pavement, pulled down so it can't poke through.
+	var per_tile := terrain.grid * terrain.grid
+	for c: Array in j.terrain:
+		terrain.heights[int(c[0]) * per_tile + int(c[1])] = float(c[2])
+	# The lidar's buildings and trees out on it (a light pole or a tree in a turning lane).
+	buildings = buildings.filter(func(b: Dictionary): return not near_junction(b.x, b.z))
+	var kept := PackedFloat32Array()
+	for i in trees.size() / 5:
+		if not near_junction(trees[i * 5], trees[i * 5 + 1]):
+			kept.append_array(trees.slice(i * 5, i * 5 + 5))
+	trees = kept
+
+
+## Is (x, z) on the 4-way's pavement?
+func on_junction(x: float, z: float) -> bool:
+	var p := Vector2(x, z)
+	return _junction_box.has_point(p) and Geometry2D.is_point_in_polygon(p, _junction_outline)
+
+
+## Is (x, z) on the 4-way's pavement or within JUNCTION_CLEAR m of it?
+func near_junction(x: float, z: float) -> bool:
+	var p := Vector2(x, z)
+	return _junction_box.has_point(p) and Geometry2D.is_point_in_polygon(p, _junction_near)
+
+
+## Is the road at `station` the 4-way's (left out of the road mesh)?
+func in_junction(station: float) -> bool:
+	return station > junction_gap.x and station < junction_gap.y
+
+
+## The middle of the right-hand lane at a station, off the centerline: LANE, but through
+## the 4-way IA 1's lanes shift out for its left-turn lanes.
+func lane_offset(station: float) -> float:
+	if not in_junction(station):
+		return LANE
+	var lanes: Array = junction.lanes
+	var f := clampf((station - junction_gap.x) / float(junction.lane_step), 0.0, lanes.size() - 1.0)
+	var i := mini(int(f), lanes.size() - 2)
+	return lerpf(float(lanes[i]), float(lanes[i + 1]), f - i)
 
 
 ## The real bridge whose deck `station` is on (with `margin` m more at each end), or [].
