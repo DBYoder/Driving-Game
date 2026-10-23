@@ -1,17 +1,18 @@
 class_name Intersections
 extends Node3D
-## The two intersections the run goes between. Both routes start from a standstill at the
-## 4-way stop where IA 1 meets IA 22 in Kalona: stop signs with ALL WAY plates on all four
-## corners, stop lines painted across each lane, and an Amish buggy waiting its turn.
-## Highway 1 ends at the traffic lights at Mormon Trek Blvd in Iowa City, which cycle like
-## real ones; Highway 22 where 8th Ave stops for it in Wellman. A banner over the road
-## marks each line (the stop lines are the start and finish lines).
+## The two intersections the run goes between. Both routes start at the 4-way stop where
+## IA 1 meets IA 22 in Kalona: stop signs with ALL WAY plates on all four corners, stop
+## lines painted across each lane, and an Amish buggy waiting its turn. Highway 1 starts
+## from a standstill at its stop line coming up from the south; Highway 22 in the
+## intersection itself, pointed west straight out of it. Highway 1 ends at the traffic
+## lights at Mormon Trek Blvd in Iowa City, which cycle like real ones; Highway 22 where
+## 8th Ave stops for it in Wellman. A banner over the road marks each line.
 ##
 ## "IA 1" in here is whichever highway the route follows; "northbound" is our way.
 
 const START_BANNER := "KALONA  ·  START"
 const NEAR := 30.0  ## a crossroad this close to the start/finish line is that intersection
-const STOP_LINE := 12.0  ## the start line is this far short of the middle (tools/config.py)
+const STOP_LINE := 12.0  ## the 4-way stop's stop lines are this far short of its middle
 const SIGN_OFFSET := 5.6  ## stop signs and lights stand this far from IA 1's middle...
 const LIGHT_OFFSET := 8.0
 const LINE_WIDTH := 0.45  ## stop line, across the lane
@@ -143,10 +144,13 @@ func approaches(station: float) -> Array[Dictionary]:
 
 # --- The 4-way stop -------------------------------------------------------------------
 
-func _build_stop(line: float, crossroad: Dictionary) -> void:
+## `start` is the start line: our stop line on Highway 1, past the middle on Highway 22
+## (route.info.start_stop_line).
+func _build_stop(start: float, crossroad: Dictionary) -> void:
 	if crossroad.is_empty():
 		return
-	var center := line + STOP_LINE
+	var center := start + float(route.info.start_stop_line)
+	var line := center - STOP_LINE  # ours
 	var far_line := center + STOP_LINE  # the southbound stop line
 	# Northbound (us) and southbound on IA 1.
 	_stop_sign(_on_ia1(line - 1.0, SIGN_OFFSET, 1.0), crossroad.name)

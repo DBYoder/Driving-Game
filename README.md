@@ -12,6 +12,7 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 | | |
 |---|---|
 | ![Highway 22: the start in Kalona, facing west](docs/screenshots/highway22-kalona-start.png) | ![Highway 22: Wellman, from above](docs/screenshots/highway22-wellman-from-above.png) |
+| ![Mid-Prairie High School from IA 22, a mile from Wellman](docs/screenshots/highway22-mid-prairie.png) | ![Mid-Prairie High School from above: the school, the lots, the sign by the road](docs/screenshots/highway22-mid-prairie-from-above.png) |
 | ![Behind the wheel of the Legend at harvest dusk: the dash, the gauges, the radio](docs/screenshots/in-car-legend.png) | ![The Windstar's dash at night, its gauges lit](docs/screenshots/in-car-night.png) |
 | ![Stopped at the four-way stop in Kalona, a buggy waiting its turn](docs/screenshots/kalona-4-way-stop.png) | ![The finish: the stop light at Mormon Trek Blvd](docs/screenshots/mormon-trek-finish.png) |
 | ![Kalona from above: streets, houses and lawns](docs/screenshots/kalona-from-above.png) | ![A gravel crossroad and the power line, mile 5.7](docs/screenshots/gravel-crossroad.png) |
@@ -27,13 +28,13 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 ## Status
 
 **v0.8: a second route, Highway 22 from Kalona to Wellman.** Pick it on the garage's
-new Route line. It starts at the same 4-way stop, from the other side, and runs 6.8 miles
-west over Ramsey Creek, the English River and Lime Creek into downtown Wellman, where 8th
-Ave stops for you at the finish. Its 2,066 real buildings and 72,000 trees are from the
-lidar like Highway 1's; it's all Washington County (two deputies, no county line to run
-for), and it keeps its own records. Both routes now have real bridges where they cross a
-creek or river: a concrete deck, guardrails, striped end markers and the water underneath.
-Highway 1 also gains its missing Old Mans Creek sign.
+new Route line. It starts in the same 4-way stop, pointed west straight out of it, and
+runs 6.7 miles over Ramsey Creek, the English River and Lime Creek, past Mid-Prairie High
+School, into downtown Wellman, where 8th Ave stops for you at the finish. Its 2,066 real
+buildings and 72,000 trees are from the lidar like Highway 1's; it's all Washington County
+(two deputies, no county line to run for), and it keeps its own records. Both routes now
+have real bridges where they cross a creek or river: a concrete deck, guardrails, striped
+end markers and the water underneath. Highway 1 also gains its missing Old Mans Creek sign.
 
 **v0.7.2:** an in-car view with a working dash (speedometer, tachometer, fuel, temperature, odometer, warning lights, the radio's clock): press C or Y. And no more tires poking through the bodywork: every car has wheel arches now, and a test throws each one through every pose to make sure.
 

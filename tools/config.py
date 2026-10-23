@@ -27,7 +27,8 @@ UTM_CRS = "EPSG:26915"  # NAD83 / UTM 15N, meters
 #                  near the route's middle. Kept once baked, so the buildings, trees and
 #                  landmarks baked against it keep their places.
 #   *_stop_line_m  the start and finish lines: stop lines this far short of the middle
-#                  of each intersection
+#                  of each intersection (a start line past the middle, negative, starts
+#                  you in the intersection, pointed out of it)
 #   pre_roll_m, run_out_m   road kept behind the start line and past the finish line
 #   start/finish_no_passing_m   solid lines out of town at the start, and into the finish
 #   nhd_hu8        the watersheds (USGS NHD) its creeks are in
@@ -68,9 +69,9 @@ ROUTES = {
         "search_to": (-91.8550, 41.4675),
         "road_bbox": (-91.90, 41.42, -91.66, 41.53),
         "origin": (602197, 4592402, 220),  # about the middle
-        "start_stop_line_m": 12.0,
+        "start_stop_line_m": -12.0,  # the far side of the 4-way stop: straight out of it, west
         "finish_stop_line_m": 8.0,  # a town street
-        "pre_roll_m": 200.0,
+        "pre_roll_m": 224.0,  # (station 0 where it's always been)
         "run_out_m": 300.0,
         "start_no_passing_m": 300.0,     # out of Kalona
         "finish_no_passing_m": 900.0,    # through the built-up part of Wellman

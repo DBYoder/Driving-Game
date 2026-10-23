@@ -186,7 +186,7 @@ func _fill_results() -> void:
 		child.free()
 	var score := run.score
 	var finished := tracker.state == RunTracker.State.FINISHED
-	_row(("PRACTICE: " if practice else "") + ("IOWA CITY!" if finished else "WRECKED: %s" % tracker.wreck_reason), "", 34)
+	_row(("PRACTICE: " if practice else "") + (String(route.info.to).to_upper() + "!" if finished else "WRECKED: %s" % tracker.wreck_reason), "", 34)
 	_row(Awards.title_for({"finished": finished, "wreck": "" if finished else tracker.wreck_reason,
 		"car": car.stats.id, "seconds": tracker.elapsed, "score": score.banked, "counts": score.counts,
 		"raw": score.raw, "honked": deer.honked_off if deer else 0}), "", 24, Color(1.0, 0.85, 0.3))

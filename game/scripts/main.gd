@@ -42,7 +42,7 @@ extends Node3D
 ##   --benchmark          autopilot at 70 mph for 40 s, print fps, draw calls, triangles
 ##   --screenshot=<path>  let the car settle, save a PNG, exit
 
-const SPAWN_BEHIND_START := 3.0  ## stopped at the Kalona stop sign, the bumper at the line
+const SPAWN_BEHIND_START := 3.0  ## stopped with the bumper at the start line in Kalona
 const LOST_SECONDS := 2.0  ## off the edge of the world this long -> towed back
 const FOG_BEGIN := 450.0
 const FOG_END := 3000.0  ## nothing past this is visible
@@ -694,7 +694,7 @@ func _smoke_test() -> void:
 	if route.buildings.size() < int(expect.min_buildings) or route.trees.size() / 5 < int(expect.min_trees):
 		problems.append("only %d buildings and %d trees in the data" % [route.buildings.size(), route.trees.size() / 5])
 	if expect.landmark and (route.landmarks.is_empty() or landmarks.box_count() < 8):
-		problems.append("the Kalona Cheese landmark didn't build (%d landmarks, %d solid boxes)" % [route.landmarks.size(), landmarks.box_count()])
+		problems.append("the landmark didn't build (%d landmarks, %d solid boxes)" % [route.landmarks.size(), landmarks.box_count()])
 	scenery.warm_up(route.position_at(route.length * 0.5))
 	if scenery.instance_count() < 100:
 		problems.append("only %d buildings and trees around mid-route" % scenery.instance_count())

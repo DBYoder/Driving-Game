@@ -42,6 +42,10 @@ var streets: Array = []
 ## Hand-built landmarks (the route's landmarks.json, built by Landmarks): Dictionaries with
 ## id, name, x, z and the `clear` rectangles their own buildings fill.
 var landmarks: Array = []
+## Their `clear` rectangles, each [center: Vector2, half extents: Vector2, yaw]: written
+## [x0, z0, x1, z1] square to the compass, or [x, z, half_x, half_z, yaw] turned with the
+## building (yaw like rotation.y).
+var landmark_boxes: Array = []
 var _no_pass_north := PackedByteArray()  ## per sample: 1 = solid line for northbound
 var _no_pass_south := PackedByteArray()
 
@@ -92,6 +96,12 @@ static func load_from(dir: String) -> RouteData:
 	var landmarks = _optional_json(dir.path_join("landmarks.json"))
 	if typeof(landmarks) == TYPE_DICTIONARY:
 		r.landmarks = landmarks.landmarks
+		for l: Dictionary in r.landmarks:
+			for c: Array in l.clear:
+				if c.size() == 5:
+					r.landmark_boxes.append([Vector2(c[0], c[1]), Vector2(c[2], c[3]), float(c[4])])
+				else:
+					r.landmark_boxes.append([Vector2(c[0] + c[2], c[1] + c[3]) / 2.0, Vector2(c[2] - c[0], c[3] - c[1]) / 2.0, 0.0])
 		r._clear_for_landmarks()
 	return r
 
@@ -106,10 +116,13 @@ func deck_at(station: float, margin := 0.0) -> Array:
 
 ## Is (x, z) where a landmark stands (inside one of its `clear` rectangles)?
 func in_landmark(x: float, z: float) -> bool:
-	for l: Dictionary in landmarks:
-		for c: Array in l.clear:
-			if x >= c[0] and x <= c[2] and z >= c[1] and z <= c[3]:
-				return true
+	for box: Array in landmark_boxes:
+		var d := Vector2(x, z) - (box[0] as Vector2)
+		var yaw: float = box[2]
+		var half: Vector2 = box[1]
+		# The box's own axes: x turned by yaw is (cos, -sin), z is (sin, cos).
+		if absf(d.dot(Vector2(cos(yaw), -sin(yaw)))) <= half.x and absf(d.dot(Vector2(sin(yaw), cos(yaw)))) <= half.y:
+			return true
 	return false
 
 

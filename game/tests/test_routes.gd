@@ -1,7 +1,10 @@
 extends "res://tests/test_case.gd"
 ## The routes: Highway 1 (Kalona north to Iowa City) and Highway 22 (Kalona west to
-## Wellman) both load, start at the same 4-way stop, finish where they should, and keep
-## their own records; Wellman's finish is a stop sign on 8th Ave, not a light.
+## Wellman) both load, start at the same 4-way stop (Highway 22 in the middle of it,
+## pointed west), finish where they should, and keep their own records; Wellman's finish is
+## a stop sign on 8th Ave, not a light.
+
+const Main := preload("res://scripts/main.gd")
 
 var hw1 := RouteData.load_from(Routes.dir("highway1"))
 var hw22 := RouteData.load_from(Routes.dir("highway22"))
@@ -33,7 +36,7 @@ func test_every_route_loads_with_its_details() -> void:
 
 func test_highway_22_runs_from_kalona_to_wellman() -> void:
 	var miles := hw22.mile_at(hw22.finish_station)
-	check(miles > 6.6 and miles < 6.9, "6.76 mi from the stop line in Kalona to 8th Ave (%.2f)" % miles)
+	check(miles > 6.6 and miles < 6.9, "6.75 mi from the 4-way stop in Kalona to 8th Ave (%.2f)" % miles)
 	var start := _crossroad(hw22, "1st St")
 	check(not start.is_empty() and start.route == "IA 1" and absf(start.station - hw22.start_station) < 30.0,
 		"it starts at IA 1 (1st St in Kalona)")
@@ -63,8 +66,35 @@ func test_both_routes_start_at_the_same_4_way_stop() -> void:
 		var r := RouteData.load_from(Routes.dir(id))
 		var p := r.position_at(r.start_station)
 		at.append(Vector2(d.origin.easting + p.x, d.origin.northing - p.z))
-	# Each start line is 12 m short of the middle, from different sides.
+	# Highway 1's start line is 12 m short of the middle, Highway 22's 12 m past it.
 	check(at[0].distance_to(at[1]) < 30.0, "the start lines are %.1f m apart" % at[0].distance_to(at[1]))
+
+
+func test_highway_22_starts_in_the_4_way_stop_pointed_west() -> void:
+	# Coming up from the south, Highway 1 starts at its stop line. Highway 22 starts in the
+	# intersection, past the middle, pointed west straight out of it: nothing to cross
+	# before Larch Ave, a mile out.
+	var e_ave := _crossroad(hw1, "E Ave")
+	check(hw1.start_station < float(e_ave.station), "Highway 1 starts short of E Ave")
+	var first := _crossroad(hw22, "1st St")
+	var past := hw22.start_station - float(first.station)
+	check(past > 5.0 and past < 25.0, "Highway 22 starts %.0f m past the middle of 1st St" % past)
+	var spawn := hw22.start_station - Main.SPAWN_BEHIND_START
+	check(hw22.tangent_at(spawn).x < -0.99, "the car's pointed west (%s)" % hw22.tangent_at(spawn))
+	check(hw22.next_crossroad(spawn).name == "Larch Ave", "next up is Larch Ave, not the intersection it's in")
+	# Right out of it: WEST over IOWA 22, then how far to Wellman.
+	var signs := Roadside.new()
+	signs.setup(hw22)
+	var found := {}
+	for holder: Node in signs.get_children():
+		for child: Node in holder.get_children():
+			if child is Label3D:  # the first of each
+				var s := hw22.nearest_station((holder as Node3D).position, hw22.start_station, 20000.0)
+				found[(child as Label3D).text] = minf(s, found.get((child as Label3D).text, INF))
+	check(found.has("WEST") and found.WEST > hw22.start_station and found.WEST < hw22.start_station + 100.0,
+		"a WEST 22 marker right out of the 4-way stop (%s)" % found.get("WEST", "none"))
+	check(found.has("WELLMAN  7") and found["WELLMAN  7"] < hw22.start_station + 300.0, "and WELLMAN 7 past it")
+	signs.free()
 
 
 func test_each_route_keeps_its_own_records() -> void:

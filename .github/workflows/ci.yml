@@ -184,12 +184,16 @@ jobs:
           shoot thunderstorm 8000 0 "--car=windstar --condition=storm --no-traffic"
           shoot winter 14600 2 "--car=tercel --condition=winter --traffic-near"
           shoot in-car-legend 6000 1 "--car=legend --autopilot --boost --condition=harvest"
-          shoot highway22-kalona-start 197 0 "--route=highway22 --car=legend --no-traffic"
+          shoot highway22-kalona-start 221 0 "--route=highway22 --car=legend --no-traffic"
+          shoot highway22-kalona-start-from-above 221 3 "--route=highway22 --car=legend --no-traffic"
           shoot highway22-english-river 3870 0 "--route=highway22 --car=tercel --no-traffic"
           shoot highway22-english-river-from-above 3920 3 "--route=highway22 --car=tercel --no-traffic"
+          shoot highway22-mid-prairie 9770 0 "--route=highway22 --car=windstar --no-traffic --no-cops"
+          shoot highway22-mid-prairie-night 9770 0 "--route=highway22 --car=legend --condition=night --no-traffic --no-cops"
+          shoot highway22-mid-prairie-from-above 9850 3 "--route=highway22 --car=legend --no-traffic --no-cops"
           shoot highway22-wellman-finish 11000 0 "--route=highway22 --car=windstar --no-traffic"
           shoot highway22-wellman-from-above 10600 3 "--route=highway22 --car=legend --no-traffic"
-          shoot highway22-garage 197 0 "--route=highway22 --garage"
+          shoot highway22-garage 221 0 "--route=highway22 --garage"
 
       - uses: actions/upload-artifact@v6
         with:

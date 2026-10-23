@@ -10,6 +10,10 @@ const DEFAULT := "highway1"
 ## What the game needs to know about each route that isn't in its baked data:
 ##   title, from, to   for the menus and the HUD ("HIGHWAY 1  ·  Kalona → Iowa City")
 ##   number, heading   the route markers along the road (NORTH over IOWA 1)
+##   start_stop_line   the start line is this far short of the middle of the 4-way stop,
+##                     m (tools/config.py start_stop_line_m): Highway 1 at the stop line
+##                     coming up from the south, Highway 22 past the middle, pointed west
+##                     straight out of it
 ##   finish            "light": traffic lights at the finish; "stop": the cross street
 ##                     stops for us (Intersections)
 ##   finish_stop_line  the finish line is this far short of the middle of the
@@ -27,6 +31,7 @@ const INFO := {
 		"number": "1",
 		"heading": "NORTH",
 		"tagline": "15 miles north to Iowa City's first stop light, over the county line.",
+		"start_stop_line": 12.0,
 		"finish": "light",
 		"finish_stop_line": 12.0,
 		"section_corner": "540th St SW",
@@ -44,6 +49,7 @@ const INFO := {
 		"number": "22",
 		"heading": "WEST",
 		"tagline": "7 miles west to downtown Wellman, over the English River.",
+		"start_stop_line": -12.0,
 		"finish": "stop",
 		"finish_stop_line": 8.0,
 		"section_corner": "Kiwi Ave",
@@ -52,7 +58,7 @@ const INFO := {
 		"min_miles": 6.5,
 		"min_buildings": 1000,
 		"min_trees": 30000,
-		"landmark": false,
+		"landmark": true,
 	},
 }
 

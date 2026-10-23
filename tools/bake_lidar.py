@@ -231,9 +231,15 @@ def landmark_footprints() -> list[dict]:
         return []
     out = []
     for lm in json.loads(path.read_text())["landmarks"]:
-        for x0, z0, x1, z1 in lm["clear"]:
-            out.append({"x": (x0 + x1) / 2, "z": (z0 + z1) / 2, "length": x1 - x0, "width": z1 - z0,
-                        "yaw": 0.0, "height": 6.0, "kind": "landmark"})
+        for c in lm["clear"]:
+            if len(c) == 5:  # [x, z, half_x, half_z, yaw]: turned with the building
+                x, z, hx, hz, yaw = c
+                out.append({"x": x, "z": z, "length": 2 * hx, "width": 2 * hz,
+                            "yaw": yaw, "height": 6.0, "kind": "landmark"})
+            else:  # [x0, z0, x1, z1], square to the compass
+                x0, z0, x1, z1 = c
+                out.append({"x": (x0 + x1) / 2, "z": (z0 + z1) / 2, "length": x1 - x0, "width": z1 - z0,
+                            "yaw": 0.0, "height": 6.0, "kind": "landmark"})
     return out
 
 

@@ -3,7 +3,8 @@ extends Node3D
 ## Street-name signs at the real crossroads and green mile markers (the start and finish
 ## intersections have their own: Intersections). From the map data (tools/bake_places.py): the names of the creeks at their
 ## bridges, the county line and the city limits with their populations. And the usual:
-## 55 mph once out of Kalona, route markers (NORTH over IOWA 1, WEST over IOWA 22).
+## 55 mph once out of Kalona, route markers (NORTH over IOWA 1, WEST over IOWA 22), the
+## first one right out of the 4-way stop with the miles to go on a sign past it.
 
 const SIGN_GREEN := Color(0.05, 0.40, 0.18)
 const POST_GRAY := Color(0.55, 0.55, 0.57)
@@ -36,6 +37,12 @@ func setup(r: RouteData) -> void:
 
 
 	var white := _material(WHITE)
+	# Out of the 4-way stop in Kalona: which highway and which way (WEST over IOWA 22), and
+	# how far to the end of it.
+	var middle := route.start_station + float(route.info.start_stop_line)
+	_add_route_marker(middle + 45.0, white, gray)
+	var miles := (route.finish_station - (middle + 150.0)) / RouteData.MILE_M
+	_add_sign(middle + 150.0, 8.5, "%s  %d" % [String(route.info.to).to_upper(), roundi(miles)], green, gray)
 	for c: Dictionary in route.places.creeks:
 		_add_sign(_bridge_start(c.station) - 20.0, 7.6, String(c.name).to_upper(), green, gray)
 	for c: Dictionary in route.places.counties:
