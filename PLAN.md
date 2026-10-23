@@ -497,8 +497,9 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
 - After v0.7.2: "let's plan one more route, which a user could choose. That route would run from Kalona to Wellman on Highway 22." Picked: finish at 8th Ave in downtown Wellman (where it stops for IA 22), choose it on a Route line in the garage.
 - **The route.** From the same 4-way stop in Kalona (IA 1 and IA 22), starting in the intersection itself pointed west (see below), 6.75 miles west to 8 m short of 8th Ave in Wellman:
   - Larch, Kola, Kiwi and Juniper Ave, 120th St, Hickory and Gum Ave;
-  - Ramsey Creek (mile 1.26), the English River (2.32, a 92 m bridge and its wooded valley) and Lime Creek (3.62), each signed at its bridge;
-  - Wellman's city limit (pop 1,524) at mile 5.70, then its avenues, 1st to 8th.
+  - Ramsey Creek (mile 1.25), the English River (2.30, a 92 m bridge and its wooded valley) and Lime Creek (3.60), each signed at its bridge;
+  - Mid-Prairie High School (6.0, below);
+  - Wellman's city limit (pop 1,524) at mile 5.69, then its avenues, 1st to 8th.
   - It's all Washington County: two deputies (Highway 1 has four, over twice the miles), no county line to drag them over.
   - Par for the time bonus is 6:40 (Highway 1's 15:00, the same pace per mile).
 - **Built:**
