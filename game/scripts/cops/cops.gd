@@ -79,7 +79,9 @@ func reset(seed_value: int) -> void:
 		for c in route.crossroads:
 			var s: float = c.station + PARK_PAST
 			var in_county: bool = county_at(s) == county and absf(s - county_line) > 150.0
-			if c.kind == "road" and in_county and s > route.start_station + 150.0 and s < route.finish_station - 400.0:
+			var by_bridge := not route.deck_at(s, RouteData.RAIL_APPROACH_M + 15.0).is_empty()
+			if c.kind == "road" and in_county and not by_bridge and s > route.start_station + 150.0 \
+					and s < route.finish_station - 400.0:
 				spots.append(s)
 		var count: int = traps_per_county[county]
 		for i in count:

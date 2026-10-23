@@ -195,7 +195,10 @@ func _yaw_at(station: float) -> float:
 	return atan2(-t.x, -t.z)
 
 
+## Too near a crossroad (or on a bridge, or along its guardrails) for a mailbox or a fence.
 func _near_crossroad(station: float) -> bool:
+	if not route.deck_at(station, RouteData.RAIL_APPROACH_M + 5.0).is_empty():
+		return true
 	for c in route.crossroads:
 		if absf(c.station - station) < CROSSROAD_CLEARANCE:
 			return true

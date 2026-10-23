@@ -255,9 +255,30 @@ def in_towns(route: dict) -> np.ndarray:
     return out
 
 
+def along_streams(route: dict) -> np.ndarray:
+    """Per terrain tile vertex: within STREAM_YARD_M of a named creek or river (the
+    route's places.json "streams"), where the banks are grass and trees, not crops."""
+    t = route["terrain"]
+    size, grid = t["tile_size_m"], t["grid"]
+    out = np.zeros((len(t["tiles"]), grid, grid), dtype=bool)
+    path = config.OUT_DIR / "places.json"
+    streams = json.loads(path.read_text()).get("streams", []) if path.exists() else []
+    if not streams:
+        return out
+    banks = shapely.union_all([shapely.LineString(np.reshape(s["points"], (-1, 2))) for s in streams]).buffer(
+        config.STREAM_YARD_M)
+    shapely.prepare(banks)
+    local = np.arange(grid) * (size / (grid - 1))
+    lx, lz = np.meshgrid(local, local)
+    for k, (a, b, _) in enumerate(t["tiles"]):
+        out[k] = shapely.contains_xy(banks, a * size + lx, b * size + lz)
+    return out
+
+
 def write_yards(route: dict, structures: list[dict]) -> None:
     yards = yard_distances(route, structures + landmark_footprints())
     yards[in_towns(route)] = 0  # all lawns in town: no crops
+    yards[along_streams(route)] = 0  # nor on the creeks' banks
 
     yards.tofile(config.OUT_DIR / "yard_dist.bin")
     print(f"yards: {(yards < 30).sum()} terrain vertices within 30 m of a building")

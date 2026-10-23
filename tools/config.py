@@ -137,7 +137,10 @@ SPACING_M = 2.0                # route sample spacing; station = index * spacing
 PLAN_SMOOTH_SIGMA_M = 10.0     # rounds off the kinks at source vertices
 PROFILE_SMOOTH_SIGMA_M = 15.0  # vertical smoothing of the road surface
 DIP_FILL_WINDOW_M = 120.0      # bare-earth DEM has no bridges; fill dips narrower than this
-BRIDGE_MIN_FILL_M = 1.0        # a fill deeper than this counts as a bridge
+BRIDGE_MIN_FILL_M = 1.0        # a fill deeper than this counts as a bridge (or a culvert)...
+RAILED_BRIDGE_M = 3.0          # ...one standing this high is a real bridge: a deck and guardrails,
+                               # and open underneath (the creek shows) unless a road runs under it
+STREAM_YARD_M = 25.0           # no crops this close to a named creek or river: grass on its banks
 JUNCTION_TOL_M = 4.0           # a side road ending this close to the route joins it
 JUNCTION_MERGE_M = 30.0        # side-road pieces this close together are one junction
 MIN_NO_PASSING_M = 152.0       # MUTCD: no-passing zones are at least 500 ft long

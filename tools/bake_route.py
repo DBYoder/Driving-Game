@@ -29,6 +29,7 @@ from sources import dem_sampler, read_roads
 
 MILE_M = 1609.344
 MEDIAN_PROBE_M = 60.0  # widest median we look across for the other carriageway
+OPEN_EASE_M = 6.0      # the ground under an open bridge eases from the road bed over this
 
 
 def project_roads(roads):
@@ -106,6 +107,9 @@ def nearest_station(xy: np.ndarray, pt) -> float:
 
 
 def road_profile(xy: np.ndarray, dem):
+    """The road surface's height along the route (dips filled, smoothed), and where it
+    crosses a dip on a fill: [from, to] stations, then the deck's height over the
+    ground at its deepest (see find_bridges)."""
     raw = dem(xy[:, 0], xy[:, 1])
     filled = geo.fill_dips(raw, int(config.DIP_FILL_WINDOW_M / config.SPACING_M))
     profile = geo.gaussian_smooth(filled, config.PROFILE_SMOOTH_SIGMA_M / config.SPACING_M)
@@ -116,7 +120,29 @@ def road_profile(xy: np.ndarray, dem):
         else:
             bridges.append([i0 * config.SPACING_M, i1 * config.SPACING_M])
     bridges = [b for b in bridges if b[1] - b[0] >= 6]
+    for b in bridges:
+        i0, i1 = int(round(b[0] / config.SPACING_M)), int(round(b[1] / config.SPACING_M))
+        b.append(round(float((profile[i0:i1 + 1] - raw[i0:i1 + 1]).max()), 1))
     return profile, bridges
+
+
+def find_bridges(bridges, xy, roads):
+    """Which of the filled dips are real bridges, and which of those are open underneath.
+
+    Each becomes [from, to, height, open]: `height` is the deck over the ground at the
+    deepest point; at RAILED_BRIDGE_M or more it's a bridge (deck and guardrails), a lower
+    one a culvert under the fill. A bridge is `open` (1) when a creek, not a road, runs
+    under it: the terrain under it is left at the real ground, not filled up to the road
+    (US 218 runs under IA 1, and the game doesn't draw it, so that one stays filled)."""
+    others = [shapely.LineString(ln) for r in roads if config.ROUTE_STATE not in r.state_routes for ln in r.lines]
+    tree = shapely.STRtree(others) if others else None
+    out = []
+    for b0, b1, height in bridges:
+        i0, i1 = int(round(b0 / config.SPACING_M)), int(round(b1 / config.SPACING_M))
+        span = shapely.LineString(xy[i0:i1 + 1])
+        under_road = tree is not None and any(span.intersects(others[k]) for k in tree.query(span))
+        out.append([b0, b1, height, int(height >= config.RAILED_BRIDGE_M and not under_road)])
+    return out
 
 
 def route_label(r) -> str:
@@ -209,8 +235,10 @@ def find_junctions(roads, raw_line: shapely.LineString, all_hwy: shapely.MultiLi
                                       and any(abs(j["station"] - s) < 80 for s in named_hwy))]
 
 
-def bake_terrain(xy, profile, dem, origin):
-    """Heightmap tiles covering the corridor, with the road bed and ditches carved in."""
+def bake_terrain(xy, profile, dem, origin, bridges=()):
+    """Heightmap tiles covering the corridor, with the road bed and ditches carved in,
+    except under the open bridges: there the ground stays where it really is (the creek
+    and its banks), easing back to the road bed over the first meters of each end."""
     e0, n0, h0 = origin
     size, grid = config.TILE_SIZE_M, config.TILE_GRID
     step = size / (grid - 1)
@@ -230,6 +258,13 @@ def bake_terrain(xy, profile, dem, origin):
 
     local = np.arange(grid) * step
     lx, lz = np.meshgrid(local, local)  # row = z, col = x
+    # Per route sample: how far into an open bridge it is (0 outside), as a 0..1 weight.
+    opening = np.zeros(len(xy))
+    stations = np.arange(len(xy)) * config.SPACING_M
+    for b0, b1, _, is_open in bridges:
+        if is_open:
+            inside = np.minimum(stations - b0, b1 - stations)
+            opening = np.maximum(opening, smoothstep(0.0, OPEN_EASE_M, inside))
     heights = np.empty((len(cands), grid, grid), dtype=np.float32)
     road_dist = np.empty((len(cands), grid, grid), dtype=np.uint8)
     road_y = profile - h0
@@ -237,7 +272,9 @@ def bake_terrain(xy, profile, dem, origin):
         x, z = a * size + lx, b * size + lz
         natural = dem(e0 + x.ravel(), n0 - z.ravel()) - h0
         d, i = tree.query(np.column_stack([x.ravel(), z.ravel()]))
-        heights[t] = carve(natural, road_y[i], d).reshape(grid, grid)
+        carved = carve(natural, road_y[i], d)
+        carved = carved + (np.minimum(natural, carved) - carved) * opening[i]
+        heights[t] = carved.reshape(grid, grid)
         road_dist[t] = np.clip(np.round(d), 0, 255).reshape(grid, grid)
 
     tiles = [[int(a), int(b), round(float(k * config.SPACING_M), 1)] for (a, b), k in zip(cands, near)]
@@ -324,7 +361,8 @@ def main():
 
     junctions = find_junctions(roads, raw_line, hwy, xy)
     no_pass = passing_zones(xy, profile, start_s, finish_s)
-    tiles, heights, road_dist = bake_terrain(xy, profile, dem, origin)
+    bridges = find_bridges(bridges, xy, roads)
+    tiles, heights, road_dist = bake_terrain(xy, profile, dem, origin, bridges)
     far = config.HORIZON_REACH_M + config.HORIZON_STEP_M * (config.HORIZON_CHUNK + 2)
     far_dem = dem_sampler(xy[:, 0].min() - far, xy[:, 1].min() - far, xy[:, 0].max() + far,
                           xy[:, 1].max() + far, res=config.HORIZON_DEM_RES_M, decimate=2)
@@ -386,7 +424,8 @@ def main():
         print(f"no-passing {direction}: {len(zs)} zones, {share:.0%} of the road")
     print(f"bridges (dips filled): {len(bridges)}")
     for b in bridges:
-        print(f"  mile {(b[0] - start_s) / MILE_M:5.2f}  {b[1] - b[0]:.0f} m")
+        kind = ("open bridge" if b[3] else "bridge over a road") if b[2] >= config.RAILED_BRIDGE_M else "culvert"
+        print(f"  mile {(b[0] - start_s) / MILE_M:5.2f}  {b[1] - b[0]:3.0f} m  {b[2]:4.1f} m up  {kind}")
     print(f"crossroads: {len(route['crossroads'])}, driveways: {len(route['driveways'])}")
     for j in route["crossroads"]:
         print(f"  mile {(j['station'] - start_s) / MILE_M:5.2f}  {j['side']:5}  {j['kind']:7}  {j['name']}")

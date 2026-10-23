@@ -308,8 +308,7 @@ func _boost_tick() -> void:
 ## set to freeze in the lane; start 900 m back at the usual 70 mph.
 func _set_up_deer_run() -> void:
 	var deer: Deer = get_parent().deer
-	var bridge: Array = car.route.bridges[0]
-	_deer_station = (float(bridge[0]) + float(bridge[1])) / 2.0
+	_deer_station = Bridges.deer_station(car.route, car.route.bridges[0])
 	deer.spots.clear()
 	deer.add_spot(_deer_station, 1.0, 3, true)
 	get_parent()._spawn(_deer_station - 900.0)

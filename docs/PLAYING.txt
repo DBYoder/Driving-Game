@@ -164,7 +164,8 @@ WHAT'S IN THIS BUILD
 --------------------
 v0.8: a second route. On the garage's top line (the route), press Left or Right to
 pick Highway 22: from the same 4-way stop in Kalona, 7 miles west over the English River
-to downtown Wellman. It has its own records. Highway 1 is still there too.
+to downtown Wellman. It has its own records. Highway 1 is still there too. Both now have
+real bridges over their creeks, guardrails and all (they're solid).
 
 v0.7.2: sit behind the wheel. Press C (or Y) once for the in-car view: a dash with a
 working speedometer, tachometer, fuel and temperature gauges, odometer and trip meter,

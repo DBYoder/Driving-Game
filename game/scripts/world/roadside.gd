@@ -145,13 +145,16 @@ func _add_marker(station: float, mile: int, face: Material, post: Material) -> v
 
 
 func _place(station: float, offset: float) -> Node3D:
+	var deck := route.deck_at(station)
+	if not deck.is_empty():  # not out over the river: past the bridge
+		station = float(deck[1]) + RouteData.RAIL_APPROACH_M + 10.0
 	var holder := Node3D.new()
 	add_child(holder)
 	var pos := route.position_at(station) + route.right_at(station) * offset
 	pos.y = route.position_at(station).y - 0.1
 	holder.position = pos
 	# Face the approaching (northbound) driver: +Z of the holder points back down the road.
-	holder.look_at(pos + route.tangent_at(station), Vector3.UP)
+	holder.basis = Basis.looking_at(route.tangent_at(station), Vector3.UP)
 	return holder
 
 

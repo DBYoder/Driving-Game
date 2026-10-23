@@ -8,6 +8,8 @@ extends RefCounted
 ## World axes: x = east, y = up, z = south (so driving north is -z).
 
 const MILE_M := 1609.344
+const RAILED_BRIDGE_M := 3.0  ## a bridge standing this high has a deck and guardrails (tools/config.py)
+const RAIL_APPROACH_M := 25.0  ## the guardrails run on this far past each end of the deck
 
 var id := Routes.DEFAULT  ## the route's folder name (one of Routes.IDS)
 var info: Dictionary  ## what the game knows about it besides the data (Routes.INFO)
@@ -18,7 +20,12 @@ var start_station: float
 var finish_station: float
 var points := PackedVector3Array()
 var crossroads: Array = []  ## Dictionaries: station, name, route, kind, side
-var bridges: Array = []  ## [from_station, to_station] pairs
+## Where the road crosses a dip on a fill: [from, to, height, open]. `height` is the deck
+## over the ground at the deepest; from RAILED_BRIDGE_M up it's a real bridge (decks),
+## lower a culvert. `open` (1): a creek runs under it and the ground there is the real
+## ground; 0: a road does (US 218 under IA 1), and the fill's left in.
+var bridges: Array = []
+var decks: Array = []  ## the real bridges (bridges at least RAILED_BRIDGE_M up)
 var terrain: TerrainTiles
 var horizon: HorizonTerrain
 ## Real buildings from the lidar (tools/bake_lidar.py): Dictionaries with x, z, length,
@@ -55,6 +62,7 @@ static func load_from(dir: String) -> RouteData:
 	r.finish_station = d.finish_station
 	r.crossroads = d.crossroads
 	r.bridges = d.bridges
+	r.decks = r.bridges.filter(func(b: Array) -> bool: return b.size() >= 4 and float(b[2]) >= RAILED_BRIDGE_M)
 
 	var flat: Array = d.points
 	r.points.resize(flat.size() / 3)
@@ -86,6 +94,14 @@ static func load_from(dir: String) -> RouteData:
 		r.landmarks = landmarks.landmarks
 		r._clear_for_landmarks()
 	return r
+
+
+## The real bridge whose deck `station` is on (with `margin` m more at each end), or [].
+func deck_at(station: float, margin := 0.0) -> Array:
+	for b: Array in decks:
+		if station >= float(b[0]) - margin and station <= float(b[1]) + margin:
+			return b
+	return []
 
 
 ## Is (x, z) where a landmark stands (inside one of its `clear` rectangles)?

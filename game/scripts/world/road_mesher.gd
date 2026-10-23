@@ -3,7 +3,8 @@ extends RefCounted
 ## Builds the road surface along the route, one chunk of samples at a time.
 ## Paint and surface colors come from road.gdshader using UV.x = meters from centerline,
 ## so stripes stay crisp at any distance with no extra geometry. UV.y is the station
-## (for dashes) and UV2 says which way passing is allowed.
+## (for dashes), UV2 says which way passing is allowed, and COLOR.r is 1 on a bridge's
+## deck (concrete shoulders, square edges, no foreslope: Bridges adds the rails).
 
 const CHUNK_SAMPLES := 128
 const LANE_WIDTH := 3.66  ## 12 ft
@@ -26,6 +27,21 @@ const SECTION := [
 	[GRAVEL_HALF_WIDTH, -0.08],
 	[DITCH_EDGE, -1.1],
 	[DITCH_EDGE + 0.3, -1.5],
+]
+
+
+const DECK_HALF_WIDTH := 7.2
+## A bridge's cross-section: the same road, then the deck's square concrete edges.
+const DECK_SECTION := [
+	[-DECK_HALF_WIDTH, -1.2],
+	[-DECK_HALF_WIDTH, -0.1],
+	[-GRAVEL_HALF_WIDTH, -0.08],
+	[-PAVED_HALF_WIDTH, 0.0],
+	[0.0, 0.04],
+	[PAVED_HALF_WIDTH, 0.0],
+	[GRAVEL_HALF_WIDTH, -0.08],
+	[DECK_HALF_WIDTH, -0.1],
+	[DECK_HALF_WIDTH, -1.2],
 ]
 
 
@@ -67,16 +83,19 @@ func build_chunk(c: int, step := 1) -> ArrayMesh:
 	var verts := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var lines := PackedVector2Array()  ## UV2: solid center line for (northbound, southbound)
+	var decks := PackedColorArray()  ## COLOR.r: on a bridge
 	var indices := PackedInt32Array()
 	for i in rows:
 		var station := i * route.spacing
 		var center := route.points[i]
 		var right := route.right_at(station)
 		var solid := Vector2(float(route.no_passing(station, 1.0)), float(route.no_passing(station, -1.0)))
-		for s in SECTION:
+		var on_deck := not route.deck_at(station).is_empty()
+		for s in (DECK_SECTION if on_deck else SECTION):
 			verts.append(center + right * s[0] + Vector3.UP * s[1])
 			uvs.append(Vector2(s[0], station))
 			lines.append(solid)
+			decks.append(Color(1, 0, 0) if on_deck else Color(0, 0, 0))
 	for row in rows.size() - 1:
 		for col in cols - 1:
 			var a := row * cols + col
@@ -91,6 +110,7 @@ func build_chunk(c: int, step := 1) -> ArrayMesh:
 	arrays[Mesh.ARRAY_VERTEX] = verts
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_TEX_UV2] = lines
+	arrays[Mesh.ARRAY_COLOR] = decks
 	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)

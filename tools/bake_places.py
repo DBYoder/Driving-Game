@@ -2,7 +2,8 @@
 
     python tools/bake_places.py [--route=<id>]      (after bake_route.py)
 
-Writes game/data/routes/<id>/places.json: where the route crosses each named creek (USGS National
+Writes game/data/routes/<id>/places.json: the named creeks' courses near the road
+("streams", game x/z polylines: their banks are grass, not crops), where the route crosses each named creek (USGS National
 Hydrography Dataset), enters and leaves each city (with its population) and crosses
 the county line (USGS Governmental Units), as stations along the route; and the city
 limits near the road ("towns", game x/z outlines), where there are lawns, not crops.
@@ -129,6 +130,8 @@ def main():
     lon0, lat0, lon1, lat1 = config.ROAD_BBOX
 
     creeks = []
+    streams = []
+    near_road = route.buffer(config.CORRIDOR_HALF_WIDTH_M)
     for hu in config.NHD_HU8:
         gpkg = cached_gpkg(NHD_URL.format(hu), "nhd")
         meta, _, geoms, fields = pyogrio.raw.read(gpkg, layer="NHDFlowline", bbox=(lon0, lat0, lon1, lat1),
@@ -139,6 +142,11 @@ def main():
             line = to_utm_geom(shapely.force_2d(shapely.from_wkb(wkb)))
             for s in crossings(route, line):
                 creeks.append({"station": round(float(s), 1), "name": str(name)})
+            near = line.intersection(near_road).simplify(4.0)
+            for part in getattr(near, "geoms", [near]):
+                if part.geom_type == "LineString" and part.length > 20.0:
+                    streams.append({"name": str(name), "points": [round(float(v), 1) for e, n in part.coords
+                                                                  for v in (e - o["easting"], o["northing"] - n)]})
     creeks = merge_close(creeks, "name", 200.0)
 
     govt = cached_gpkg(GOVT_URL, "govt")
@@ -177,6 +185,7 @@ def main():
             "USGS National Boundary Dataset (Governmental Units), public domain",
         ],
         "creeks": creeks,
+        "streams": streams,
         "cities": cities,
         "counties": counties,
         "towns": towns,

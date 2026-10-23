@@ -123,7 +123,7 @@ func reset(seed_value: int) -> void:
 	var candidates: Array[float] = []
 	for b: Array in route.bridges:
 		if _rng.randf() < minf(CREEK_CHANCE * rate, 1.0):
-			candidates.append((float(b[0]) + float(b[1])) / 2.0)
+			candidates.append(Bridges.deer_station(route, b))
 	for i in roundi(RANDOM_SPOTS * rate * rate):
 		candidates.append(_rng.randf_range(route.start_station + 600.0, route.finish_station - 400.0))
 	for s in candidates:

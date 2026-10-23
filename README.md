@@ -31,7 +31,9 @@ new Route line. It starts at the same 4-way stop, from the other side, and runs 
 west over Ramsey Creek, the English River and Lime Creek into downtown Wellman, where 8th
 Ave stops for you at the finish. Its 2,066 real buildings and 72,000 trees are from the
 lidar like Highway 1's; it's all Washington County (two deputies, no county line to run
-for), and it keeps its own records. Highway 1 also gains its missing Old Mans Creek sign.
+for), and it keeps its own records. Both routes now have real bridges where they cross a
+creek or river: a concrete deck, guardrails, striped end markers and the water underneath.
+Highway 1 also gains its missing Old Mans Creek sign.
 
 **v0.7.2:** an in-car view with a working dash (speedometer, tachometer, fuel, temperature, odometer, warning lights, the radio's clock): press C or Y. And no more tires poking through the bodywork: every car has wheel arches now, and a test throws each one through every pose to make sure.
 
