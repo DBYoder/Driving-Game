@@ -8,6 +8,7 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 **Play it:** grab `HighwayOne-windows.zip` from the
 [latest release](https://github.com/DBYoder/Driving-Game/releases/latest), unzip, run
 `HighwayOne.exe`. (Windows will warn about an unknown publisher: *More info → Run anyway*.)
+Or play it in a browser, with a shared leaderboard: see [docs/WEB.md](docs/WEB.md).
 
 | | |
 |---|---|
@@ -28,6 +29,13 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 | ![A Johnson County deputy on a Windstar's tail](docs/screenshots/speed-trap-chase.png) | ![Deer crossing near the creek at mile 4](docs/screenshots/deer-crossing.png) |
 
 ## Status
+
+**v0.9: in a browser, with a shared leaderboard.** The game runs in a browser too, from a
+small server on Railway that anyone with the address can open. It keeps the top ten
+times and the top ten scores on each route from everyone's runs: after your first run
+it asks your name, the results say where you placed, and the title screen has the
+Leaderboard. (No radio in the browser.) Every merge to `main` redeploys it. How it's
+set up: [docs/WEB.md](docs/WEB.md).
 
 **v0.8: a second route, Highway 22 from Kalona to Wellman.** Pick it on the garage's
 new Route line. It starts in the same 4-way stop, pointed west straight out of it, and
@@ -115,9 +123,10 @@ game/                  Godot 4.6.3 project (GL Compatibility renderer)
   scripts/autoload/    the controls and the player's settings
   shaders/             flat-shaded terrain, road and street paint, the corn canopy, the sky
   tests/               headless GDScript tests
+server/                the web server: the game in a browser and the shared leaderboard (docs/WEB.md)
 tools/                 Python pipeline that bakes the road, streets, buildings, trees and names from USGS data
 docs/                  route previews, screenshots, the README that ships in the zip
-.github/workflows/     CI: tests, Windows/Linux export, screenshots, releases
+.github/workflows/     CI: tests, Windows/Linux/web export, screenshots, releases, the web deploy
 ```
 
 ## Developing
@@ -172,7 +181,10 @@ python tools/bake_route.py --route=highway22   # (and the same for the others): 
 python -m pytest tools/tests
 ```
 
-Pushes to `main` build a Windows zip and publish it as a GitHub release.
+**Web server:** see [docs/WEB.md](docs/WEB.md) (`python -m pytest server/tests`).
+
+Pushes to `main` build a Windows zip and publish it as a GitHub release, and push the
+web build to the `web` branch, which Railway serves.
 
 ## Data credits
 

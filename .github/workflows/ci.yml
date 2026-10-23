@@ -28,6 +28,20 @@ jobs:
       - run: pip install -r tools/requirements.txt
       - run: python -m pytest tools/tests -q
 
+  server:
+    name: Web server tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/requirements-dev.txt
+      - run: pip install -r server/requirements-dev.txt
+      - run: python -m pytest server/tests -q
+
   game:
     name: Test and export game
     runs-on: ubuntu-latest
@@ -42,7 +56,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/godot
-          key: godot-${{ env.GODOT_VERSION }}-v1
+          key: godot-${{ env.GODOT_VERSION }}-v2
 
       - name: Download Godot and export templates
         if: steps.godot-cache.outputs.cache-hit != 'true'
@@ -53,7 +67,7 @@ jobs:
           unzip -q godot.zip && mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot && rm godot.zip
           curl -fsSL -o templates.tpz "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
           unzip -q -j templates.tpz templates/version.txt templates/windows_release_x86_64.exe \
-            templates/linux_release.x86_64 -d templates
+            templates/linux_release.x86_64 templates/web_release.zip -d templates
           rm templates.tpz
 
       - name: Install Godot
@@ -76,6 +90,27 @@ jobs:
           timeout 300 godot --headless --path game --export-release "Windows Desktop" ../build/windows/HighwayOne.exe
           timeout 300 godot --headless --path game --export-release "Linux" ../build/linux/HighwayOne.x86_64
           test -s build/windows/HighwayOne.exe
+
+      # The browser version: the server (server/) with the web build in its public/. The
+      # deploy job below pushes it to the `web` branch, which Railway builds and runs.
+      - name: Export the web build
+        run: |
+          mkdir -p build/web
+          timeout 300 godot --headless --path game --export-release "Web" ../build/web/index.html
+          test -s build/web/index.wasm && test -s build/web/index.pck
+          mkdir -p build/site
+          cp server/app.py server/requirements.txt server/Dockerfile build/site/
+          cp -r build/web build/site/public
+          printf '%s\n' "# Highway 1 on the web" "" \
+            "Built by CI from main (${{ github.sha }}): the server from server/ and the game's web" \
+            "build in public/. Railway runs it. Don't edit this branch; see docs/WEB.md on main." \
+            > build/site/README.md
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: web-site
+          path: build/site
+          retention-days: 3
 
       - name: Smoke-test the exported build
         run: |
@@ -204,10 +239,50 @@ jobs:
           path: build/screenshots
 
 
+  web:
+    name: Web site (and deploy from main)
+    needs: [tools, server, game]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: web-site
+          path: site
+
+      # Build the image Railway will build, run it, and check the game and the leaderboard.
+      - name: Smoke-test the server image
+        run: |
+          docker build -q -t highway-web site
+          docker run -d --name web -p 8080:8080 -e PORT=8080 highway-web
+          for i in $(seq 1 30); do curl -fsS localhost:8080/api/health && break; sleep 1; done
+          curl -fsS -D headers.txt -o /dev/null -H "Accept-Encoding: gzip" localhost:8080/index.wasm
+          grep -qi "^cross-origin-embedder-policy: require-corp" headers.txt
+          grep -qi "^content-encoding: gzip" headers.txt
+          curl -fsS -o index.html localhost:8080/ && grep -q "<canvas" index.html
+          curl -fsS -X POST localhost:8080/api/runs -H "Content-Type: application/json" \
+            -d '{"route":"highway1","name":"CI","points":100,"seconds":900,"car":"tercel","condition":"summer","version":"ci"}'
+          curl -fsS -o board.json "localhost:8080/api/leaderboard?route=highway1" && grep -q '"name":"CI"' board.json
+          docker rm -f web
+
+      # A fresh one-commit branch each time, so old builds don't pile up in the repo.
+      - name: Deploy (push the site to the web branch)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          cd site
+          git init -q -b web
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Web build ${{ github.run_number }} from ${{ github.sha }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" web
+
   release:
     name: Publish release
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [tools, game]
+    needs: [tools, server, game]
     runs-on: ubuntu-latest
     permissions:
       contents: write

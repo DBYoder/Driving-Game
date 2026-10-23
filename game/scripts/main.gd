@@ -90,6 +90,7 @@ var _driver: Object
 var _demo: Autopilot  ## drives the title screen's car
 var _demo_wait := 0.0
 var _practice := false  ## the garage was opened for a practice run
+var _pending_run := {}  ## the run on its way to the leaderboard
 var _default_spawn := 0.0  ## where a run starts (just behind the Kalona line, or --station)
 var _testing := false
 var _spawn_station := 0.0
@@ -176,6 +177,8 @@ func _ready() -> void:
 	run.setup(car, tracker)
 	run.score.par_seconds = route.info.par_seconds
 	run.wrecked.connect(_on_wrecked)
+	run.finished.connect(_on_run_over)
+	run.wrecked.connect(func(_reason: String): _on_run_over())
 	var feel := CarFeel.new()
 	add_child(feel)
 	feel.setup(car, run)
@@ -232,6 +235,8 @@ func _ready() -> void:
 	hud = Hud.new()
 	add_child(hud)
 	hud.setup(route, car, run, camera)
+	hud.name_entered.connect(_on_name_entered)
+	Leaderboard.posted.connect(_on_posted)
 	hud.cops = cops
 	hud.deer = deer
 	radio.now_playing.connect(func(title: String):
@@ -390,6 +395,45 @@ func _unhandled_input(event: InputEvent) -> void:
 func restart() -> void:
 	_reset_world()
 	car.driver = _driver
+	_pending_run = {}
+	hud.clear_leaderboard()
+
+
+## A run ended (finished or wrecked): onto the shared leaderboard, if there is one, under
+## the player's name (asked for the first time). Only whole runs from Kalona count: not
+## practice, and not a run started down the road with --station.
+func _on_run_over() -> void:
+	var from_kalona := is_equal_approx(_spawn_station, route.start_station - SPAWN_BEHIND_START)
+	if _testing or tracker.practice or not from_kalona or not Leaderboard.enabled():
+		return
+	var seconds := tracker.elapsed if tracker.state == RunTracker.State.FINISHED else 0.0
+	_pending_run = Leaderboard.run_body(Routes.current, Settings.player_name, run.score.banked, seconds,
+		car.stats.id, condition.id, Menus.VERSION)
+	if Settings.player_name.is_empty():
+		hud.ask_name()
+	else:
+		_send_run()
+
+
+func _on_name_entered(text: String) -> void:
+	var player := Leaderboard.tidy_name(text)
+	if player.is_empty() or _pending_run.is_empty():
+		return
+	Settings.player_name = player
+	Settings.save()
+	_pending_run.name = player
+	_send_run()
+
+
+func _send_run() -> void:
+	hud.set_leaderboard("Sending...")
+	Leaderboard.post_run(_pending_run)
+
+
+func _on_posted(result: Dictionary) -> void:
+	if not _pending_run.is_empty():
+		hud.set_leaderboard(Leaderboard.placing(result, String(route.info.title).capitalize()))
+		_pending_run = {}
 
 
 func _reset_world() -> void:

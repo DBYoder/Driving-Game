@@ -10,7 +10,7 @@ signal garage
 signal to_title
 signal quit
 
-const VERSION := "v0.8"
+const VERSION := "v0.9"
 const SETTINGS := [["preset", "Graphics"], ["render_scale", "Resolution"], ["scenery", "Scenery"],
 	["fullscreen", "Display"], ["master_volume", "Volume"], ["effects_volume", "Car and effects"],
 	["radio_volume", "Radio"], ["rumble", "Controller rumble"]]
@@ -19,6 +19,7 @@ var title: Menu
 var pause: Menu
 var settings: Menu
 var records: Menu
+var leaderboard: Menu  ## the shared top tens (when there's a leaderboard)
 var records_path := ""  ## where the records are kept ("" in tests: none)
 var _back_to: Menu  ## where the settings and records go back to
 
@@ -29,8 +30,12 @@ func setup(path: String) -> void:
 
 	var route := Routes.info()
 	title = _menu(route.title, "%s → %s" % [route.from, route.to], "left", 64, 6)
-	for b: Array in [["drive", "Drive"], ["practice", "Practice"], ["records", "Records"], ["settings", "Settings"], ["quit", "Quit"]]:
-		title.add_button(b[0], b[1])
+	var web := OS.has_feature("web")  # in a browser: no quitting (close the tab), no radio
+	var shared := Leaderboard.enabled()
+	for b: Array in [["drive", "Drive"], ["practice", "Practice"], ["records", "Records"], ["leaderboard", "Leaderboard"],
+			["settings", "Settings"], ["quit", "Quit"]]:
+		if not (web and b[0] == "quit") and not (not shared and b[0] == "leaderboard"):
+			title.add_button(b[0], b[1])
 	title.set_footer("▲ ▼ choose     Enter / A: OK          %s" % VERSION)
 	title.chosen.connect(_on_title)
 	title.closed.connect(func(): title.open(title.items.size() - 1))  # Esc: over to Quit
@@ -38,13 +43,17 @@ func setup(path: String) -> void:
 	pause = _menu("PAUSED", "", "center", 44, 6)
 	for b: Array in [["resume", "Resume"], ["restart", "Restart the run"], ["garage", "Change car"],
 			["settings", "Settings"], ["title", "Quit to the title screen"], ["quit", "Quit the game"]]:
-		pause.add_button(b[0], b[1])
+		if not (web and b[0] == "quit"):
+			pause.add_button(b[0], b[1])
 	pause.chosen.connect(_on_pause)
 	pause.closed.connect(func(): resume.emit())
 
 	settings = _menu("SETTINGS", "Saved as you change them", "center", 40, 8)
 	for s: Array in SETTINGS:
-		settings.add_option(s[0], s[1], Settings.describe(s[0]))
+		if not (web and s[0] == "radio_volume"):
+			settings.add_option(s[0], s[1], Settings.describe(s[0]))
+	if shared:
+		settings.add_option("player_name", "Leaderboard name", Settings.describe("player_name"))
 	settings.add_button("back", "Back")
 	settings.set_footer("▲ ▼ choose     ◀ ▶ change     Esc / B: back")
 	settings.adjusted.connect(func(id: String, direction: int):
@@ -59,13 +68,20 @@ func setup(path: String) -> void:
 	records.chosen.connect(func(_id): _close(records))
 	records.closed.connect(func(): _close(records))
 
+	leaderboard = _menu("LEADERBOARD", "%s: the top ten, from everyone's runs" % route.title.capitalize(), "center", 40, 8)
+	leaderboard.add_button("back", "Back")
+	leaderboard.set_footer("Esc / B: back")
+	leaderboard.chosen.connect(func(_id): _close(leaderboard))
+	leaderboard.closed.connect(func(): _close(leaderboard))
+	Leaderboard.fetched.connect(_on_fetched)
+
 
 func any_open() -> bool:
-	return title.visible or pause.visible or settings.visible or records.visible
+	return title.visible or pause.visible or settings.visible or records.visible or leaderboard.visible
 
 
 func close_all() -> void:
-	for m: Menu in [title, pause, settings, records]:
+	for m: Menu in [title, pause, settings, records, leaderboard]:
 		m.close()
 
 
@@ -83,6 +99,49 @@ func open_records(from: Menu) -> void:
 	records.open()
 
 
+func open_leaderboard(from: Menu) -> void:
+	_back_to = from
+	from.close()
+	leaderboard.set_body(CarSelect._label("Loading...", 22, Menu.DIM))
+	leaderboard.open()
+	Leaderboard.fetch(Routes.current)
+
+
+func _on_fetched(route_id: String, board: Dictionary) -> void:
+	if leaderboard.visible and route_id == Routes.current:
+		leaderboard.set_body(leaderboard_table(board))
+
+
+## The top ten times and the top ten scores, side by side.
+static func leaderboard_table(board: Dictionary) -> Control:
+	if not board.get("ok", false):
+		return CarSelect._label("Couldn't reach the leaderboard (%s)" % board.get("error", "?"), 22, Menu.DIM)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 70)
+	for side: Array in [["FASTEST", "times"], ["BEST SCORES", "points"]]:
+		var column := VBoxContainer.new()
+		column.add_child(CarSelect._label(side[0], 20, Menu.GOLD))
+		var grid := GridContainer.new()
+		grid.columns = 4
+		grid.add_theme_constant_override("h_separation", 22)
+		grid.add_theme_constant_override("v_separation", 6)
+		var entries: Array = board.get(side[1], [])
+		for i in entries.size():
+			var e: Dictionary = entries[i]
+			var car_id := String(e.get("car", ""))
+			var car_name := CarStats.preset(car_id).display_name.substr(5) if car_id in CarStats.CARS else car_id
+			var value := RunTracker.format_time(float(e.seconds)) if side[1] == "times" else Hud._fmt(int(e.points))
+			for text: String in ["%d." % (i + 1), String(e.get("name", "")), value, car_name]:
+				var label := CarSelect._label(text, 18, Color.WHITE if text != car_name else Menu.DIM)
+				label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+				grid.add_child(label)
+		if entries.is_empty():
+			column.add_child(CarSelect._label("No runs yet: be the first", 18, Menu.DIM))
+		column.add_child(grid)
+		row.add_child(column)
+	return row
+
+
 func _on_title(id: String) -> void:
 	match id:
 		"drive", "practice":
@@ -90,6 +149,8 @@ func _on_title(id: String) -> void:
 			drive.emit(id == "practice")
 		"records":
 			open_records(title)
+		"leaderboard":
+			open_leaderboard(title)
 		"settings":
 			open_settings(title)
 		"quit":
@@ -118,11 +179,12 @@ func _on_pause(id: String) -> void:
 func _close(menu: Menu) -> void:
 	menu.close()
 	if _back_to:
-		_back_to.open(_back_to.items.find_custom(func(it): return it.id == ("settings" if menu == settings else "records")))
+		var id := {settings: "settings", records: "records", leaderboard: "leaderboard"}.get(menu, "records") as String
+		_back_to.open(maxi(_back_to.items.find_custom(func(it): return it.id == id), 0))
 
 
 func _refresh_settings() -> void:
-	for s: Array in SETTINGS:
+	for s: Array in SETTINGS + [["player_name", ""]]:
 		settings.set_value(s[0], Settings.describe(s[0]))
 
 

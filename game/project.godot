@@ -10,10 +10,15 @@ config/description="Iowa Highway 1, Kalona to Iowa City. Chaos encouraged."
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 
+[audio]
+
+general/default_playback_type.web=0
+
 [autoload]
 
 Controls="*res://scripts/autoload/controls.gd"
 Settings="*res://scripts/autoload/settings.gd"
+Leaderboard="*res://scripts/autoload/leaderboard.gd"
 
 [display]
 
@@ -21,6 +26,10 @@ window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+
+[highway]
+
+leaderboard_url=""
 
 [layer_names]
 

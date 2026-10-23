@@ -6,3 +6,6 @@ __pycache__/
 # Godot editor/import cache and local builds
 game/.godot/
 build/
+
+# The web server's local leaderboard (without Postgres)
+leaderboard.db
