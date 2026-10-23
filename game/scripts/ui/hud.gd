@@ -15,6 +15,12 @@ var camera: ChaseCamera
 var cops: Cops
 var condition_name := ""
 var practice := false  ## a practice run: nothing's saved
+## The shared leaderboard on the results: where the run placed ("" = nothing to say), or a
+## box asking for the player's name the first time.
+signal name_entered(text: String)
+var leaderboard_line := ""
+var asking_name := false
+var _name_edit: LineEdit
 var deer: Deer  ## for the run's title (deer honked off the road)
 var _trip: Label
 var _clock: Label
@@ -67,7 +73,8 @@ func setup(r: RouteData, c: Car, game_run: Run, cam: ChaseCamera) -> void:
 	_message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint = _label(15, Control.PRESET_BOTTOM_LEFT, Vector2(24, -16))
 	_hint.text = "W/S or triggers: gas/brake (hold S to reverse)    A/D or stick: steer    Space or A: handbrake    Shift or B: boost\n" \
-		+ "H or RB: horn    C or Y: camera    T or X: tow truck (-500)    R or Back: restart    N / B: radio    Esc or Start: menu"
+		+ "H or RB: horn    C or Y: camera    T or X: tow truck (-500)    R or Back: restart    %sEsc or Start: menu" \
+		% ("" if OS.has_feature("web") else "N / B: radio    ")
 	_note = _label(20, Control.PRESET_BOTTOM_LEFT, Vector2(24, -66))
 	_popups = VBoxContainer.new()
 	add_child(_popups)
@@ -206,7 +213,49 @@ func _fill_results() -> void:
 		_row("Practice runs aren't saved", "")
 	else:
 		_row("Best score", _fmt(tracker.best_score))
+	if asking_name:
+		var ask := Label.new()
+		ask.text = "Your name for the leaderboard"
+		ask.add_theme_font_size_override("font_size", 22)
+		ask.add_theme_color_override("font_color", Menu.GOLD)
+		_results_grid.add_child(ask)
+		_name_edit = LineEdit.new()
+		_name_edit.placeholder_text = "then press Enter"
+		_name_edit.max_length = Leaderboard.NAME_LENGTH
+		_name_edit.custom_minimum_size = Vector2(260, 0)
+		_name_edit.add_theme_font_size_override("font_size", 22)
+		# (Deferred: the answer rebuilds the results, and the box can't be freed while it's
+		# still handling the Enter, or the Enter falls through and opens the garage.)
+		_name_edit.text_submitted.connect(func(text: String): name_entered.emit(text), CONNECT_DEFERRED)
+		_results_grid.add_child(_name_edit)
+		_name_edit.grab_focus.call_deferred()
+	elif leaderboard_line != "":
+		_row("Leaderboard", leaderboard_line, 22, Menu.GOLD)
 	_row("R: run it again", "Enter / LB: change car    Esc: menu", 20)
+
+
+## Ask for a name for the leaderboard on the results.
+func ask_name() -> void:
+	asking_name = true
+	leaderboard_line = ""
+	_refresh_results()
+
+
+## Where the run placed on the leaderboard (or that it's on its way).
+func set_leaderboard(text: String) -> void:
+	asking_name = false
+	leaderboard_line = text
+	_refresh_results()
+
+
+func clear_leaderboard() -> void:
+	asking_name = false
+	leaderboard_line = ""
+
+
+func _refresh_results() -> void:
+	if _results.visible:
+		_fill_results()
 
 
 func _row(left: String, right: String, size := 22, color := Color(1, 1, 1)) -> void:

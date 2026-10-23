@@ -25,6 +25,7 @@ const RENDER_SCALES := [0.5, 0.6, 0.7, 0.75, 0.8, 0.9, 1.0]
 const SCENERY_LEVELS := [1.0, 0.5, 0.0]
 const SCENERY_NAMES := {1.0: "Everything", 0.5: "Half the trees", 0.0: "Off (fastest)"}
 const BUSES := ["Effects", "Radio"]  ## besides Master
+const SYMBOLS := "res://fonts/symbols.ttf"  ## see _add_symbols()
 
 var preset := "medium"
 var render_scale := 1.0
@@ -34,7 +35,12 @@ var master_volume := 1.0
 var effects_volume := 1.0
 var radio_volume := 0.8
 var rumble := true
+var player_name := ""  ## on the shared leaderboard ("": asked after the next run)
 var save_path := ""  ## "" = don't save (tests)
+
+
+func _init() -> void:
+	_add_symbols()
 
 
 func _ready() -> void:
@@ -45,6 +51,16 @@ func _ready() -> void:
 			AudioServer.set_bus_name(i, bus)
 			AudioServer.set_bus_send(i, "Master")
 	_apply_volumes()
+
+
+## The arrows and triangles in the menus and the HUD (→ ▲ ▼ ◀ ▶ ♪) aren't in Godot's own
+## font. A desktop borrows them from the system's fonts, a browser has none to lend:
+## fonts/symbols.ttf has just those, cut from DejaVu Sans Bold.
+func _add_symbols() -> void:
+	var font := ThemeDB.fallback_font
+	var symbols: Font = load(SYMBOLS)
+	if font and symbols and not font.fallbacks.has(symbols):
+		font.fallbacks = font.fallbacks + [symbols]
 
 
 func detail_distance() -> float:
@@ -67,6 +83,7 @@ func reset() -> void:
 	effects_volume = 1.0
 	radio_volume = 0.8
 	rumble = true
+	player_name = ""
 	_apply_volumes()
 
 
@@ -90,6 +107,7 @@ func load_file(path := SAVE_PATH) -> void:
 	effects_volume = clampf(float(cfg.get_value("sound", "effects", effects_volume)), 0.0, 1.0)
 	radio_volume = clampf(float(cfg.get_value("sound", "radio", radio_volume)), 0.0, 1.0)
 	rumble = bool(cfg.get_value("controller", "rumble", true))
+	player_name = str(cfg.get_value("leaderboard", "name", ""))
 	_apply_volumes()
 
 
@@ -105,6 +123,7 @@ func save() -> void:
 	cfg.set_value("sound", "effects", effects_volume)
 	cfg.set_value("sound", "radio", radio_volume)
 	cfg.set_value("controller", "rumble", rumble)
+	cfg.set_value("leaderboard", "name", player_name)
 	cfg.save(save_path)
 
 
@@ -133,6 +152,8 @@ func step(setting: String, direction: int) -> void:
 			set(setting, clampf(snappedf(float(get(setting)) + 0.1 * direction, 0.1), 0.0, 1.0))
 		"rumble":
 			rumble = not rumble
+		"player_name":
+			player_name = ""  # asked again after the next run
 	_changed()
 
 
@@ -151,6 +172,8 @@ func describe(setting: String) -> String:
 			return "%d%%" % roundi(float(get(setting)) * 100.0)
 		"rumble":
 			return "On" if rumble else "Off"
+		"player_name":
+			return player_name + "  (◀ ▶ to change)" if player_name != "" else "Asked after your next run"
 	return ""
 
 

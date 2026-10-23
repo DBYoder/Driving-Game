@@ -2,7 +2,7 @@ class_name Radio
 extends Node
 ## The car radio plays your own music: any .mp3 or .ogg in a radio/ folder next to the
 ## game (PLAN.md §4.7), shuffled. N / D-pad right skips, B / D-pad left turns it off and on.
-## No folder or no songs: it stays quiet.
+## No folder or no songs: it stays quiet. In a browser there's no folder: no radio.
 
 signal now_playing(title: String)
 
@@ -24,6 +24,9 @@ func _ready() -> void:
 	_player.volume_db = VOLUME_DB
 	_player.finished.connect(_next)
 	add_child(_player)
+	if OS.has_feature("web"):
+		on = false
+		return
 	folder = default_folder()
 	songs = find_songs(folder)
 
