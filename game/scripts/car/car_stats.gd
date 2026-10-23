@@ -107,8 +107,8 @@ static func preset(car_id: String) -> CarStats:
 			# A heavy boat: soft and top-heavy, so yank the wheel and it leans way over.
 			s.display_name = "1998 Ford Windstar"
 			s.tagline = "Heavy boat. Leans hard, plows through anything."
-			s.paints = [["Spruce Green", Color(0.10, 0.27, 0.21)], ["Toreador Red", Color(0.45, 0.06, 0.08)],
-				["Prairie Tan", Color(0.70, 0.62, 0.48)], ["Silver Frost", Color(0.66, 0.68, 0.70)]]
+			s.paints = [["Prairie Tan", Color(0.62, 0.56, 0.45)], ["Spruce Green", Color(0.10, 0.27, 0.21)],
+				["Toreador Red", Color(0.45, 0.06, 0.08)], ["Silver Frost", Color(0.66, 0.68, 0.70)]]
 			s.style = "minivan"
 			s.score_multiplier = 1.2
 			s.mass = 1830.0
@@ -139,8 +139,8 @@ static func preset(car_id: String) -> CarStats:
 			# but the engine never dies.
 			s.display_name = "1997 Toyota Tercel"
 			s.tagline = "93 hp of pure willpower. Panels fall off; the engine never dies."
-			s.paints = [["Sunfire Red", Color(0.70, 0.08, 0.10)], ["Super White", Color(0.90, 0.90, 0.88)],
-				["Teal", Color(0.08, 0.38, 0.40)], ["Silver", Color(0.64, 0.65, 0.67)]]
+			s.paints = [["Teal", Color(0.12, 0.45, 0.45)], ["Sunfire Red", Color(0.70, 0.08, 0.10)],
+				["Super White", Color(0.90, 0.90, 0.88)], ["Silver", Color(0.64, 0.65, 0.67)]]
 			s.style = "compact"
 			s.score_multiplier = 1.5
 			s.can_total = false
@@ -170,8 +170,8 @@ static func preset(car_id: String) -> CarStats:
 			# Fast, grippy and smooth: the easy car, so its points count the least.
 			s.display_name = "1993 Acura Legend"
 			s.tagline = "Fastest and grippiest. Smooth. Points count the least."
-			s.paints = [["Milano Red", Color(0.42, 0.04, 0.06)], ["Granada Black", Color(0.06, 0.06, 0.07)],
-				["Cayman Green", Color(0.07, 0.22, 0.16)], ["Frost White", Color(0.88, 0.88, 0.86)]]
+			s.paints = [["Cayman Green", Color(0.27, 0.33, 0.33)], ["Milano Red", Color(0.42, 0.04, 0.06)],
+				["Granada Black", Color(0.06, 0.06, 0.07)], ["Frost White", Color(0.88, 0.88, 0.86)]]
 			s.style = "sedan"
 			s.score_multiplier = 1.0
 			s.mass = 1590.0

@@ -13,6 +13,8 @@ Made for fun with friends; not for sale. The full plan is in [PLAN.md](PLAN.md).
 |---|---|
 | ![Highway 22: the start in Kalona, facing west](docs/screenshots/highway22-kalona-start.png) | ![Highway 22: Wellman, from above](docs/screenshots/highway22-wellman-from-above.png) |
 | ![Mid-Prairie High School from IA 22, a mile from Wellman](docs/screenshots/highway22-mid-prairie.png) | ![Mid-Prairie High School from above: the school, the lots, the sign by the road](docs/screenshots/highway22-mid-prairie-from-above.png) |
+| ![The 1998 Ford Windstar](docs/screenshots/windstar.png) | ![The 1993 Acura Legend](docs/screenshots/legend.png) |
+| ![The 1997 Toyota Tercel](docs/screenshots/tercel.png) | ![A beat-up Tercel: mirrors and bumpers gone](docs/screenshots/tercel-beat-up.png) |
 | ![Behind the wheel of the Legend at harvest dusk: the dash, the gauges, the radio](docs/screenshots/in-car-legend.png) | ![The Windstar's dash at night, its gauges lit](docs/screenshots/in-car-night.png) |
 | ![Stopped at the four-way stop in Kalona, a buggy waiting its turn](docs/screenshots/kalona-4-way-stop.png) | ![The finish: the stop light at Mormon Trek Blvd](docs/screenshots/mormon-trek-finish.png) |
 | ![Kalona from above: streets, houses and lawns](docs/screenshots/kalona-from-above.png) | ![A gravel crossroad and the power line, mile 5.7](docs/screenshots/gravel-crossroad.png) |
@@ -35,6 +37,8 @@ buildings and 72,000 trees are from the lidar like Highway 1's; it's all Washing
 (two deputies, no county line to run for), and it keeps its own records. Both routes now
 have real bridges where they cross a creek or river: a concrete deck, guardrails, striped
 end markers and the water underneath. Highway 1 also gains its missing Old Mans Creek sign.
+And the three cars are rebuilt after photos of the real ones: rounded bodies, flush side
+glass between real pillars, their own lights, grilles, trim and wheels, in the photos' colors.
 
 **v0.7.2:** an in-car view with a working dash (speedometer, tachometer, fuel, temperature, odometer, warning lights, the radio's clock): press C or Y. And no more tires poking through the bodywork: every car has wheel arches now, and a test throws each one through every pose to make sure.
 

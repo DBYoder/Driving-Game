@@ -168,7 +168,10 @@ v0.8: a second route. On the garage's top line (the route), press Left or Right 
 pick Highway 22: from the same 4-way stop in Kalona (you start in the middle of it,
 pointed west), 7 miles over the English River and past Mid-Prairie High School to
 downtown Wellman. It has its own records. Highway 1 is still there too. Both now have
-real bridges over their creeks, guardrails and all (they're solid).
+real bridges over their creeks, guardrails and all (they're solid). And the cars look like
+the real ones now: the Windstar, the Legend and the Tercel rebuilt after photos, with
+proper windows, lights and wheels, in the photos' colors (the old ones are still in the
+garage's paint list).
 
 v0.7.2: sit behind the wheel. Press C (or Y) once for the in-car view: a dash with a
 working speedometer, tachometer, fuel and temperature gauges, odometer and trip meter,

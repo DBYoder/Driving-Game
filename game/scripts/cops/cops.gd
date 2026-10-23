@@ -54,6 +54,8 @@ var _rng := RandomNumberGenerator.new()
 
 
 func setup(r: RouteData, p: Car, game_run: Run, t: Traffic, seed_value: int) -> void:
+	for county: String in ["washington", "johnson"]:  # (their bodies take a while to work out)
+		CarModel.prepare(CarStats.preset("cruiser_" + county))
 	route = r
 	player = p
 	run = game_run

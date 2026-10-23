@@ -171,6 +171,8 @@ jobs:
           shoot garage 175 0 --garage
           shoot practice 175 0 "--garage --practice"
           shoot windstar 175 0 "--car=windstar --orbit --no-traffic"
+          shoot legend 175 0 "--car=legend --orbit --no-traffic"
+          shoot tercel 175 0 "--car=tercel --orbit --no-traffic"
           shoot tercel-beat-up 175 0 "--car=tercel --orbit --damage=0.7 --no-traffic"
           shoot legend-beat-up 175 0 "--car=legend --orbit --damage=0.7 --no-traffic"
           shoot speed-trap-chase 6000 3 "--car=windstar --chase --no-traffic"
