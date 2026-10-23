@@ -45,10 +45,10 @@ CROWN = 0.04  # the middle of a two-lane road stands this much above its edges
 # Past the edge of the pavement, as on the road (RoadMesher.SECTION): the gravel
 # shoulder, the grass foreslope down to the ditch, and a short skirt tucked under it...
 SECTION = [(2.24, -0.08, "gravel"), (5.74, -1.1, "grass"), (6.04, -1.5, "grass")]
-# ...though round the junction itself the grass comes right up to the concrete; the road's
-# shoulders only carry on SHOULDER_RUN m in from where the junction meets the road.
+# ...though round the turning lanes the grass comes right up to the concrete (along the
+# highways the road's own shoulders carry on), easing from one to the other over EASE m.
 EDGE = [(0.4, -0.03, "gravel"), (4.4, -1.1, "grass"), (4.7, -1.5, "grass")]
-SHOULDER_RUN = 30.0
+EASE = 20.0
 SLIP_WIDTH = 4.6
 LANE_STEP = 4.0
 GRID = 2.0  # the surface is cut into squares this big (so it can follow the heights)
@@ -226,9 +226,10 @@ class Junction:
         t = np.linspace(t0, t1, n)
         return self.hw[k].point(t, side * self.edge(k, t))
 
-    def chains(self) -> dict:
+    def chains(self, which=False) -> dict:
         """The outline of the pavement round each corner, from where it leaves IA 1's end
-        to where it reaches IA 22's (open polylines, (x, z))."""
+        to where it reaches IA 22's (open polylines, (x, z)); with `which`, also 1 for each
+        point along the turning lane and 0 along a highway."""
         out = {}
         for q in SLIPS:
             su, sv = q
@@ -239,6 +240,8 @@ class Junction:
             along1 = self.leg_edge(IA1, end1, sl[IA1]["far"], su)
             along22 = self.leg_edge(IA22, sl[IA22]["far"], end22, sv)
             out[q] = np.vstack([along1[:-1], outer[::-1], along22[1:]])
+            if which:
+                out[q] = (out[q], np.concatenate([np.zeros(len(along1) - 1), np.ones(len(outer)), np.zeros(len(along22) - 1)]))
         return out
 
     def _paved(self) -> shapely.Polygon:
@@ -316,7 +319,7 @@ class Junction:
         """Gravel shoulder and grass slopes round the outside, as (vertices (x, z), dy, kind,
         triangles), each corner's outline offset outward like the road's cross-section."""
         verts, dys, kinds, tris = [], [], [], []
-        for q, chain in self.chains().items():
+        for q, (chain, slip) in self.chains(which=True).items():
             n = _normals(chain)
             # Square to the leg at each end, so the end lines up with the road (or street).
             su, sv = q
@@ -326,10 +329,14 @@ class Junction:
             n[-1] = sv * self.hw[IA22].right(self.hw[IA22].station(np.array([end22])))[0]
             inside = shapely.contains_xy(self.paved, *(chain + n * 0.3).T)
             n[inside] *= -1.0
-            # How far along from the end that meets the route's own road.
+            # The road's shoulders along the highways, grass to the concrete round the
+            # turning lanes: f is how near the nearest turning-lane point is (0 far, 1 on it).
             along = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(chain, axis=0), axis=1))])
+            on = along[slip > 0.5]
+            gap = np.abs(along[:, None] - on[None, :]).min(axis=1) if len(on) else np.full(len(along), np.inf)
+            # ...and always the road's own right where the junction meets the route's road.
             from_road = along if self.own == IA1 else along[-1] - along
-            f = smoothstep(0.0, SHOULDER_RUN, from_road)[:, None]
+            f = ((1.0 - smoothstep(0.0, EASE, gap)) * smoothstep(0.0, 12.0, from_road))[:, None]
             rows = [(chain, np.zeros(len(chain)), "concrete")]
             for (off0, dy0, kind), (off1, dy1, _) in zip(SECTION, EDGE):
                 rows.append((chain + n * (off0 + (off1 - off0) * f), dy0 + (dy1 - dy0) * f[:, 0], kind))

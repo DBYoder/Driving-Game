@@ -9,3 +9,7 @@
   the drive goes through. For anything else (car models, signs, landmarks, menus, docs),
   the unit tests and a few targeted screenshots are enough. CI still runs its own QA set.
 - Don't regenerate the committed docs screenshots unless asked; CI takes fresh ones each run.
+
+## Updates to the owner
+- Keep them short: only when their input is needed or a task is done. No reasoning or
+  play-by-play.
