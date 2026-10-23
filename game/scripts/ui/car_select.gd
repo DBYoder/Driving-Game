@@ -1,18 +1,21 @@
 class_name CarSelect
 extends CanvasLayer
-## The garage: pick a car, a paint color and the conditions before a run (and in
-## practice, where to start). The car sits on the road with the camera circling it.
+## The garage: pick the route, a car, a paint color and the conditions before a run (and
+## in practice, where to start). The car sits on the road with the camera circling it.
+## Another route means another world: route_changed, and the game reloads for it.
 ## ▲ ▼ picks the line, ◀ ▶ changes it, Enter / Space / A drives, Esc / B goes back to the
 ## title screen. Remembers the last pick.
 
 signal browsed(car_id: String, paint: int, condition_id: String)  ## what's on show changed
 signal chosen(car_id: String, paint: int, condition_id: String)  ## drive it
 signal back  ## to the title screen
+signal route_changed(route_id: String)  ## the world has to be rebuilt for it
 
-enum Row { CAR, PAINT, CONDITION, START }
+enum Row { ROUTE, CAR, PAINT, CONDITION, START }
 
 const SAVE_SECTION := "garage"
 
+var route_index := 0
 var car_index := 0
 var paint_index := 0
 var condition_index := 0
@@ -21,8 +24,11 @@ var save_path := ""
 var practice := false  ## a practice run: there's a line to pick where to start
 var starts: Array = []  ## for practice: [station, name] pairs, Kalona then each mile up the road
 var start_index := 0
+var _switching := false  ## a new route's loading: hands off
 var _stats: CarStats
 var _panel: PanelContainer
+var _route: Label
+var _route_tagline: Label
 var _name: Label
 var _tagline: Label
 var _bars := {}  ## stat -> ProgressBar
@@ -44,8 +50,13 @@ func setup(path: String) -> void:
 		car_index = maxi(0, CarStats.CARS.find(cfg.get_value(SAVE_SECTION, "car", CarStats.CARS[0])))
 		paint_index = cfg.get_value(SAVE_SECTION, "paint", 0)
 		condition_index = maxi(0, Condition.IDS.find(cfg.get_value(SAVE_SECTION, "condition", "summer")))
+	route_index = maxi(0, Routes.IDS.find(Routes.current))
 	_build()
 	visible = false
+
+
+func current_route() -> String:
+	return Routes.IDS[route_index]
 
 
 func current_car() -> String:
@@ -61,9 +72,11 @@ func start_station() -> float:
 	return float(starts[start_index][0]) if practice and not starts.is_empty() else -1.0
 
 
-func open(practice_run := false) -> void:
+func open(practice_run := false, on_route := false) -> void:
 	practice = practice_run
-	if not practice and row == Row.START:
+	if on_route:
+		row = Row.ROUTE
+	elif not practice and row == Row.START:
 		row = Row.CAR
 	visible = true
 	_show()
@@ -75,15 +88,25 @@ func set_records(best_score: int, best_time: float) -> void:
 		_records.text = "No best yet"
 		return
 	_records.text = "Best: %s points%s" % [Hud._fmt(best_score),
-		"   ·   %s to Iowa City" % RunTracker.format_time(best_time) if best_time > 0.0 else ""]
+		"   ·   %s to %s" % [RunTracker.format_time(best_time), Routes.info().to] if best_time > 0.0 else ""]
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not visible:
+	if not visible or _switching:
 		return
 	if event.is_action_pressed("menu_left") or event.is_action_pressed("menu_right"):
 		var step := -1 if event.is_action_pressed("menu_left") else 1
 		match row:
+			Row.ROUTE:
+				route_index = posmod(route_index + step, Routes.IDS.size())
+				_save()
+				_route.text = _choice(Routes.headline(current_route()), true)
+				_route_tagline.text = "Loading..."
+				_switching = true
+				route_changed.emit(current_route())
+				if get_viewport():
+					get_viewport().set_input_as_handled()
+				return
 			Row.CAR:
 				car_index = posmod(car_index + step, CarStats.CARS.size())
 				paint_index = 0
@@ -115,6 +138,8 @@ func _unhandled_input(event: InputEvent) -> void:
 func _show() -> void:
 	_stats = CarStats.preset(current_car())
 	paint_index = clampi(paint_index, 0, _stats.paints.size() - 1)
+	_route.text = _choice(Routes.headline(current_route()), row == Row.ROUTE)
+	_route_tagline.text = Routes.info(current_route()).tagline
 	_name.text = _choice(_stats.display_name, row == Row.CAR)
 	_tagline.text = _stats.tagline
 	# Bars against the best of the three.
@@ -137,7 +162,7 @@ func _show() -> void:
 
 
 func _rows() -> int:
-	return 4 if practice and not starts.is_empty() else 3
+	return 5 if practice and not starts.is_empty() else 4
 
 
 ## A line you can change: arrows and highlighted when it's the selected one.
@@ -150,6 +175,7 @@ func _save() -> void:
 		return
 	var cfg := ConfigFile.new()
 	cfg.load(save_path)
+	cfg.set_value(SAVE_SECTION, "route", current_route())
 	cfg.set_value(SAVE_SECTION, "car", current_car())
 	cfg.set_value(SAVE_SECTION, "paint", paint_index)
 	cfg.set_value(SAVE_SECTION, "condition", current_condition())
@@ -174,6 +200,10 @@ func _build() -> void:
 
 	_heading = _label("PICK YOUR CAR", 18, Color(1.0, 0.85, 0.3))
 	column.add_child(_heading)
+	_route = _label("", 22, Color(1.0, 0.85, 0.3))
+	column.add_child(_route)
+	_route_tagline = _label("", 15, Color(0.85, 0.87, 0.9))
+	column.add_child(_route_tagline)
 	_name = _label("", 30)
 	column.add_child(_name)
 	_tagline = _label("", 18, Color(0.85, 0.87, 0.9))

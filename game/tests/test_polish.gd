@@ -4,7 +4,7 @@ extends "res://tests/test_case.gd"
 const SettingsScript := preload("res://scripts/autoload/settings.gd")
 const TEMP_SETTINGS := "user://test_settings.cfg"
 
-var route := RouteData.load_from("res://data/route")
+var route := RouteData.load_from("res://data/routes/highway1")
 
 
 func test_presets_set_everything_and_the_rest_can_change() -> void:

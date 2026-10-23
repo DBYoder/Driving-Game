@@ -3,7 +3,8 @@ extends RefCounted
 ## Builds the road surface along the route, one chunk of samples at a time.
 ## Paint and surface colors come from road.gdshader using UV.x = meters from centerline,
 ## so stripes stay crisp at any distance with no extra geometry. UV.y is the station
-## (for dashes) and UV2 says which way passing is allowed.
+## (for dashes), UV2 says which way passing is allowed, and COLOR.r is 1 on a bridge's
+## deck (concrete shoulders, square edges, no foreslope: Bridges adds the rails).
 
 const CHUNK_SAMPLES := 128
 const LANE_WIDTH := 3.66  ## 12 ft
@@ -26,6 +27,21 @@ const SECTION := [
 	[GRAVEL_HALF_WIDTH, -0.08],
 	[DITCH_EDGE, -1.1],
 	[DITCH_EDGE + 0.3, -1.5],
+]
+
+
+const DECK_HALF_WIDTH := 7.2
+## A bridge's cross-section: the same road, then the deck's square concrete edges.
+const DECK_SECTION := [
+	[-DECK_HALF_WIDTH, -1.2],
+	[-DECK_HALF_WIDTH, -0.1],
+	[-GRAVEL_HALF_WIDTH, -0.08],
+	[-PAVED_HALF_WIDTH, 0.0],
+	[0.0, 0.04],
+	[PAVED_HALF_WIDTH, 0.0],
+	[GRAVEL_HALF_WIDTH, -0.08],
+	[DECK_HALF_WIDTH, -0.1],
+	[DECK_HALF_WIDTH, -1.2],
 ]
 
 
@@ -56,6 +72,7 @@ func chunk_center(c: int) -> Vector3:
 
 ## A chunk's mesh, with a row of vertices every `step` route samples (1 up close, more
 ## for far away). Every step includes the chunk's end rows, so neighbors always meet.
+## The Kalona 4-way's stretch is left out (Junction paves it), with rows on its ends.
 func build_chunk(c: int, step := 1) -> ArrayMesh:
 	var i0 := c * CHUNK_SAMPLES
 	var i1 := mini(i0 + CHUNK_SAMPLES, route.points.size() - 1)
@@ -63,21 +80,33 @@ func build_chunk(c: int, step := 1) -> ArrayMesh:
 	for i in range(i0, i1, step):
 		rows.append(i)
 	rows.append(i1)
+	var gap := Vector2i(-1, -1)
+	if route.junction_gap.y > 0.0:
+		gap = Vector2i(roundi(route.junction_gap.x / route.spacing), roundi(route.junction_gap.y / route.spacing))
+		for g in [gap.x, gap.y]:
+			if g > i0 and g < i1 and not rows.has(g):
+				rows.append(g)
+		rows.sort()
 	var cols := SECTION.size()
 	var verts := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var lines := PackedVector2Array()  ## UV2: solid center line for (northbound, southbound)
+	var decks := PackedColorArray()  ## COLOR.r: on a bridge
 	var indices := PackedInt32Array()
 	for i in rows:
 		var station := i * route.spacing
 		var center := route.points[i]
 		var right := route.right_at(station)
 		var solid := Vector2(float(route.no_passing(station, 1.0)), float(route.no_passing(station, -1.0)))
-		for s in SECTION:
+		var on_deck := not route.deck_at(station).is_empty()
+		for s in (DECK_SECTION if on_deck else SECTION):
 			verts.append(center + right * s[0] + Vector3.UP * s[1])
 			uvs.append(Vector2(s[0], station))
 			lines.append(solid)
+			decks.append(Color(1, 0, 0) if on_deck else Color(0, 0, 0))
 	for row in rows.size() - 1:
+		if rows[row] >= gap.x and rows[row + 1] <= gap.y:
+			continue  # the 4-way's own pavement
 		for col in cols - 1:
 			var a := row * cols + col
 			var b := a + 1
@@ -91,6 +120,7 @@ func build_chunk(c: int, step := 1) -> ArrayMesh:
 	arrays[Mesh.ARRAY_VERTEX] = verts
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_TEX_UV2] = lines
+	arrays[Mesh.ARRAY_COLOR] = decks
 	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)

@@ -255,7 +255,9 @@ func _drive(v: Vehicle, delta: float) -> void:
 
 func _place(v: Vehicle) -> void:
 	var center := route.position_at(v.station)
-	var pos := center + route.right_at(v.station) * v.offset
+	# (Through the 4-way the lanes shift out for the turn lanes.)
+	var lateral := v.offset + signf(v.offset) * (route.lane_offset(v.station) - RouteData.LANE)
+	var pos := center + route.right_at(v.station) * lateral
 	pos.y = center.y + 0.03
 	var forward := route.tangent_at(v.station) * v.direction
 	forward.y = 0.0

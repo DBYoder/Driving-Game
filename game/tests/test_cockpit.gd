@@ -3,7 +3,7 @@ extends "res://tests/test_case.gd"
 ## the radio past the steering wheel and the bodywork, and the gauges follow the car.
 
 const CARS := ["windstar", "tercel", "legend"]
-var route := RouteData.load_from("res://data/route")
+var route := RouteData.load_from("res://data/routes/highway1")
 
 
 func _model(id: String) -> CarModel:
@@ -84,12 +84,12 @@ func test_the_eyes_are_inside_the_cabin() -> void:
 		var stats := CarStats.preset(id)
 		var cockpit := Cockpit.new()
 		cockpit.build(stats)
-		var cabin: Array = CarModel.SHAPES[stats.style].cabin
-		var l := stats.body_size.z
+		var cabin := CarModel.cabin_points(stats)
 		var eye := cockpit.eye.origin
-		check(eye.y > float(cabin[0][1]) + 0.15 and eye.y < float(cabin[1][1]) - 0.15,
-			"%s: the eyes are %.2f m up, between the beltline (%.2f) and the roof (%.2f)" % [id, eye.y, cabin[0][1], cabin[1][1]])
-		check(eye.z > -l / 2.0 + float(cabin[1][0]) * l, "%s: and behind the windshield" % id)
+		check(eye.y > float(cabin.windshield_base.y) + 0.15 and eye.y < float(cabin.roof_front.y) - 0.15,
+			"%s: the eyes are %.2f m up, between the beltline (%.2f) and the roof (%.2f)" % [id, eye.y,
+				cabin.windshield_base.y, cabin.roof_front.y])
+		check(eye.z > float(cabin.roof_front.x), "%s: and behind the windshield" % id)
 		check(absf(eye.x) > 0.25 and eye.x < 0.0, "%s: the driver sits on the left" % id)
 		cockpit.free()
 

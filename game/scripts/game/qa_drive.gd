@@ -215,7 +215,7 @@ static func _meters(d: float) -> String:
 ## Put the car a way back from the trap the scenario needs, at 85 mph cruise.
 func _set_up_trap_run() -> void:
 	var cops: Cops = get_parent().cops
-	var county := "Johnson" if cop_scenario == "bust" else "Washington"
+	var county := "Johnson" if cop_scenario == "bust" and cops.traps_per_county.has("Johnson") else "Washington"
 	var traps := cops.traps.filter(func(t): return t.county == county)
 	if traps.is_empty():
 		_fail("no %s County speed trap this run" % county)
@@ -253,14 +253,15 @@ func _cop_tick() -> void:
 		_fail("speed-trap test: %s" % ("no chase" if not _chase_seen else "the chase never ended the way it should (%s)" % cop_scenario))
 
 
-## Johnson County, flat out with no speed traps; once the car's at its top speed a
-## deputy turns up on its tail, going just as fast.
+## Johnson County (on Highway 1; a mile in on a route with no county line), flat out with
+## no speed traps; once the car's at its top speed a deputy turns up on its tail, going
+## just as fast.
 func _set_up_boost_chase() -> void:
 	var cops: Cops = get_parent().cops
 	for trap in cops.traps:
 		trap.done = true
 	cops.chase_ended.connect(func(outcome): _chase_outcome = outcome)
-	get_parent()._spawn(cops.county_line + 300.0)
+	get_parent()._spawn(cops.county_line + 300.0 if cops.county_line < INF else car.route.start_station + RouteData.MILE_M)
 	(car.driver as Autopilot).target_speed = 100.0  # flat out
 
 
@@ -307,8 +308,7 @@ func _boost_tick() -> void:
 ## set to freeze in the lane; start 900 m back at the usual 70 mph.
 func _set_up_deer_run() -> void:
 	var deer: Deer = get_parent().deer
-	var bridge: Array = car.route.bridges[0]
-	_deer_station = (float(bridge[0]) + float(bridge[1])) / 2.0
+	_deer_station = Bridges.deer_station(car.route, car.route.bridges[0])
 	deer.spots.clear()
 	deer.add_spot(_deer_station, 1.0, 3, true)
 	get_parent()._spawn(_deer_station - 900.0)

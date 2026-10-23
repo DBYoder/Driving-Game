@@ -3,7 +3,7 @@ extends Node3D
 ## The inside of the player's car, for the in-car view: the dash with its instrument
 ## cluster and radio, a steering wheel that turns with the front wheels, the windshield
 ## pillars and header, the roof lining with sun visors and the rear-view mirror, and the
-## door panels. Built to fit each car's own body (CarModel.SHAPES); it hangs off the
+## door panels. Built to fit each car's own body (CarModel.cabin_points); it hangs off the
 ## body, so it leans with it and the view stays put behind the dash.
 ##
 ## The gauges (Gauges) are drawn into a texture each frame while the view is on: speed,
@@ -54,17 +54,15 @@ var _spec: Dictionary
 func build(stats: CarStats) -> void:
 	set_meta("no_clip_check", true)  # ModelCheck: nothing in here can touch a tire
 	_spec = CARS.get(stats.id, CARS.legend)
-	var shape: Dictionary = CarModel.SHAPES.get(stats.style, CarModel.SHAPES.sedan)
-	var l := stats.body_size.z
 	var w := stats.body_size.x
-	var cabin: Array = shape.cabin
+	var cabin := CarModel.cabin_points(stats)
 	var minivan := stats.style == "minivan"
-	var z_ws := -l / 2.0 + float(cabin[0][0]) * l  # the bottom of the windshield
-	var y_ws: float = cabin[0][1]
-	var z_rf := -l / 2.0 + float(cabin[1][0]) * l  # the top of it, where the roof starts
-	var y_roof: float = cabin[1][1]
-	var z_rb := -l / 2.0 + float(cabin[2][0]) * l
-	var taper: float = shape.roof_taper
+	var z_ws: float = cabin.windshield_base.x  # the bottom of the windshield
+	var y_ws: float = cabin.windshield_base.y
+	var z_rf: float = cabin.roof_front.x  # the top of it, where the roof starts
+	var y_roof: float = cabin.roof_front.y
+	var z_rb: float = cabin.roof_back.x
+	var taper: float = cabin.roof_taper
 	# The driver's eyes, on the left, and everything else from there.
 	var x_d := -w * 0.21
 	var y_eye := y_roof - (0.31 if minivan else 0.25)

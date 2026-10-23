@@ -1,8 +1,9 @@
 """Render the baked route so a human can sanity-check it.
 
-    python tools/preview_route.py
+    python tools/preview_route.py [--route=<id>]
 
-Reads game/data/route/ and writes docs/route-preview/route-map.png and route-profile.png.
+Reads game/data/routes/<id>/ and writes route-map.png and route-profile.png to the
+route's preview folder (docs/route-preview/ for Highway 1).
 """
 
 from __future__ import annotations
@@ -80,8 +81,8 @@ def draw_map(route, heights):
         i = int(j["station"] / spacing)
         ax.annotate(j["name"], (pts[i, 0], -pts[i, 2]), xytext=(6, 0), textcoords="offset points",
                     fontsize=6, color="#1f3b73", va="center")
-    for label, s in (("START  Kalona (IA 22)", route["start_station"]),
-                     ("FINISH  US 218 / IA 27", route["finish_station"])):
+    for label, s in ((f"START  {config.START_LABEL}", route["start_station"]),
+                     (f"FINISH  {config.FINISH_LABEL}", route["finish_station"])):
         i = int(s / spacing)
         ax.plot(pts[i, 0], -pts[i, 2], "s", ms=8, color="#111", zorder=7)
         ax.annotate(label, (pts[i, 0], -pts[i, 2]), xytext=(8, -12), textcoords="offset points",
@@ -117,13 +118,15 @@ def draw_profile(route):
         ax.axvline(mile_of(route, s), color="black", lw=1.5)
     ax.set_xlim(miles[0], miles[-1])
     ax.set_ylim(elev_ft.min() - 30, top + 120)
-    ax.set_xlabel("miles from the Kalona start line (blue = bridge/culvert filled in)")
+    ax.set_xlabel(f"miles from the start line in {config.START_LABEL} (blue = bridge/culvert filled in)")
     ax.set_ylabel("road elevation (ft)")
     fig.savefig(config.PREVIEW_DIR / "route-profile.png", bbox_inches="tight")
     plt.close(fig)
 
 
 def main():
+    import sys
+    config.use_args(sys.argv)
     config.PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
     route, heights = load()
     draw_map(route, heights)

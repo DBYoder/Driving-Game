@@ -1,0 +1,59 @@
+{
+  "note": "Landmarks built by hand (scripts/world/landmarks.gd) at their real spots, measured off the 2019 USGS lidar (game x/z, meters). The lidar's own buildings and trees inside each `clear` rectangle are left out: the landmark stands there instead. A rectangle is [x0, z0, x1, z1] square to the compass, or [x, z, half_x, half_z, yaw]: centered on (x, z) and turned by yaw (radians, like Godot's rotation.y) with the building. tools/bake_lidar.py --yards counts the rectangles as buildings, so the corn and fences keep their distance.",
+  "landmarks": [
+    {
+      "id": "mid_prairie",
+      "name": "Mid-Prairie High School",
+      "where": "1634 Highway 22, north side of IA 22 a mile east of Wellman, between Gum Ave and 1st Ave SE",
+      "x": -3985.0,
+      "z": 990.0,
+      "yaw": 0.4014,
+      "clear": [
+        [
+          -3984.8,
+          984.0,
+          81.5,
+          27.5,
+          0.4014
+        ],
+        [
+          -3923.4,
+          1008.4,
+          34.5,
+          20.0,
+          0.4014
+        ],
+        [
+          -3945.0,
+          1042.0,
+          -3892.0,
+          1062.5
+        ],
+        [
+          -4009.0,
+          897.0,
+          -3957.0,
+          931.0
+        ],
+        [
+          -3900.5,
+          1080.0,
+          -3893.5,
+          1087.0
+        ],
+        [
+          -3893.5,
+          1071.0,
+          -3882.5,
+          1098.0
+        ],
+        [
+          -4112.5,
+          1071.0,
+          -4101.5,
+          1098.0
+        ]
+      ]
+    }
+  ]
+}

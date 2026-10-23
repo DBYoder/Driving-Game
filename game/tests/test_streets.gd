@@ -1,7 +1,7 @@
 extends "res://tests/test_case.gd"
 ## Phase 7: the side roads and town streets, lawns in town, and the power lines.
 
-var route := RouteData.load_from("res://data/route")
+var route := RouteData.load_from("res://data/routes/highway1")
 
 
 func _pieces(street_name: String) -> Array:

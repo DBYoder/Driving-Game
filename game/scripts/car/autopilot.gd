@@ -44,7 +44,9 @@ func update(car: Car, delta: float) -> void:
 
 	var look := clampf(speed * 0.9, 12.0, 40.0)
 	var s := car.station + look
-	var target := car.route.position_at(s) + car.route.right_at(s) * lane
+	# (Through the 4-way the lanes shift out for the turn lanes: so does the line it holds.)
+	var lateral := lane + signf(lane) * (car.route.lane_offset(s) - RouteData.LANE)
+	var target := car.route.position_at(s) + car.route.right_at(s) * lateral
 	var local := car.global_transform.affine_inverse() * target
 	car.steer = steer_toward(local, car.stats.steer_limit(speed))
 

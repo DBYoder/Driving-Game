@@ -1,8 +1,8 @@
 """Find the real buildings and trees along the route in the USGS lidar.
 
-    python tools/bake_lidar.py      (after bake_route.py and bake_places.py)
+    python tools/bake_lidar.py [--route=<id>]      (after bake_route.py and bake_places.py)
 
-Writes game/data/route/structures.json (one footprint, height and kind per building),
+Writes game/data/routes/<id>/structures.json (one footprint, height and kind per building),
 trees.bin, and yard_dist.bin (meters from the nearest building at every terrain tile
 vertex, so the game keeps corn out of farmyards; 0 everywhere in town, from places.json).
 `--yards` redoes only the last from structures.json. `--extend OLD_ROUTE.json` re-bakes
@@ -45,7 +45,7 @@ ROOF_ROUGHNESS_M = 0.9    # a roof's cells vary less than this in height (3x3)
 MIN_BUILDING_M2 = 25.0
 MAX_BUILDING_M2 = 8000.0
 MIN_FILL = 0.4            # cells over minimum rectangle; less is probably trees
-ROAD_CLEAR_M = 14.0       # nothing kept this close to IA 1's centerline...
+ROAD_CLEAR_M = 14.0       # nothing kept this close to the route's centerline...
 OTHER_ROAD_CLEAR_M = 6.0  # ...or another road's
 TREE_BLOCK_M = 8.0        # one tree per block of tree cells (bigger blocks: fewer, bigger trees)
 TREE_MIN_COVER = 0.3      # share of a block that's canopy for a tree to stand there
@@ -224,21 +224,27 @@ def yard_distances(route: dict, structures: list[dict]) -> np.ndarray:
 
 
 def landmark_footprints() -> list[dict]:
-    """The hand-built landmarks' rectangles (game/data/route/landmarks.json), as buildings:
+    """The hand-built landmarks' rectangles (the route's landmarks.json), as buildings:
     the corn and the fences keep their distance from them too."""
     path = config.OUT_DIR / "landmarks.json"
     if not path.exists():
         return []
     out = []
     for lm in json.loads(path.read_text())["landmarks"]:
-        for x0, z0, x1, z1 in lm["clear"]:
-            out.append({"x": (x0 + x1) / 2, "z": (z0 + z1) / 2, "length": x1 - x0, "width": z1 - z0,
-                        "yaw": 0.0, "height": 6.0, "kind": "landmark"})
+        for c in lm["clear"]:
+            if len(c) == 5:  # [x, z, half_x, half_z, yaw]: turned with the building
+                x, z, hx, hz, yaw = c
+                out.append({"x": x, "z": z, "length": 2 * hx, "width": 2 * hz,
+                            "yaw": yaw, "height": 6.0, "kind": "landmark"})
+            else:  # [x0, z0, x1, z1], square to the compass
+                x0, z0, x1, z1 = c
+                out.append({"x": (x0 + x1) / 2, "z": (z0 + z1) / 2, "length": x1 - x0, "width": z1 - z0,
+                            "yaw": 0.0, "height": 6.0, "kind": "landmark"})
     return out
 
 
 def in_towns(route: dict) -> np.ndarray:
-    """Per terrain tile vertex: inside city limits (game/data/route/places.json "towns")."""
+    """Per terrain tile vertex: inside city limits (the route's places.json "towns")."""
     t = route["terrain"]
     size, grid = t["tile_size_m"], t["grid"]
     out = np.zeros((len(t["tiles"]), grid, grid), dtype=bool)
@@ -255,9 +261,30 @@ def in_towns(route: dict) -> np.ndarray:
     return out
 
 
+def along_streams(route: dict) -> np.ndarray:
+    """Per terrain tile vertex: within STREAM_YARD_M of a named creek or river (the
+    route's places.json "streams"), where the banks are grass and trees, not crops."""
+    t = route["terrain"]
+    size, grid = t["tile_size_m"], t["grid"]
+    out = np.zeros((len(t["tiles"]), grid, grid), dtype=bool)
+    path = config.OUT_DIR / "places.json"
+    streams = json.loads(path.read_text()).get("streams", []) if path.exists() else []
+    if not streams:
+        return out
+    banks = shapely.union_all([shapely.LineString(np.reshape(s["points"], (-1, 2))) for s in streams]).buffer(
+        config.STREAM_YARD_M)
+    shapely.prepare(banks)
+    local = np.arange(grid) * (size / (grid - 1))
+    lx, lz = np.meshgrid(local, local)
+    for k, (a, b, _) in enumerate(t["tiles"]):
+        out[k] = shapely.contains_xy(banks, a * size + lx, b * size + lz)
+    return out
+
+
 def write_yards(route: dict, structures: list[dict]) -> None:
     yards = yard_distances(route, structures + landmark_footprints())
     yards[in_towns(route)] = 0  # all lawns in town: no crops
+    yards[along_streams(route)] = 0  # nor on the creeks' banks
 
     yards.tofile(config.OUT_DIR / "yard_dist.bin")
     print(f"yards: {(yards < 30).sum()} terrain vertices within 30 m of a building")
@@ -319,6 +346,7 @@ def bake_tiles(tiles, route_tree, other_area) -> tuple[list[dict], list[tuple]]:
 
 def main():
     import sys
+    config.use_args(sys.argv)
     out_dir = config.OUT_DIR
     if "--reclassify" in sys.argv:  # new kind rules, same footprints
         path = out_dir / "structures.json"

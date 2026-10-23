@@ -19,9 +19,10 @@ var harvested := 0.0
 
 
 func _init(route: RouteData) -> void:
-	# IA 1 runs north on a section line, and 540th St is an east-west section line.
+	# The fields line up with the section lines: a crossroad where the highway and the
+	# cross street both run on one (IA 1 at 540th St, IA 22 at Kiwi Ave).
 	for c in route.crossroads:
-		if c.name == "540th St SW":
+		if c.name == route.info.get("section_corner", ""):
 			var p := route.position_at(c.station)
 			offset = Vector2(p.x, p.z)
 

@@ -10,7 +10,7 @@ signal garage
 signal to_title
 signal quit
 
-const VERSION := "v0.7.2"
+const VERSION := "v0.8"
 const SETTINGS := [["preset", "Graphics"], ["render_scale", "Resolution"], ["scenery", "Scenery"],
 	["fullscreen", "Display"], ["master_volume", "Volume"], ["effects_volume", "Car and effects"],
 	["radio_volume", "Radio"], ["rumble", "Controller rumble"]]
@@ -27,7 +27,8 @@ func setup(path: String) -> void:
 	records_path = path
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
-	title = _menu("HIGHWAY 1", "Kalona → Iowa City", "left", 64, 6)
+	var route := Routes.info()
+	title = _menu(route.title, "%s → %s" % [route.from, route.to], "left", 64, 6)
 	for b: Array in [["drive", "Drive"], ["practice", "Practice"], ["records", "Records"], ["settings", "Settings"], ["quit", "Quit"]]:
 		title.add_button(b[0], b[1])
 	title.set_footer("▲ ▼ choose     Enter / A: OK          %s" % VERSION)
@@ -52,7 +53,7 @@ func setup(path: String) -> void:
 	settings.chosen.connect(func(_id): _close(settings))
 	settings.closed.connect(func(): _close(settings))
 
-	records = _menu("RECORDS", "Best score and time to Iowa City", "center", 40, 8)
+	records = _menu("RECORDS", "%s: best score and time to %s" % [route.title.capitalize(), route.to], "center", 40, 8)
 	records.add_button("back", "Back")
 	records.set_footer("Esc / B: back")
 	records.chosen.connect(func(_id): _close(records))

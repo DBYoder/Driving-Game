@@ -4,7 +4,7 @@ extends "res://tests/test_case.gd"
 
 const Main := preload("res://scripts/main.gd")
 
-var route := RouteData.load_from("res://data/route")
+var route := RouteData.load_from("res://data/routes/highway1")
 
 
 func _crossroad(street_name: String) -> Dictionary:
@@ -33,20 +33,20 @@ func test_you_start_stopped_at_the_stop_sign() -> void:
 
 
 func test_the_four_way_stop() -> void:
+	# (Laid out like the real one: tests/test_junction.gd.)
 	var x := Intersections.new()
 	x.setup(route)
 	check(x.start_crossroad.name == "E Ave", "the start intersection is E Ave")
-	check(x.stop_signs == 4, "a stop sign on every corner (%d)" % x.stop_signs)
-	var center := route.start_station + Intersections.STOP_LINE
-	var ways := x.approaches(center)
-	check(ways.size() == 2, "E Ave comes in from both sides (%d)" % ways.size())
+	check(x.stop_signs == 4, "a stop sign each way in (%d)" % x.stop_signs)
+	check(x.approaches(route.start_station + Intersections.STOP_LINE).is_empty(), "E Ave's own ends are gone: the junction paves it")
 	check(x.buggy != null, "a buggy waits its turn")
 	if x.buggy:
+		var center := route.start_station + Intersections.STOP_LINE
 		var c := route.position_at(center)
 		var lateral := (x.buggy.position - c).dot(route.right_at(center))
 		check(lateral > 6.0 and lateral < 16.0, "on the right, at E Ave's stop line (%.1f m out)" % lateral)
 	var paint := x.get_children().filter(func(n): return n.has_meta("paint")).size()
-	check(paint >= 8, "stop lines across every lane at both ends (%d)" % paint)
+	check(paint >= 4, "stop lines across every lane at the lights (%d)" % paint)
 	x.free()
 
 

@@ -52,7 +52,8 @@ func _place(streets: Streets) -> void:
 		var right := route.right_at(s)
 		var base := route.position_at(s) + right * OFFSET * side
 		var ground := route.terrain.height_at(base.x, base.z)
-		if is_nan(ground) or route.in_landmark(base.x, base.z) or _on_street(streets, base):
+		if is_nan(ground) or route.in_landmark(base.x, base.z) or route.near_junction(base.x, base.z) \
+				or _on_street(streets, base):
 			s += 6.0
 			continue
 		base.y = ground - 0.2

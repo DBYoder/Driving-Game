@@ -86,7 +86,7 @@ func _process(delta: float) -> void:
 		return
 	var s := car.station
 	var finish_mile := route.mile_at(route.finish_station)
-	var lines := ["PRACTICE  ·  nothing's saved" if practice else "HIGHWAY 1  ·  Kalona → Iowa City",
+	var lines := ["PRACTICE  ·  nothing's saved" if practice else Routes.headline(route.id),
 		"%s  ·  points ×%s%s" % [car.stats.display_name, str(car.stats.score_multiplier),
 			"  ·  " + condition_name if condition_name != "" else ""],
 		"Mile %.1f of %.1f    %s view" % [clampf(route.mile_at(s), 0.0, finish_mile), finish_mile, camera.mode_name()]]
@@ -186,7 +186,7 @@ func _fill_results() -> void:
 		child.free()
 	var score := run.score
 	var finished := tracker.state == RunTracker.State.FINISHED
-	_row(("PRACTICE: " if practice else "") + ("IOWA CITY!" if finished else "WRECKED: %s" % tracker.wreck_reason), "", 34)
+	_row(("PRACTICE: " if practice else "") + (String(route.info.to).to_upper() + "!" if finished else "WRECKED: %s" % tracker.wreck_reason), "", 34)
 	_row(Awards.title_for({"finished": finished, "wreck": "" if finished else tracker.wreck_reason,
 		"car": car.stats.id, "seconds": tracker.elapsed, "score": score.banked, "counts": score.counts,
 		"raw": score.raw, "honked": deer.honked_off if deer else 0}), "", 24, Color(1.0, 0.85, 0.3))
@@ -198,9 +198,9 @@ func _fill_results() -> void:
 		_row(label, _fmt(score.totals[label]))
 	if finished:
 		_row("Made it  x%.1f" % ScoreKeeper.FINISH_MULTIPLIER, "+" + _fmt(score.finish_bonus))
-		_row("Under 15:00", "+" + _fmt(score.time_bonus))
+		_row("Under %s" % RunTracker.format_time(score.par_seconds).get_slice(".", 0), "+" + _fmt(score.time_bonus))
 	else:
-		_row("Made it to Iowa City", "no")
+		_row("Made it to %s" % route.info.to, "no")
 	_row("SCORE", _fmt(score.banked) + ("  NEW BEST" if tracker.new_best_score else ""), 30)
 	if practice:
 		_row("Practice runs aren't saved", "")

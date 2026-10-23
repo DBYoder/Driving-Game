@@ -1,6 +1,6 @@
 extends "res://tests/test_case.gd"
 
-var route := RouteData.load_from("res://data/route")
+var route := RouteData.load_from("res://data/routes/highway1")
 
 
 func test_route_is_the_real_length() -> void:

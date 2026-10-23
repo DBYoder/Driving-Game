@@ -1,15 +1,19 @@
 class_name Intersections
 extends Node3D
-## The two intersections the run goes between. It starts from a standstill at the 4-way
-## stop at IA 22 in Kalona: stop signs with ALL WAY plates on all four corners, stop lines
-## painted across each lane, and an Amish buggy waiting its turn. It ends at the traffic
-## lights at Mormon Trek Blvd in Iowa City, which cycle like real ones. A banner over the
-## road marks each line (the stop lines are the start and finish lines).
+## The two intersections the run goes between. Both routes start at the 4-way stop where
+## IA 1 meets IA 22 in Kalona (Junction lays it out like the real one): a stop sign with an
+## ALL WAY plate each way in, a YIELD sign where each free right turn joins, and an Amish
+## buggy waiting its turn. Highway 1 starts from a standstill at its stop line coming up
+## from the south; Highway 22 in the intersection itself, pointed west straight out of it.
+## Highway 1 ends at the traffic lights at Mormon Trek Blvd in Iowa City, which cycle like
+## real ones; Highway 22 where 8th Ave stops for it in Wellman (a two-way stop: IA 22 goes
+## through). A banner over the road marks each line.
+##
+## "IA 1" in here is whichever highway the route follows; "northbound" is our way.
 
 const START_BANNER := "KALONA  ·  START"
-const FINISH_BANNER := "IOWA CITY  ·  FINISH"
 const NEAR := 30.0  ## a crossroad this close to the start/finish line is that intersection
-const STOP_LINE := 12.0  ## the lines are this far short of the middle (tools/config.py STOP_LINE_M)
+const STOP_LINE := 12.0  ## the 4-way stop's stop lines are this far short of its middle
 const SIGN_OFFSET := 5.6  ## stop signs and lights stand this far from IA 1's middle...
 const LIGHT_OFFSET := 8.0
 const LINE_WIDTH := 0.45  ## stop line, across the lane
@@ -26,6 +30,7 @@ var start_crossroad := {}
 var finish_crossroad := {}
 var buggy: StaticBody3D  ## waiting at the 4-way stop
 var stop_signs := 0
+var yield_signs := 0
 var signal_heads: Array[Dictionary] = []  ## {lamps: [red, yellow, green] meshes, ia1: bool}
 var _time := 0.0
 var _shown := ""  ## the phase the lamps show
@@ -36,11 +41,24 @@ func setup(r: RouteData) -> void:
 	route = r
 	start_crossroad = _crossroad_near(r.start_station)
 	finish_crossroad = _crossroad_near(r.finish_station)
-	_build_stop(r.start_station, start_crossroad)
-	_build_lights(r.finish_station, finish_crossroad)
+	if r.junction.is_empty():
+		_build_stop(r.start_station, start_crossroad)
+	else:
+		_build_junction_signs()
+	var finish_banner := "%s  ·  FINISH" % String(r.info.to).to_upper()
+	if r.info.finish == "light":
+		_build_lights(r.finish_station, finish_crossroad)
+		_add_banner(r.finish_station, finish_banner, 7.9)  # up over the signal heads
+	else:
+		_build_side_stop(r.finish_station, finish_crossroad)
+		_add_banner(r.finish_station, finish_banner, 5.9)
 	_add_banner(r.start_station, START_BANNER, 5.9)
-	_add_banner(r.finish_station, FINISH_BANNER, 7.9)  # up over the signal heads
 	_update_lights()
+
+
+## Our highway's name on the cross street's signs ("IOWA 1").
+func _highway_name() -> String:
+	return "IOWA %s" % route.info.number
 
 
 ## Is this crossroad one of the two built here (so Roadside leaves out its usual sign)?
@@ -131,10 +149,25 @@ func approaches(station: float) -> Array[Dictionary]:
 
 # --- The 4-way stop -------------------------------------------------------------------
 
-func _build_stop(line: float, crossroad: Dictionary) -> void:
+## The 4-way's signs, where the junction has them (the stop lines are its paint), and the
+## buggy at its stop line on the side you see from the start.
+func _build_junction_signs() -> void:
+	var j: Dictionary = route.junction
+	for s: Dictionary in j.stops:
+		_stop_sign(_facing(Vector3(s.x, float(s.y) - 0.15, s.z), Vector3(s.forward[0], 0.0, s.forward[1])), s.street)
+	for s: Dictionary in j.yields:
+		_yield_sign(_facing(Vector3(s.x, float(s.y) - 0.25, s.z), Vector3(s.forward[0], 0.0, s.forward[1])))
+	var b: Dictionary = j.buggy
+	_add_buggy(Vector3(b.x, b.y, b.z), Vector3(b.forward[0], 0.0, b.forward[1]))
+
+
+## `start` is the start line: our stop line on Highway 1, past the middle on Highway 22
+## (route.info.start_stop_line).
+func _build_stop(start: float, crossroad: Dictionary) -> void:
 	if crossroad.is_empty():
 		return
-	var center := line + STOP_LINE
+	var center := start + float(route.info.start_stop_line)
+	var line := center - STOP_LINE  # ours
 	var far_line := center + STOP_LINE  # the southbound stop line
 	# Northbound (us) and southbound on IA 1.
 	_stop_sign(_on_ia1(line - 1.0, SIGN_OFFSET, 1.0), crossroad.name)
@@ -148,7 +181,7 @@ func _build_stop(line: float, crossroad: Dictionary) -> void:
 		var right := Vector3(-fwd.z, 0.0, fwd.x)
 		var stop_at: Vector3 = a.end + a.out * 2.6
 		var sign_pos: Vector3 = stop_at + a.out * 1.0 + right * (a.half_width + 1.3)
-		_stop_sign(_facing(sign_pos, fwd), "IOWA 1")
+		_stop_sign(_facing(sign_pos, fwd), _highway_name())
 		_street_stop_line(stop_at, fwd, right, a.half_width)
 		# A buggy waits its turn on the side you can see from the start.
 		if not waiting and a.out.dot(route.right_at(center)) > 0.5:
@@ -172,8 +205,26 @@ func _facing(pos: Vector3, driver_forward: Vector3) -> Node3D:
 	return holder
 
 
-## A STOP sign with an ALL WAY plate under it and a street-name blade on top.
-func _stop_sign(holder: Node3D, street: String) -> void:
+# --- Where the cross street stops for us ----------------------------------------------
+
+## The finish line painted across our lane, and stop signs and stop lines for the cross
+## street coming in each way (we don't stop: the line is just the finish).
+func _build_side_stop(line: float, crossroad: Dictionary) -> void:
+	_ia1_stop_line(line, 1.0)
+	if crossroad.is_empty():
+		return
+	var center: float = line + float(route.info.finish_stop_line)
+	for a: Dictionary in approaches(center):
+		var fwd: Vector3 = -a.out
+		var right := Vector3(-fwd.z, 0.0, fwd.x)
+		var stop_at: Vector3 = a.end + a.out * 2.6
+		var sign_pos: Vector3 = stop_at + a.out * 1.0 + right * (a.half_width + 1.3)
+		_stop_sign(_facing(sign_pos, fwd), _highway_name(), false)
+		_street_stop_line(stop_at, fwd, right, a.half_width)
+
+
+## A STOP sign with an ALL WAY plate under it (at a 4-way stop) and a street-name blade on top.
+func _stop_sign(holder: Node3D, street: String, all_way := true) -> void:
 	stop_signs += 1
 	var gray := _material(Color(0.55, 0.55, 0.57))
 	_box(holder, Vector3(0.07, 3.2, 0.07), Vector3(0, 1.6, 0), gray)
@@ -184,11 +235,12 @@ func _stop_sign(holder: Node3D, street: String) -> void:
 	var stop := _label("STOP", 46, Color.WHITE)
 	stop.position = face + Vector3(0, 0, 0.022)
 	holder.add_child(stop)
-	_box(holder, Vector3(0.5, 0.16, 0.02), Vector3(0, 1.6, 0.05), _material(Color.WHITE))
-	_box(holder, Vector3(0.47, 0.13, 0.022), Vector3(0, 1.6, 0.05), _material(RED.darkened(0.15)))
-	var plate := _label("ALL WAY", 22, Color.WHITE)
-	plate.position = Vector3(0, 1.6, 0.075)
-	holder.add_child(plate)
+	if all_way:
+		_box(holder, Vector3(0.5, 0.16, 0.02), Vector3(0, 1.6, 0.05), _material(Color.WHITE))
+		_box(holder, Vector3(0.47, 0.13, 0.022), Vector3(0, 1.6, 0.05), _material(RED.darkened(0.15)))
+		var plate := _label("ALL WAY", 22, Color.WHITE)
+		plate.position = Vector3(0, 1.6, 0.075)
+		holder.add_child(plate)
 	# The street name, on a blade across the top of the post.
 	var blade := Node3D.new()
 	holder.add_child(blade)
@@ -200,6 +252,41 @@ func _stop_sign(holder: Node3D, street: String) -> void:
 		name_label.position = Vector3(0, 0, 0.012 * side)
 		name_label.rotation.y = 0.0 if side > 0.0 else PI
 		blade.add_child(name_label)
+
+
+## A YIELD sign: a red triangle point down, white inside, YIELD in red.
+func _yield_sign(holder: Node3D) -> void:
+	yield_signs += 1
+	var gray := _material(Color(0.55, 0.55, 0.57))
+	_box(holder, Vector3(0.07, 2.9, 0.07), Vector3(0, 1.45, 0), gray)
+	var face := Vector3(0, 2.35, 0.05)
+	_triangle(holder, 0.55, face + Vector3(0, 0, -0.015), gray)  # the back
+	_triangle(holder, 0.55, face, _material(RED.darkened(0.15)))
+	_triangle(holder, 0.34, face + Vector3(0, 0.03, 0.006), _material(Color.WHITE))
+	var word := _label("YIELD", 20, RED.darkened(0.15))
+	word.position = face + Vector3(0, 0.1, 0.02)
+	holder.add_child(word)
+
+
+## A flat triangle, point down, facing +Z (the driver) and seen from behind too, `radius`
+## to its corners.
+func _triangle(holder: Node3D, radius: float, pos: Vector3, material: Material) -> void:
+	var a := Vector3(-radius * 0.866, radius * 0.5, 0.0)
+	var b := Vector3(radius * 0.866, radius * 0.5, 0.0)
+	var c := Vector3(0.0, -radius, 0.0)
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = PackedVector3Array([a, b, c, a, c, b])
+	arrays[Mesh.ARRAY_NORMAL] = PackedVector3Array([Vector3.BACK, Vector3.BACK, Vector3.BACK,
+		Vector3.FORWARD, Vector3.FORWARD, Vector3.FORWARD])
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.material_override = material
+	node.position = pos
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	holder.add_child(node)
 
 
 func _octagon(holder: Node3D, radius: float, pos: Vector3, material: Material) -> void:
@@ -288,8 +375,8 @@ func _add_buggy(front: Vector3, fwd: Vector3) -> void:
 func _build_lights(line: float, crossroad: Dictionary) -> void:
 	if crossroad.is_empty():
 		return
-	var center := line + STOP_LINE
-	var far_line := center + STOP_LINE
+	var center: float = line + float(route.info.finish_stop_line)
+	var far_line: float = center + float(route.info.finish_stop_line)
 	var street: String = crossroad.name
 	_ia1_stop_line(line, 1.0)
 	_ia1_stop_line(far_line, -1.0)
@@ -307,7 +394,7 @@ func _build_lights(line: float, crossroad: Dictionary) -> void:
 		var pole: Vector3 = a.end + fwd * (2.0 * RoadMesher.GRAVEL_HALF_WIDTH + 1.0) + right * reach
 		pole.y -= 0.1
 		var holder := _facing(pole, fwd)
-		_mast(holder, reach, [reach - a.half_width * 0.25, reach - a.half_width * 0.75], false, "IOWA 1")
+		_mast(holder, reach, [reach - a.half_width * 0.25, reach - a.half_width * 0.75], false, _highway_name())
 
 
 ## A signal pole in `holder` (facing its drivers), an arm reaching `arm` m to the left over

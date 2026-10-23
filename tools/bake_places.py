@@ -1,8 +1,9 @@
 """Real names along the route, for the signs.
 
-    python tools/bake_places.py      (after bake_route.py)
+    python tools/bake_places.py [--route=<id>]      (after bake_route.py)
 
-Writes game/data/route/places.json: where IA 1 crosses each named creek (USGS National
+Writes game/data/routes/<id>/places.json: the named creeks' courses near the road
+("streams", game x/z polylines: their banks are grass, not crops), where the route crosses each named creek (USGS National
 Hydrography Dataset), enters and leaves each city (with its population) and crosses
 the county line (USGS Governmental Units), as stations along the route; and the city
 limits near the road ("towns", game x/z outlines), where there are lawns, not crops.
@@ -24,9 +25,11 @@ from pyproj import Transformer
 import config
 
 NHD_URL = "https://prd-tnm.s3.amazonaws.com/StagedProducts/Hydrography/NHD/HU8/GPKG/NHD_H_{}_HU8_GPKG.zip"
-NHD_HU8 = ["07080208", "07080209"]  # English River; Iowa River below Iowa City (Old Mans Creek)
 GOVT_URL = "https://prd-tnm.s3.amazonaws.com/StagedProducts/GovtUnit/GPKG/GOVTUNIT_Iowa_State_GPKG.zip"
 STREAM_FTYPES = {460}  # StreamRiver
+ARTIFICIAL_PATH = 558  # a river's line through its own water (the English River): counted when named
+CITY_SLACK_M = 25.0    # the road counts as in town this close to the city limits...
+CITY_MIN_RUN_M = 150.0  # ...and a stay in or out shorter than this doesn't count
 
 
 def cached_gpkg(url: str, folder: str) -> Path:
@@ -62,6 +65,48 @@ def crossings(route: shapely.LineString, geom) -> list[float]:
     return sorted(out)
 
 
+def city_limits(route: shapely.LineString, area, step: float = 10.0) -> list[tuple[float, bool]]:
+    """Where the route enters (True) and leaves (False) a city, as (station, entering).
+
+    A road can run right along the city line (IA 22 into Wellman), flickering in and out
+    of it; so the road counts as inside within CITY_SLACK_M of the city, a stay shorter
+    than CITY_MIN_RUN_M doesn't count, and each change moves to the nearest real
+    crossing of the city line, if there's one close by."""
+    stations = np.arange(0.0, route.length, step)
+    near = area.buffer(CITY_SLACK_M)
+    shapely.prepare(near)
+    pts = np.asarray([route.interpolate(s).coords[0] for s in stations])
+    inside = shapely.contains_xy(near, pts[:, 0], pts[:, 1])
+    # Smooth out short stays: any run shorter than the minimum takes its neighbors' side.
+    runs = []  # [start index, end index (exclusive), inside]
+    for i, v in enumerate(inside):
+        if runs and runs[-1][2] == v:
+            runs[-1][1] = i + 1
+        else:
+            runs.append([i, i + 1, bool(v)])
+    changed = True
+    while changed and len(runs) > 1:
+        changed = False
+        for k, (a, b, v) in enumerate(runs):
+            if (b - a) * step < CITY_MIN_RUN_M and 0 < k < len(runs) - 1:
+                runs[k][2] = not v
+                changed = True
+        merged = []
+        for r in runs:
+            if merged and merged[-1][2] == r[2]:
+                merged[-1][1] = r[1]
+            else:
+                merged.append(r)
+        runs = merged
+    real = crossings(route, area.boundary)
+    out = []
+    for a, _, v in runs[1:]:
+        s = float(stations[a])
+        nearby = [c for c in real if abs(c - s) < 2.5 * CITY_SLACK_M]
+        out.append((min(nearby, key=lambda c: abs(c - s)) if nearby else s, v))
+    return out
+
+
 def merge_close(items: list[dict], key: str, gap: float) -> list[dict]:
     """Drop repeats of the same name within `gap` meters (a creek's braids, a jagged boundary)."""
     out: list[dict] = []
@@ -73,6 +118,8 @@ def merge_close(items: list[dict], key: str, gap: float) -> list[dict]:
 
 
 def main():
+    import sys
+    config.use_args(sys.argv)
     route_json = json.loads((config.OUT_DIR / "route.json").read_text())
     o = route_json["origin"]
     pts = np.array(route_json["points"]).reshape(-1, 3)
@@ -83,16 +130,23 @@ def main():
     lon0, lat0, lon1, lat1 = config.ROAD_BBOX
 
     creeks = []
-    for hu in NHD_HU8:
+    streams = []
+    near_road = route.buffer(config.CORRIDOR_HALF_WIDTH_M)
+    for hu in config.NHD_HU8:
         gpkg = cached_gpkg(NHD_URL.format(hu), "nhd")
         meta, _, geoms, fields = pyogrio.raw.read(gpkg, layer="NHDFlowline", bbox=(lon0, lat0, lon1, lat1),
                                                   columns=["gnis_name", "ftype"])
         for wkb, name, ftype in zip(geoms, fields[0], fields[1]):
-            if not name or int(ftype) not in STREAM_FTYPES:
+            if not name or int(ftype) not in STREAM_FTYPES | {ARTIFICIAL_PATH}:
                 continue
             line = to_utm_geom(shapely.force_2d(shapely.from_wkb(wkb)))
             for s in crossings(route, line):
                 creeks.append({"station": round(float(s), 1), "name": str(name)})
+            near = line.intersection(near_road).simplify(4.0)
+            for part in getattr(near, "geoms", [near]):
+                if part.geom_type == "LineString" and part.length > 20.0:
+                    streams.append({"name": str(name), "points": [round(float(v), 1) for e, n in part.coords
+                                                                  for v in (e - o["easting"], o["northing"] - n)]})
     creeks = merge_close(creeks, "name", 200.0)
 
     govt = cached_gpkg(GOVT_URL, "govt")
@@ -103,10 +157,9 @@ def main():
                                               columns=["PLACE_NAME", "POPULATION"])
     for wkb, name, pop in zip(geoms, fields[0], fields[1]):
         area = to_utm_geom(shapely.from_wkb(wkb))
-        for s in crossings(route, area.boundary):
-            ahead = route.interpolate(s + 5.0)
+        for s, entering in city_limits(route, area):
             cities.append({"station": round(float(s), 1), "name": str(name), "population": int(pop or 0),
-                           "entering": bool(area.contains(ahead))})
+                           "entering": entering})
         part = area.intersection(near).simplify(4.0)
         for poly in getattr(part, "geoms", [part]):
             if poly.geom_type == "Polygon" and poly.area > 1000.0:
@@ -132,6 +185,7 @@ def main():
             "USGS National Boundary Dataset (Governmental Units), public domain",
         ],
         "creeks": creeks,
+        "streams": streams,
         "cities": cities,
         "counties": counties,
         "towns": towns,

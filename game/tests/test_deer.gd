@@ -1,6 +1,6 @@
 extends "res://tests/test_case.gd"
 
-var route := RouteData.load_from("res://data/route")
+var route := RouteData.load_from("res://data/routes/highway1")
 
 
 func _spots(seed_value: int) -> Array[float]:
@@ -33,7 +33,7 @@ func test_most_crossings_are_at_the_creeks() -> void:
 		for s in _spots(seed_value):
 			total += 1
 			for b: Array in route.bridges:
-				if absf(s - (float(b[0]) + float(b[1])) / 2.0) < 1.0:
+				if absf(s - Bridges.deer_station(route, b)) < 1.0:  # (short of a real bridge's rails)
 					at_creeks += 1
 	check(at_creeks * 2 > total, "%d of %d crossings at creeks" % [at_creeks, total])
 

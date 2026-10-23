@@ -2,6 +2,8 @@ extends Node3D
 ## Entry point: loads the baked road, builds the world around the car, and runs the game.
 ##
 ## Command-line options (after `--`):
+##   --route=<id>         highway1 (Kalona to Iowa City) or highway22 (Kalona to Wellman);
+##                        default: the garage's pick (highway1 in tests)
 ##   --station=<m>        start the car here instead of at the Kalona 4-way stop
 ##   --view=<n>           camera: 0 chase, 1 in car, 2 far chase, 3 drone, 4 hood
 ##   --autopilot          let the autopilot drive (demo mode)
@@ -40,8 +42,7 @@ extends Node3D
 ##   --benchmark          autopilot at 70 mph for 40 s, print fps, draw calls, triangles
 ##   --screenshot=<path>  let the car settle, save a PNG, exit
 
-const ROUTE_DIR := "res://data/route"
-const SPAWN_BEHIND_START := 3.0  ## stopped at the Kalona stop sign, the bumper at the line
+const SPAWN_BEHIND_START := 3.0  ## stopped with the bumper at the start line in Kalona
 const LOST_SECONDS := 2.0  ## off the edge of the world this long -> towed back
 const FOG_BEGIN := 450.0
 const FOG_END := 3000.0  ## nothing past this is visible
@@ -63,6 +64,8 @@ var streamer: WorldStreamer
 var scenery: Scenery
 var landmarks: Landmarks
 var intersections: Intersections
+var junction: Junction
+var bridges: Bridges
 var tire_marks: TireMarks
 var power_lines: PowerLines
 var weather: Weather
@@ -92,11 +95,23 @@ var _testing := false
 var _spawn_station := 0.0
 var _lost_time := 0.0
 var _seed := 0  ## where the speed traps and deer are this run (fixed in tests, random otherwise)
+## Set when the garage switched routes and the game reloaded for it: open the garage
+## again ("garage" or "practice") on the new route, which takes over from --route.
+static var _reopen := ""
 
 
 func _ready() -> void:
 	var args := _parse_args()
-	route = RouteData.load_from(ROUTE_DIR)
+	var testing_args := args.has("qa-drive") or args.has("qa-stress") or args.has("qa-drift") \
+		or args.has("qa-cops") or args.has("qa-deer") or args.has("qa-menus") or args.has("smoke-test") \
+		or args.has("screenshot")
+	if _reopen.is_empty():
+		var picked := Routes.DEFAULT if testing_args else Routes.saved(RunTracker.SAVE_PATH)
+		Routes.current = String(args.get("route", picked))
+	if not Routes.current in Routes.IDS:
+		push_error("unknown route %s" % Routes.current)
+		Routes.current = Routes.DEFAULT
+	route = RouteData.load_from(Routes.dir(Routes.current))
 	if route == null:
 		get_tree().quit(1)
 		return
@@ -130,9 +145,15 @@ func _ready() -> void:
 	var roadside := Roadside.new()
 	add_child(roadside)
 	roadside.setup(route)
+	junction = Junction.new()
+	add_child(junction)
+	junction.setup(route)
 	intersections = Intersections.new()
 	add_child(intersections)
 	intersections.setup(route)
+	bridges = Bridges.new()
+	add_child(bridges)
+	bridges.setup(route)
 	power_lines = PowerLines.new()
 	add_child(power_lines)
 	power_lines.setup(route, streamer.streets)
@@ -153,6 +174,7 @@ func _ready() -> void:
 	run = Run.new()
 	add_child(run)
 	run.setup(car, tracker)
+	run.score.par_seconds = route.info.par_seconds
 	run.wrecked.connect(_on_wrecked)
 	var feel := CarFeel.new()
 	add_child(feel)
@@ -193,7 +215,7 @@ func _ready() -> void:
 		camera.mode = int(args.view)
 	_spawn_station = float(args.station) if args.has("station") else route.start_station - SPAWN_BEHIND_START
 	if drift:
-		_spawn_station = route.start_station + 1.5 * RouteData.MILE_M  # the long straight north of Kalona
+		_spawn_station = route.start_station + 1.5 * RouteData.MILE_M  # the long straight out of Kalona
 	_default_spawn = _spawn_station
 	_spawn(_spawn_station)
 	camera.setup(car)
@@ -224,6 +246,7 @@ func _ready() -> void:
 	garage.browsed.connect(_show_car)
 	garage.chosen.connect(_drive)
 	garage.back.connect(open_title)
+	garage.route_changed.connect(change_route)
 	garage.starts = _practice_starts()
 	menus = Menus.new()
 	add_child(menus)
@@ -261,7 +284,11 @@ func _ready() -> void:
 		deer.cross_now(45.0 if args.deer is bool else float(args.deer))
 	var skip_garage := args.has("car") or _testing or args.has("smoke-test") or args.has("screenshot") \
 		or args.has("benchmark") or args.has("autopilot")
-	if args.has("garage"):
+	if not _reopen.is_empty():
+		var practice_run := _reopen == "practice"
+		_reopen = ""
+		open_garage(practice_run, true)
+	elif args.has("garage"):
 		open_garage(args.has("practice"))
 	elif args.has("title") or args.has("qa-menus") or not skip_garage:
 		open_title()
@@ -324,7 +351,7 @@ func _pick_driver(args: Dictionary) -> DriftDriver:
 func _physics_process(delta: float) -> void:
 	streamer.focus = car.global_position
 	scenery.focus = car.global_position
-	# The title screen's car: off again from Kalona if it wrecks or gets to Iowa City.
+	# The title screen's car: off again from Kalona if it wrecks or gets to the finish.
 	if menus.title.visible and (tracker.over() or car.driver == null):
 		_demo_wait += delta
 		if _demo_wait > 3.0:
@@ -450,7 +477,7 @@ func _beat_up(amount: float) -> void:
 
 ## The car-select screen: the car waits on the road while you choose (at the start line,
 ## or for practice wherever you pick).
-func open_garage(practice := false) -> void:
+func open_garage(practice := false, on_route := false) -> void:
 	get_tree().paused = false
 	menus.close_all()
 	_practice = practice
@@ -459,7 +486,20 @@ func open_garage(practice := false) -> void:
 	camera.crash_cam = false
 	camera.showroom = true
 	hud.visible = false
-	garage.open(practice)
+	garage.open(practice, on_route)
+
+
+## The garage picked another route: build the world again for it. The whole game reloads
+## (a frame later, so the garage's "Loading..." shows) and the garage opens again.
+func change_route(id: String) -> void:
+	if id == Routes.current or not id in Routes.IDS:
+		return
+	Routes.current = id
+	_reopen = "practice" if _practice else "garage"
+	await get_tree().process_frame
+	await get_tree().process_frame
+	get_tree().paused = false
+	get_tree().reload_current_scene()
 
 
 ## Show a car in the garage (it's swapped in for real, so it sits on the road).
@@ -515,6 +555,8 @@ func apply_condition(c: Condition) -> void:
 		corn.warm_up()
 	scenery.set_look(c.leaf, c.snow, c.night)
 	landmarks.set_look(c.snow, c.night)
+	junction.apply_condition(c)
+	bridges.set_look(c.snow)
 	weather.apply(c)
 	tire_marks.wet = c.rain > 0.0
 	tire_marks.snowy = c.snow > 0.0
@@ -549,7 +591,7 @@ func _on_wrecked(_reason: String) -> void:
 		car.driver = null  # hands off the wheel; let it tumble
 
 
-## The tow truck: back on the road at the nearest point, facing north. Costs points
+## The tow truck: back on the road at the nearest point, facing up the route. Costs points
 ## once the clock is running.
 func _tow() -> void:
 	if tracker.state == RunTracker.State.WRECKED:
@@ -634,7 +676,8 @@ func _parse_args() -> Dictionary:
 ## Run by CI on the packaged game.
 func _smoke_test() -> void:
 	var problems: Array[String] = []
-	if route.mile_at(route.finish_station) < 14.5:
+	var expect := route.info
+	if route.mile_at(route.finish_station) < float(expect.min_miles):
 		problems.append("route is only %.2f mi" % route.mile_at(route.finish_station))
 	if route.crossroads.size() < 10:
 		problems.append("only %d crossroads" % route.crossroads.size())
@@ -653,16 +696,16 @@ func _smoke_test() -> void:
 	if streamer.loaded_tile_count() < 20 or streamer.loaded_chunk_count() < 5:
 		problems.append("streaming loaded %d tiles, %d road chunks" % [
 			streamer.loaded_tile_count(), streamer.loaded_chunk_count()])
-	if route.buildings.size() < 500 or route.trees.size() / 5 < 5000:
+	if route.buildings.size() < int(expect.min_buildings) or route.trees.size() / 5 < int(expect.min_trees):
 		problems.append("only %d buildings and %d trees in the data" % [route.buildings.size(), route.trees.size() / 5])
-	if route.landmarks.is_empty() or landmarks.box_count() < 8:
-		problems.append("the Kalona Cheese landmark didn't build (%d landmarks, %d solid boxes)" % [route.landmarks.size(), landmarks.box_count()])
+	if expect.landmark and (route.landmarks.is_empty() or landmarks.box_count() < 8):
+		problems.append("the landmark didn't build (%d landmarks, %d solid boxes)" % [route.landmarks.size(), landmarks.box_count()])
 	scenery.warm_up(route.position_at(route.length * 0.5))
 	if scenery.instance_count() < 100:
 		problems.append("only %d buildings and trees around mid-route" % scenery.instance_count())
 	if problems.is_empty():
-		print("SMOKE OK: %.2f mi, %d crossroads, %d terrain tiles, %d buildings, %d trees, car settled on %s" % [
-			route.mile_at(route.finish_station), route.crossroads.size(), route.terrain.count(),
+		print("SMOKE OK: %s, %.2f mi, %d crossroads, %d terrain tiles, %d buildings, %d trees, car settled on %s" % [
+			route.id, route.mile_at(route.finish_station), route.crossroads.size(), route.terrain.count(),
 			route.buildings.size(), route.trees.size() / 5, car.wheels[0].surface])
 		get_tree().quit(0)
 	else:

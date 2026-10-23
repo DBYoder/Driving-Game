@@ -2,8 +2,9 @@ class_name Roadside
 extends Node3D
 ## Street-name signs at the real crossroads and green mile markers (the start and finish
 ## intersections have their own: Intersections). From the map data (tools/bake_places.py): the names of the creeks at their
-## bridges, the county line and the Iowa City limit with its population. And the usual:
-## 55 mph once out of Kalona, IOWA 1 route markers.
+## bridges, the county line and the city limits with their populations. And the usual:
+## 55 mph once out of Kalona, route markers (NORTH over IOWA 1, WEST over IOWA 22), the
+## first one right out of the 4-way stop with the miles to go on a sign past it.
 
 const SIGN_GREEN := Color(0.05, 0.40, 0.18)
 const POST_GRAY := Color(0.55, 0.55, 0.57)
@@ -22,7 +23,7 @@ func setup(r: RouteData) -> void:
 	var gray := _material(POST_GRAY)
 
 	for c in route.crossroads:
-		if c.kind == "ramp" or Intersections.at_line(route, c):
+		if c.kind == "ramp" or Intersections.at_line(route, c) or route.in_junction(c.station):
 			continue
 		var text: String = c.name
 		if c.route != "":
@@ -36,6 +37,12 @@ func setup(r: RouteData) -> void:
 
 
 	var white := _material(WHITE)
+	# Out of the 4-way stop in Kalona: which highway and which way (WEST over IOWA 22), and
+	# how far to the end of it.
+	var middle := route.start_station + float(route.info.start_stop_line)
+	_add_route_marker(middle + 45.0, white, gray)
+	var miles := (route.finish_station - (middle + 150.0)) / RouteData.MILE_M
+	_add_sign(middle + 150.0, 8.5, "%s  %d" % [String(route.info.to).to_upper(), roundi(miles)], green, gray)
 	for c: Dictionary in route.places.creeks:
 		_add_sign(_bridge_start(c.station) - 20.0, 7.6, String(c.name).to_upper(), green, gray)
 	for c: Dictionary in route.places.counties:
@@ -61,7 +68,7 @@ func _material(color: Color) -> StandardMaterial3D:
 	return m
 
 
-## A sign standing on the right shoulder, facing northbound traffic.
+## A sign standing on the right shoulder, facing us.
 func _add_sign(station: float, offset: float, text: String, face: Material, post: Material) -> void:
 	var holder := _place(station, offset)
 	var lines := text.count("\n") + 1
@@ -89,7 +96,8 @@ func _add_plate(station: float, offset: float, text: String, size: Vector2, face
 	holder.add_child(label)
 
 
-## Iowa's route marker (IOWA over a big 1 in a black-rimmed white square) under a NORTH plate.
+## Iowa's route marker (IOWA over the route's number in a black-rimmed white square) under
+## its direction (NORTH, WEST).
 func _add_route_marker(station: float, white: Material, post: Material) -> void:
 	var holder := _place(station, 7.6)
 	var black := _material(BLACK)
@@ -97,7 +105,8 @@ func _add_route_marker(station: float, white: Material, post: Material) -> void:
 	_box(holder, Vector3(0.62, 0.62, 0.04), Vector3(0, 2.3, 0), black)
 	_box(holder, Vector3(0.56, 0.56, 0.042), Vector3(0, 2.3, 0), white)
 	_box(holder, Vector3(0.62, 0.24, 0.04), Vector3(0, 2.78, 0), white)
-	var rows := [["NORTH", 26, 2.78], ["IOWA", 22, 2.47], ["1", 80, 2.24]]
+	var number: String = route.info.number
+	var rows := [[route.info.heading, 26, 2.78], ["IOWA", 22, 2.47], [number, 80 if number.length() < 2 else 64, 2.24]]
 	for row: Array in rows:
 		var label := _label(row[0], row[1])
 		label.modulate = BLACK
@@ -143,13 +152,21 @@ func _add_marker(station: float, mile: int, face: Material, post: Material) -> v
 
 
 func _place(station: float, offset: float) -> Node3D:
+	var deck := route.deck_at(station)
+	if not deck.is_empty():  # not out over the river: past the bridge
+		station = float(deck[1]) + RouteData.RAIL_APPROACH_M + 10.0
+	for i in 60:  # not out on the 4-way's pavement (a turning lane): on past it
+		var at := route.position_at(station) + route.right_at(station) * offset
+		if not route.near_junction(at.x, at.z):
+			break
+		station += 4.0
 	var holder := Node3D.new()
 	add_child(holder)
 	var pos := route.position_at(station) + route.right_at(station) * offset
 	pos.y = route.position_at(station).y - 0.1
 	holder.position = pos
 	# Face the approaching (northbound) driver: +Z of the holder points back down the road.
-	holder.look_at(pos + route.tangent_at(station), Vector3.UP)
+	holder.basis = Basis.looking_at(route.tangent_at(station), Vector3.UP)
 	return holder
 
 

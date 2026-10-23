@@ -14,9 +14,10 @@ signal combo_lost(points: int)
 const COMBO_WINDOW := 4.0
 const MAX_MULTIPLIER := 5
 const FINISH_MULTIPLIER := 1.5
-const PAR_SECONDS := 900.0  ## 15 minutes
+const PAR_SECONDS := 900.0  ## 15 minutes: Highway 1's par (each route has its own: Routes.INFO)
 const BONUS_PER_SECOND := 20
 
+var par_seconds := PAR_SECONDS  ## a finish faster than this earns the time bonus
 var car_multiplier := 1.0
 var banked := 0
 var pot := 0  ## combo points not yet banked (before the multiplier)
@@ -91,11 +92,11 @@ func pot_value() -> int:
 	return pot * multiplier
 
 
-## Made it to Iowa City: bank the pot, then x1.5 on everything plus the time bonus.
+## Made it to the finish: bank the pot, then x1.5 on everything plus the time bonus.
 func finish(run_seconds: float) -> void:
 	bank()
 	finish_bonus = int(round(banked * (FINISH_MULTIPLIER - 1.0)))
-	time_bonus = maxi(0, int(PAR_SECONDS - run_seconds)) * BONUS_PER_SECOND
+	time_bonus = maxi(0, int(par_seconds - run_seconds)) * BONUS_PER_SECOND
 	banked += finish_bonus + time_bonus
 
 

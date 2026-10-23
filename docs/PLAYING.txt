@@ -1,7 +1,8 @@
-HIGHWAY 1: KALONA TO IOWA CITY
-==============================
+HIGHWAY 1: KALONA TO IOWA CITY (OR WELLMAN)
+============================================
 
-A homemade game about 15 real miles of Iowa Highway 1.
+A homemade game about real Iowa highways out of Kalona: 15 miles of Highway 1 north to
+Iowa City, or 7 miles of Highway 22 west to Wellman.
 
 
 HOW TO RUN
@@ -15,12 +16,15 @@ HOW TO RUN
 
 HOW TO PLAY
 -----------
-The title screen: Drive, Practice, Records, Settings or Quit. Then pick a car, a paint
-color and the conditions in the garage, and get from Kalona to Iowa City causing as
-much chaos as you can. You start stopped at the stop sign at the IA-22 four-way stop
-in Kalona; the clock and the scoring start when you cross the line, and stop at the
-first stop light in Iowa City, at Mormon Trek Blvd. Your best score and best time are
-saved for each car in each of the conditions.
+The title screen: Drive, Practice, Records, Settings or Quit. Then pick the route, a
+car, a paint color and the conditions in the garage, and get there causing as much
+chaos as you can. Both routes start at the four-way stop where IA 1 meets IA 22 in
+Kalona; the clock and the scoring start when you cross the line.
+  Highway 1   north, 15.4 miles, from the stop sign to the first stop light in Iowa City
+              (Mormon Trek Blvd).
+  Highway 22  west, 6.7 miles, from the middle of the intersection, over the English
+              River and past Mid-Prairie High School to 8th Ave in downtown Wellman.
+Your best score and best time are saved for each route, car and condition.
 
 
 THE CARS
@@ -46,8 +50,9 @@ Chain things together within 4 seconds and the combo multiplier climbs to x5. Wh
 the combo runs out, its points are banked and safe. A hard hit, the tow truck, or a
 wreck throws away the combo you haven't banked yet.
 
-Make it to Iowa City and your whole score is multiplied by 1.5, plus 20 points for
-every second under 15 minutes. Every point is also multiplied by your car's number.
+Make it to the finish and your whole score is multiplied by 1.5, plus 20 points for
+every second under par (15 minutes to Iowa City, 6:40 to Wellman). Every point is also
+multiplied by your car's number.
 
 The run is over if:
   - the car is totaled (watch the health bar; not the Tercel)
@@ -114,9 +119,10 @@ turns the radio off and on.
 
 COPS AND DEER
 -------------
-Sheriff's deputies sit on the shoulder just past crossroads: one in Washington County
-(Kalona up to the county line at mile 1.75), three in Johnson County. They move every
-run. Go past one at over 72 mph, or hit one, and you've got a deputy on your tail.
+Sheriff's deputies sit on the shoulder just past crossroads. On Highway 1: one in
+Washington County (Kalona up to the county line at mile 1.75), three in Johnson County.
+On Highway 22 it's all Washington County: two deputies, and no county line. They move
+every run. Go past one at over 72 mph, or hit one, and you've got a deputy on your tail.
   - Stop with the deputy right behind you for 3 seconds: BUSTED, the run's over.
     Calling the tow truck while they're after you counts as busted too.
   - Get 400 m ahead and stay there, or wreck the cruiser: lost the cop, 1,000.
@@ -158,6 +164,18 @@ Mute                          M
 
 WHAT'S IN THIS BUILD
 --------------------
+v0.8: a second route. On the garage's top line (the route), press Left or Right to
+pick Highway 22: from the same 4-way stop in Kalona (you start in the middle of it,
+pointed west), 7 miles over the English River and past Mid-Prairie High School to
+downtown Wellman. It has its own records. Highway 1 is still there too. Both now have
+real bridges over their creeks, guardrails and all (they're solid). And the cars look like
+the real ones now: the Windstar, the Legend and the Tercel rebuilt after photos, with
+proper windows, lights and wheels, in the photos' colors (the old ones are still in the
+garage's paint list). And the four-way stop in Kalona looks like the real one: concrete,
+left-turn lanes on IA 1 (on Highway 1 you start in the through lane, right of the turn
+lane), a free right turn round every corner, light poles that come on at night, and the
+KALONA welcome sign by the flagpole on the corner.
+
 v0.7.2: sit behind the wheel. Press C (or Y) once for the in-car view: a dash with a
 working speedometer, tachometer, fuel and temperature gauges, odometer and trip meter,
 warning lights, and the radio's clock. Also, the tires no longer poke through the sides

@@ -1,10 +1,10 @@
-"""The side roads and town streets near IA 1, for the game to draw.
+"""The side roads and town streets near the route, for the game to draw.
 
-    python tools/bake_streets.py      (after bake_route.py and bake_places.py)
+    python tools/bake_streets.py [--route=<id>]      (after bake_route.py and bake_places.py)
 
-Writes game/data/route/streets.json: every public road (and private lane) within
-STREET_REACH_M of IA 1 in the National Transportation Dataset, cut back to the edge of
-IA 1's pavement, as game x/z polylines with a kind:
+Writes game/data/routes/<id>/streets.json: every public road (and private lane) within
+STREET_REACH_M of the route's highway in the National Transportation Dataset, cut back
+to the edge of its pavement, as game x/z polylines with a kind:
   paved   highways, county routes, and streets inside the city limits
   gravel  the rest (most of rural Iowa's county roads are gravel)
   lane    private drives and farm lanes
@@ -14,6 +14,10 @@ climbs up to meet the highway); scripts/world/streets.gd builds the mesh from th
 
 And it folds the streets into terrain_dist.bin ("meters from the road" at every terrain
 vertex), so grass verges run along them and the corn keeps off them.
+
+And it lays out the Kalona 4-way stop where both runs start (junction.py), writes it to
+junction.json, and cuts the streets back to its edge (on Highway 22 that's IA 1 too, which
+the NTD has as two roads through the junction).
 
 Left out: freeways and their ramps (US 218 passes under IA 1 on a bridge the terrain
 doesn't have), short turn lanes alongside IA 1, and parking lots, alleys, trails and paths.
@@ -29,6 +33,7 @@ import shapely
 from scipy.spatial import cKDTree
 
 import config
+import junction
 from bake_route import project_roads, smoothstep
 from sources import read_roads
 
@@ -128,6 +133,8 @@ def surface_heights(xz: np.ndarray, half_width: float, lift: float, ground: Grou
 
 
 def main():
+    import sys
+    config.use_args(sys.argv)
     route = json.loads((config.OUT_DIR / "route.json").read_text())
     places = json.loads((config.OUT_DIR / "places.json").read_text())
     o = route["origin"]
@@ -142,11 +149,25 @@ def main():
     towns = shapely.union_all([shapely.Polygon(np.reshape(t["outline"], (-1, 2))) for t in places.get("towns", [])])
     ground = Ground(route)
 
+    def street_height(p: np.ndarray) -> np.ndarray:
+        """A paved street's surface at points (surface_heights, one point at a time)."""
+        lifted = ground.at(p[:, 0], p[:, 1]) + KINDS["paved"]["lift"]
+        d, i = route_tree.query(p)
+        w = smoothstep(JOIN_FULL_M, JOIN_BLEND_M, d)
+        return np.maximum(lifted, (pts[i, 1] + JOIN_RAISE_M) * (1 - w) + lifted * w)
+
+    routes = {k: json.loads((config.ROOT / config.ROUTES[k]["out_dir"] / "route.json").read_text())
+              for k in (junction.IA1, junction.IA22)}
+    routes[config.ROUTE_ID] = route
+    four_way = junction.Junction(config.ROUTE_ID, routes, street_height)
+    (config.OUT_DIR / "junction.json").write_text(json.dumps(four_way.export(route, ground.heights), separators=(",", ":")))
+    keep_off = on_ia1.union(four_way.keep_clear())
+
     roads = read_roads(config.ROAD_BBOX)
     project_roads(roads)
     pieces: dict[tuple[str, str], list] = {}
     for r in roads:
-        if config.ROUTE_STATE in r.state_routes or config.FINISH_US in r.us_routes:
+        if config.ROUTE_STATE in r.state_routes or config.UNDERPASS_US in r.us_routes:
             continue
         for ln in r.lines:
             g = shapely.LineString(to_game(ln)).intersection(near)
@@ -166,7 +187,15 @@ def main():
             ends = [shapely.Point(line.coords[0]), shapely.Point(line.coords[-1])]
             free = [ia1.distance(p) > IA1_EDGE_M + 1.0 for p in ends]
             line = run_on(line, free[0], free[1], END_OVERLAP_M)
-            cut = line.difference(on_ia1)
+            # A free end stopping just short of the 4-way, heading for it, carries on to meet it.
+            for e in (0, 1):
+                p = shapely.Point(line.coords[-e])
+                gap = four_way.paved.distance(p)
+                if free[e] and 0.0 < gap < 6.0:
+                    longer = run_on(line, e == 0, e == 1, gap + 1.0)
+                    if four_way.paved.distance(shapely.Point(longer.coords[-e])) < gap * 0.5:
+                        line = longer
+            cut = line.difference(keep_off)
             for piece in getattr(cut, "geoms", [cut]):
                 if piece.is_empty or piece.geom_type != "LineString" or piece.length < 8.0:
                     continue
@@ -209,18 +238,24 @@ def main():
         if dense:
             trees[kind] = cKDTree(np.vstack(dense))
     dist = np.empty((len(t["tiles"]), grid, grid), dtype=np.uint8)
+    x0, z0, x1, z1 = four_way.paved.buffer(CORN_VERGE_M).bounds
     for n, (a, b, _) in enumerate(t["tiles"]):
         q = np.column_stack([(a * size + lx).ravel(), (b * size + lz).ravel()])
         d = route_tree.query(q)[0]
         for kind, tree in trees.items():
             d = np.minimum(d, tree.query(q, distance_upper_bound=300.0)[0] + CORN_VERGE_M - KINDS[kind]["corn_from"])
+        if (a + 1) * size >= x0 and a * size <= x1 and (b + 1) * size >= z0 and b * size <= z1:
+            on = shapely.distance(four_way.paved, shapely.points(q))
+            d = np.minimum(d, on + CORN_VERGE_M - KINDS["paved"]["corn_from"])
         dist[n] = np.clip(np.round(d), 0, 255).reshape(grid, grid)
     dist.tofile(config.OUT_DIR / t["distance_file"])
 
     total = {k: round(sum(shapely.LineString(np.reshape(s["points"], (-1, 5))[:, [0, 4]]).length
                           for s in streets if s["kind"] == k) / 1000.0, 1) for k in KINDS}
     print(f"streets: {len(streets)} pieces, km by kind {total}, "
-          f"{sum(1 for s in streets if any(s['joins']))} meet IA 1")
+          f"{sum(1 for s in streets if any(s['joins']))} meet the highway")
+    print(f"the 4-way: {four_way.paved.area:.0f} m2 of concrete, the road left out from station "
+          f"{junction.ENDS[four_way.own][0]:g} to {junction.ENDS[four_way.own][1]:g}")
 
 
 if __name__ == "__main__":
