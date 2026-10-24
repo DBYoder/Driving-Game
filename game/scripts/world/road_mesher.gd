@@ -91,7 +91,7 @@ func build_chunk(c: int, step := 1) -> ArrayMesh:
 	var verts := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var lines := PackedVector2Array()  ## UV2: solid center line for (northbound, southbound)
-	var decks := PackedColorArray()  ## COLOR.r: on a bridge
+	var decks := PackedColorArray()  ## COLOR.r: on a bridge; COLOR.g: a town's main street
 	var indices := PackedInt32Array()
 	for i in rows:
 		var station := i * route.spacing
@@ -99,11 +99,12 @@ func build_chunk(c: int, step := 1) -> ArrayMesh:
 		var right := route.right_at(station)
 		var solid := Vector2(float(route.no_passing(station, 1.0)), float(route.no_passing(station, -1.0)))
 		var on_deck := not route.deck_at(station).is_empty()
+		var town := 0.0 if on_deck else float(route.curbed(station))
 		for s in (DECK_SECTION if on_deck else SECTION):
 			verts.append(center + right * s[0] + Vector3.UP * s[1])
 			uvs.append(Vector2(s[0], station))
 			lines.append(solid)
-			decks.append(Color(1, 0, 0) if on_deck else Color(0, 0, 0))
+			decks.append(Color(1, 0, 0) if on_deck else Color(0, town, 0))
 	for row in rows.size() - 1:
 		if rows[row] >= gap.x and rows[row + 1] <= gap.y:
 			continue  # the 4-way's own pavement

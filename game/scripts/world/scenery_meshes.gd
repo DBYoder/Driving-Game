@@ -39,6 +39,14 @@ static func build(kind: String, lod: int) -> ArrayMesh:
 				_patch(st, Vector3(0.15, 0.32, 0.5), Vector2(0.3, 0.62), Vector3(0, 0, 1), DOOR)
 		"bin":
 			_bin(st, 12 if lod == 0 else 8)
+		"elevator":  # a co-op's leg and headhouse: a tall box, a smaller one on top
+			MeshKit.box(st, Vector3(1.0, 0.86, 1.0), Vector3(0, 0.43, 0), WALL)
+			MeshKit.box(st, Vector3(0.55, 0.14, 0.7), Vector3(0.1, 0.93, 0), WALL)
+			MeshKit.box(st, Vector3(0.58, 0.02, 0.73), Vector3(0.1, 1.0, 0), ROOF_STEEL)
+			if lod == 0:
+				for y: float in [0.25, 0.5, 0.75]:
+					MeshKit.box(st, Vector3(1.01, 0.012, 1.01), Vector3(0, y, 0), TRIM)  # the seams of the slip-formed walls
+				_patch(st, Vector3(0.5, 0.06, 0.2), Vector2(0.3, 0.12), Vector3(1, 0, 0), DOOR)
 		"tree":
 			if lod == 0:
 				_prism(st, 0.045, 0.0, 0.42, 4, TRUNK)

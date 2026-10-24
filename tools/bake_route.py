@@ -39,11 +39,19 @@ def project_roads(roads):
     return to_utm
 
 
+CROSSING_CLUSTER_M = 60.0  # the points of one crossing (a divided road's two carriageways)
+
+
 def crossing_point(route: shapely.LineString, lines: list[np.ndarray]) -> shapely.Point | None:
-    """Centroid of where `route` meets any of `lines` (several points when a road is divided)."""
+    """Centroid of where `route` first meets any of `lines` (several points when a road is
+    divided). Only the first crossing counts: a route running on past it can meet the
+    same road again (IA 1 crosses Mormon Trek Blvd twice)."""
     hits = [route.intersection(shapely.LineString(ln)) for ln in lines]
     pts = [g for h in hits if not h.is_empty for g in getattr(h, "geoms", [h])]
-    return shapely.MultiPoint(pts).centroid if pts else None
+    if not pts:
+        return None
+    first = min(pts, key=route.project)
+    return shapely.MultiPoint([p for p in pts if p.distance(first) <= CROSSING_CLUSTER_M]).centroid
 
 
 def find_route(roads, to_utm):
@@ -51,7 +59,11 @@ def find_route(roads, to_utm):
     g = geo.build_graph(hwy)
     a = geo.nearest_node(g, to_utm.transform(*config.SEARCH_FROM))
     b = geo.nearest_node(g, to_utm.transform(*config.SEARCH_TO))
-    raw = shapely.LineString(geo.path_polyline(g, a, b))
+    if config.SEARCH_VIA:  # by way of here (which carriageway of a divided road, say)
+        v = geo.nearest_node(g, to_utm.transform(*config.SEARCH_VIA))
+        raw = shapely.LineString(np.vstack([geo.path_polyline(g, a, v), geo.path_polyline(g, v, b)[1:]]))
+    else:
+        raw = shapely.LineString(geo.path_polyline(g, a, b))
 
     start_lines = [ln for r in roads if config.START_STATE in r.state_routes
                    and config.ROUTE_STATE not in r.state_routes for ln in r.lines]

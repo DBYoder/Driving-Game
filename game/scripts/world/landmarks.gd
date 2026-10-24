@@ -46,6 +46,8 @@ const ASPHALT := Color(0.23, 0.23, 0.24, 0.0)
 const FLAGPOLE := Color(0.86, 0.87, 0.89, 0.0)
 const GOLD := Color(0.98, 0.76, 0.16)  ## Golden Hawks lettering
 const GOLD_BALL := Color(0.85, 0.70, 0.25, 0.0)
+const LIGHT_EVERY := 55.0  ## a town street's lights, along the road
+const LIGHT_OFFSET := 8.0  ## off the centerline: behind the gutter, on the grass
 const LABEL_RANGE := 1100.0  ## like the road signs: a pixel or two in the haze past this
 
 var route: RouteData
@@ -68,6 +70,48 @@ func setup(r: RouteData) -> void:
 				_kalona_cheese(Vector3(float(l.x), 0.0, float(l.z)))
 			"mid_prairie":
 				_mid_prairie(Vector3(float(l.x), 0.0, float(l.z)), float(l.get("yaw", 0.0)))
+			"wellman_downtown":
+				WellmanLandmarks.new(self).downtown(l)
+			"wellman_water_tower":
+				WellmanLandmarks.new(self).water_tower(l)
+			"town_street":
+				if l.get("lights", false):
+					_street_lights(float(l.from), float(l.to))
+
+
+## A town's main street's lights, from station `from` to `to`: every LIGHT_EVERY m on
+## alternate sides, a galvanized pole behind the gutter with a mast arm and a cobra head
+## over the parking lane, lit at night. None by a crossroad or on a bridge.
+func _street_lights(from: float, to: float) -> void:
+	var st := MeshKit.begin()
+	var origin := route.position_at(from)
+	var side := 1.0
+	var s := from
+	while s <= to:
+		var clear := route.deck_at(s, 10.0).is_empty() and not route.in_junction(s)
+		for c: Dictionary in route.crossroads:
+			clear = clear and absf(float(c.station) - s) > 16.0
+		if clear:
+			var road := route.position_at(s)
+			var right := route.right_at(s) * side
+			var foot := road + right * LIGHT_OFFSET - Vector3.UP * 0.9 - origin  # down the foreslope
+			var top := road + right * LIGHT_OFFSET + Vector3.UP * 9.0 - origin
+			MeshKit.box(st, Vector3(0.24, top.y - foot.y, 0.24), (foot + top) / 2.0, POLE, atan2(right.x, right.z))
+			var tip := top - right * 2.8 + Vector3.UP * 0.35
+			var mid := (top + tip) / 2.0
+			MeshKit.box(st, Vector3(0.1, 0.1, 2.9), mid, POLE, atan2(right.x, right.z))
+			MeshKit.box(st, Vector3(0.45, 0.2, 0.8), tip - right * 0.25, POLE, atan2(right.x, right.z))
+			MeshKit.box(st, Vector3(0.32, 0.04, 0.6), tip - right * 0.25 - Vector3.UP * 0.11, LAMP, atan2(right.x, right.z))
+			_solid_at(Transform3D(Basis(), origin + (foot + top) / 2.0), Vector3(0.13, (top.y - foot.y) / 2.0, 0.13))
+			side = -side
+		s += LIGHT_EVERY if clear else 4.0
+	var node := MeshInstance3D.new()
+	node.mesh = MeshKit.finish(st)
+	node.material_override = material
+	node.position = origin
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.visibility_range_end = 1500.0
+	add_child(node)
 
 
 ## The season and the time of day, like the scenery's.
