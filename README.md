@@ -46,7 +46,9 @@ to start with. The web build is single-threaded now, so it runs on iPhones too.
 Iowa City past Mormon Trek and on through Wellman, with curbs and street lights. Wellman
 is built up after its aerial photos and the lidar: downtown 8th Ave's brick storefronts
 (signs, awnings, sidewalks, angle-parked cars, lamp posts), the WELLMAN water tower, and
-the co-op's grain bins and elevators (on Highway 1 too).
+the co-op's grain bins and elevators (on Highway 1 too). The in-car view is refitted to
+the new bodies: the dash meets the hood all the way across, and the pillars, roof and
+doors follow the body, so there's nowhere to see out through it.
 
 **v0.8: a second route, Highway 22 from Kalona to Wellman.** Pick it on the garage's
 new Route line. It starts in the same 4-way stop, pointed west straight out of it, and

@@ -18,7 +18,8 @@ extends Node3D
 ## Each arch is sized from the car's tires, suspension and lean so a tire never passes
 ## through the bodywork: steered to full lock, pushed up as far as it's drawn going
 ## (VISUAL_BUMP over its resting height), with the body leaned out as far as it's drawn
-## leaning, and dented in from anywhere (dents don't reach into the arches).
+## leaning, and dented in from anywhere, however many times (dents don't reach into the
+## arches, and never push the body into one).
 ## ModelCheck sweeps all of that in the tests and watches it live in the QA runs.
 ##
 ## Damage shows three ways: the paint dulls and smoke pours out when it's bad, the body
@@ -44,6 +45,7 @@ const ARCH_SIDE := 0.05  ## ...and the arches clear them by this much fore and a
 const ARCH_TOP := 0.03  ## and this much above, with everything else at its worst
 const PITCH_MAX_DEG := 1.0  ## the body dips under braking (squats under power) at most this far
 const PATCH_OFFSET := 0.012  ## a door or a lid sits this far out from the body under it
+const ARCH_KEEP := 0.03  ## dents never push the body nearer an arch than this (see dent())
 
 ## What each kind of surface is: [surface, vertex color]. Paint takes the car's color (the
 ## vertex color multiplies it); the rest are their own colors.
@@ -228,8 +230,9 @@ static func ground_y(stats: CarStats) -> float:
 
 
 ## The greenhouse in body space, for the Cockpit and the tests: the bottom and top of the
-## windshield and the back of the roof as (z, y), the beltline's lowest height, and the
-## share of the half width at the beltline and the roof.
+## windshield and the back of the roof as (z, y), the back of its bottom edge (the
+## beltline runs straight from the windshield's bottom back to it), the beltline's lowest
+## height, and the share of the half width at the beltline and the roof.
 static func cabin_points(stats: CarStats) -> Dictionary:
 	var shape: Dictionary = SHAPES.get(stats.style, SHAPES.sedan)
 	var l := stats.body_size.z
@@ -241,7 +244,44 @@ static func cabin_points(stats: CarStats) -> Dictionary:
 	for p: Array in cabin:
 		belt = minf(belt, g + float(p[1]))
 	return {"windshield_base": at.call(cabin[0]), "roof_front": at.call(cabin[1]), "roof_back": at.call(cabin[2]),
-		"belt": belt, "belt_taper": float(section[0][1]), "roof_taper": float(section[section.size() - 1][1])}
+		"belt_back": at.call(cabin[cabin.size() - 1]), "belt": belt, "belt_taper": float(section[0][1]),
+		"roof_taper": float(section[section.size() - 1][1])}
+
+
+## The lower body's half width at height y (body space), away from the rounded nose and tail.
+static func body_half_width(stats: CarStats, y: float) -> float:
+	var shape: Dictionary = SHAPES.get(stats.style, SHAPES.sedan)
+	var section: Array = shape.body_section
+	var h := y - ground_y(stats)
+	var share := float(section[0][1]) if h <= float(section[0][0]) else float(section[section.size() - 1][1])
+	for i in section.size() - 1:
+		var lo: float = section[i][0]
+		var hi: float = section[i + 1][0]
+		if h >= lo and h <= hi:
+			share = lerpf(float(section[i][1]), float(section[i + 1][1]), (h - lo) / maxf(hi - lo, 0.001))
+			break
+	return share * stats.body_size.x / 2.0
+
+
+## The inside of the car's shell, for the Cockpit (worked out with the body, body space).
+## From the driver's seat every face of the body faces away and isn't drawn, so the
+## cockpit is lined with the body's own shape:
+##   lining  the greenhouse's roof, pillars and window frames (all of it but the glass,
+##           the bottom it sits on and a doorway) as triangles facing in
+##   glass   the windows, as triangles
+##   cowl    the top of the hood where it meets the windshield: a row of points across
+##           the car, left to right, where the dash meets it
+static func interior(stats: CarStats) -> Dictionary:
+	prepare(stats)
+	var made: Dictionary = _made[_body_key(stats)]
+	if not made.has("interior"):  # (worked out the first time it's needed: only the player's car has a cockpit)
+		var model := CarModel.new()
+		model._stats = stats
+		model._shape = SHAPES.get(stats.style, SHAPES.sedan)
+		model._pieces = made.pieces
+		made.interior = model._interior()
+		model.free()
+	return made.interior
 
 
 func build(stats: CarStats, wheels: Array) -> void:
@@ -349,6 +389,33 @@ func _make_body() -> Dictionary:
 	return {"surfaces": surfaces, "pieces": _pieces}
 
 
+## See interior().
+func _interior() -> Dictionary:
+	var cabin: Dictionary = _pieces.cabin
+	var inside := _new_surfaces()
+	var normals: PackedVector2Array = cabin.normals
+	_emit_strips(inside, cabin, func(i: int) -> bool: return normals[i].y > -0.7)  # not the bottom
+	for side: float in [-1.0, 1.0]:
+		_emit_side(inside, cabin, side, PackedVector2Array(), 0.0, ["bay"])
+	var lining := PackedVector3Array()
+	for s: String in inside:
+		var verts: PackedVector3Array = inside[s][0]
+		if s == "glass":
+			continue
+		for t in range(0, verts.size(), 3):
+			lining.append_array(PackedVector3Array([verts[t], verts[t + 2], verts[t + 1]]))  # turned to face in
+	# The hood's last row of points, at the bottom of the windshield, as its strip has it.
+	var body: Dictionary = _pieces.body
+	var points: PackedVector2Array = body.points
+	var base: Vector2 = (cabin.points as PackedVector2Array)[0]
+	var at := 0
+	for i in points.size():
+		if points[i].distance_to(base) < points[at].distance_to(base):
+			at = i
+	var cowl := PackedVector3Array(_row(body, points[at], float(body.weights[at]), body.across, body.across))
+	return {"lining": lining, "glass": inside.glass[0], "cowl": cowl}
+
+
 static func _new_surfaces() -> Dictionary:
 	var out := {}
 	for s: String in ["body", "trim", "glass", "lights", "floor"]:
@@ -397,9 +464,18 @@ func dent(local_dir: Vector3, amount: float) -> void:
 			if dist >= DENT_RADIUS:
 				continue
 			var f := 1.0 - smoothstep(0.0, DENT_RADIUS, dist)
-			f *= smoothstep(0.03, 0.3, _arch_distance(rest[i]))  # the arches keep their shape
-			if f > 0.0:
-				offsets[i] = (offsets[i] - (d + Vector3.DOWN * 0.2) * depth * f).limit_length(MAX_DENT)
+			f *= smoothstep(ARCH_KEEP, 0.3, _arch_distance(rest[i]))  # the arches keep their shape
+			if f <= 0.0:
+				continue
+			# However many times it's hit, nothing's pushed into an arch: a push that
+			# would take a point within ARCH_KEEP of one is cut short.
+			var push := -(d + Vector3.DOWN * 0.2) * depth * f
+			for k in 4:
+				var moved := (offsets[i] + push).limit_length(MAX_DENT)
+				if _arch_distance(rest[i] + moved) >= ARCH_KEEP:
+					offsets[i] = moved
+					break
+				push *= 0.5
 		_dents[s] = offsets
 	_rebuild_body()
 

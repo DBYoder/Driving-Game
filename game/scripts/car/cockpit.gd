@@ -1,10 +1,13 @@
 class_name Cockpit
 extends Node3D
 ## The inside of the player's car, for the in-car view: the dash with its instrument
-## cluster and radio, a steering wheel that turns with the front wheels, the windshield
-## pillars and header, the roof lining with sun visors and the rear-view mirror, and the
-## door panels. Built to fit each car's own body (CarModel.cabin_points); it hangs off the
-## body, so it leans with it and the view stays put behind the dash.
+## cluster and radio, a steering wheel that turns with the front wheels, the roof lining,
+## pillars and window frames, the sun visors and the rear-view mirror, and the door panels.
+## Fitted to each car's own body (CarModel.cabin_points and CarModel.interior): the lining
+## is the greenhouse's own shape turned inward, the dash runs right up to the hood's edge
+## and the doors up to the bottom of the windows, so there's nowhere to see out through
+## the bodywork. It hangs off the body, so it leans with it and the view stays put
+## behind the dash.
 ##
 ## The gauges (Gauges) are drawn into a texture each frame while the view is on: speed,
 ## revs, fuel (it runs down on the way to Iowa City, fastest in the Windstar), engine
@@ -20,6 +23,8 @@ const WHEEL_TILT_DEG := 24.0  ## its top leans this far toward the dash
 const WHEEL_RATIO := 13.0  ## the steering wheel turns this many times as far as the front wheels
 const WHEEL_RADIUS := 0.19
 const CLUSTER_WIDTH := 0.52
+const COWL_LAP := 0.004  ## the dash's top edge sits this far over the hood's back edge
+const SILL_LAP := 0.01  ## and the doors' tops this far up the bottom of the windows
 const IDLE_RPM := 750.0
 const CARS := {
 	"windstar": {"redline": 5800.0, "odometer": 142318.0, "thirst": 0.72, "trim": Color(0.33, 0.35, 0.39)},
@@ -54,16 +59,16 @@ var _spec: Dictionary
 func build(stats: CarStats) -> void:
 	set_meta("no_clip_check", true)  # ModelCheck: nothing in here can touch a tire
 	_spec = CARS.get(stats.id, CARS.legend)
-	var w := stats.body_size.x
 	var cabin := CarModel.cabin_points(stats)
+	var inside := CarModel.interior(stats)
 	var minivan := stats.style == "minivan"
 	var z_ws: float = cabin.windshield_base.x  # the bottom of the windshield
 	var y_ws: float = cabin.windshield_base.y
 	var z_rf: float = cabin.roof_front.x  # the top of it, where the roof starts
 	var y_roof: float = cabin.roof_front.y
-	var z_rb: float = cabin.roof_back.x
-	var taper: float = cabin.roof_taper
+	var belt_back: Vector2 = cabin.belt_back
 	# The driver's eyes, on the left, and everything else from there.
+	var w := stats.body_size.x
 	var x_d := -w * 0.21
 	var y_eye := y_roof - (0.31 if minivan else 0.25)
 	var z_eye := z_rf + (0.36 if minivan else 0.28)
@@ -73,16 +78,31 @@ func build(stats: CarStats) -> void:
 	var y_floor := y_top - 0.62
 	var z_back := z_eye + 0.9
 	var side_in := w / 2.0 - 0.1  # the inside of the doors
+	var cowl: PackedVector3Array = inside.cowl
+	var wide := absf(cowl[0].x)  # the body's half width where the dash meets the hood
 	var trim: Color = _spec.trim
 	var dark := trim.darkened(0.35)
+	# The beltline (the bottom of the side windows), from the windshield back.
+	var belt := func(z: float) -> float:
+		return lerpf(y_ws, belt_back.y, clampf((z - z_ws) / (belt_back.x - z_ws), 0.0, 1.0))
 
 	var st := MeshKit.begin()
-	# The dash: its top sloping down to the windshield, the face with the gauges and
-	# the radio, and below that the part your knees go under.
-	MeshKit.quad(st, Vector3(-side_in, y_top, z_face), Vector3(side_in, y_top, z_face), Vector3(side_in, y_ws, z_ws),
-		Vector3(-side_in, y_ws, z_ws), Vector3.UP, trim.darkened(0.2))
-	MeshKit.box(st, Vector3(side_in * 2.0, 0.3, 0.1), Vector3(0, y_top - 0.15, z_face - 0.05), trim)
-	MeshKit.box(st, Vector3(side_in * 2.0, y_top - 0.3 - y_floor, 0.1), Vector3(0, (y_top - 0.3 + y_floor) / 2.0, z_face - 0.14),
+	# The greenhouse from the inside: its roof lining, pillars and window frames, the
+	# body's own shape turned inward.
+	var lining: PackedVector3Array = inside.lining
+	for t in range(0, lining.size(), 3):
+		var n := (lining[t + 2] - lining[t]).cross(lining[t + 1] - lining[t])
+		var roof := n.normalized().y < -0.4 and (lining[t] + lining[t + 1] + lining[t + 2]).z / 3.0 > z_rf - 0.01
+		MeshKit.tri(st, lining[t], lining[t + 1], lining[t + 2], n, LINING if roof else trim)
+	# The dash: its top runs from the gauges right up to the hood's edge at the bottom of
+	# the windshield, all the way across, so there's no seeing in under the hood; then the
+	# face with the gauges and the radio, and below that the part your knees go under.
+	for k in cowl.size() - 1:
+		var a := cowl[k] + Vector3(0, COWL_LAP, 0)
+		var b := cowl[k + 1] + Vector3(0, COWL_LAP, 0)
+		MeshKit.quad(st, Vector3(a.x, y_top, z_face), Vector3(b.x, y_top, z_face), b, a, Vector3.UP, trim.darkened(0.2))
+	MeshKit.box(st, Vector3(wide * 2.0, 0.3, 0.1), Vector3(0, y_top - 0.15, z_face - 0.05), trim)
+	MeshKit.box(st, Vector3(wide * 2.0, y_top - 0.3 - y_floor, 0.1), Vector3(0, (y_top - 0.3 + y_floor) / 2.0, z_face - 0.14),
 		trim.darkened(0.1))
 	if stats.id == "legend":  # a strip of wood across the passenger's side
 		MeshKit.box(st, Vector3(side_in - 0.2, 0.04, 0.01), Vector3((side_in + 0.2) / 2.0, y_top - 0.11, z_face + 0.005), WOOD)
@@ -101,26 +121,32 @@ func build(stats: CarStats) -> void:
 		MeshKit.box(st, Vector3(0.11, 0.05, 0.01), Vector3(x_stack + x, y_top - 0.19, z_face + 0.075), Color(0.05, 0.05, 0.06))
 	for x: float in [-0.08, 0.0, 0.08]:
 		MeshKit.box(st, Vector3(0.04, 0.04, 0.025), Vector3(x_stack + x, y_top - 0.3, z_face + 0.08), Color(0.12, 0.12, 0.13))
-	# The floor, and the console between the seats.
-	MeshKit.box(st, Vector3(side_in * 2.0, 0.02, z_back - z_face), Vector3(0, y_floor, (z_face + z_back) / 2.0), Color(0.12, 0.12, 0.13))
+	# The floor, from under the dash back, and the console between the seats.
+	var z_toe := z_face - 0.3
+	MeshKit.box(st, Vector3(wide * 2.0, 0.02, z_back - z_toe), Vector3(0, y_floor, (z_toe + z_back) / 2.0), Color(0.12, 0.12, 0.13))
 	MeshKit.box(st, Vector3(0.24, 0.22, z_back - z_face - 0.4), Vector3(0.0, y_floor + 0.11, (z_face + z_back + 0.4) / 2.0), dark)
-	# The doors, with armrests.
+	# The doors, up to the bottom of the windows and out over the top of the body's side
+	# (the sill), with armrests.
 	for side: float in [-1.0, 1.0]:
-		var x := side * (side_in + 0.04)
-		MeshKit.box(st, Vector3(0.08, y_top - 0.04 - y_floor, z_back - z_face), Vector3(x, (y_top - 0.04 + y_floor) / 2.0, (z_face + z_back) / 2.0), trim)
-		MeshKit.box(st, Vector3(0.07, 0.05, 0.5), Vector3(x - side * 0.06, y_top - 0.2, z_eye - 0.05), trim.darkened(0.15))
-	# Windshield pillars and the header across the top, then the doors' pillars.
+		var top_front: float = belt.call(z_face) + SILL_LAP
+		var top_back: float = belt.call(z_back) + SILL_LAP
+		var out := side * (CarModel.body_half_width(stats, maxf(top_front, top_back)) + 0.01)
+		MeshKit.quad(st, Vector3(side * side_in, y_floor, z_face), Vector3(side * side_in, y_floor, z_back),
+			Vector3(side * side_in, top_back, z_back), Vector3(side * side_in, top_front, z_face), Vector3(-side, 0, 0), trim)
+		MeshKit.quad(st, Vector3(side * side_in, top_front, z_face), Vector3(side * side_in, top_back, z_back),
+			Vector3(out, top_back, z_back), Vector3(out, top_front, z_face), Vector3.UP, trim.darkened(0.1))
+		# The kick panel, under the dash ahead of the door.
+		MeshKit.box(st, Vector3(wide - side_in + 0.02, y_top - 0.3 - y_floor, z_face - z_toe),
+			Vector3(side * (side_in + wide) / 2.0, (y_top - 0.3 + y_floor) / 2.0, (z_face + z_toe) / 2.0), trim.darkened(0.1))
+		var arm_y: float = minf(belt.call(z_eye) - 0.12, y_top - 0.2)
+		MeshKit.box(st, Vector3(0.07, 0.05, 0.5), Vector3(side * (side_in - 0.02), arm_y, z_eye - 0.05), trim.darkened(0.15))
+	# Sun visors and the mirror, up against the roof lining.
 	for side: float in [-1.0, 1.0]:
-		_beam(st, Vector3(side * w / 2.0 * 0.93, y_ws, z_ws), Vector3(side * w / 2.0 * taper * 0.95, y_roof - 0.02, z_rf), 0.09, trim)
-		_beam(st, Vector3(side * w / 2.0 * 0.95, y_ws, z_eye + 0.55), Vector3(side * w / 2.0 * taper * 0.95, y_roof - 0.02, z_eye + 0.5), 0.1, trim)
-	_beam(st, Vector3(-w / 2.0 * taper * 0.95, y_roof - 0.03, z_rf), Vector3(w / 2.0 * taper * 0.95, y_roof - 0.03, z_rf), 0.08, trim)
-	# The roof lining and sun visors.
-	MeshKit.box(st, Vector3(w * taper * 0.95, 0.03, maxf(z_rb - z_rf, 0.5)), Vector3(0, y_roof - 0.04, (z_rf + maxf(z_rb, z_rf + 0.5)) / 2.0), LINING)
-	for side: float in [-1.0, 1.0]:
-		MeshKit.box(st, Vector3(0.42, 0.02, 0.17), Vector3(side * w * 0.22, y_roof - 0.07, z_rf + 0.12), LINING.darkened(0.1))
-	# The mirror, stuck to the windshield up in the middle.
+		var x := side * w * 0.22
+		var y := _lining_y(lining, x, z_rf + 0.12, y_roof)
+		MeshKit.box(st, Vector3(0.42, 0.02, 0.17), Vector3(x, y - 0.025, z_rf + 0.12), LINING.darkened(0.1))
 	var mirror := Vector3(0.0, y_eye + 0.1, z_eye - 0.46)
-	var glass_y := y_ws + (y_roof - y_ws) * clampf((mirror.z - z_ws) / (z_rf - z_ws), 0.0, 1.0)
+	var glass_y := _lining_y(inside.glass, 0.0, mirror.z - 0.03, mirror.y)
 	_beam(st, mirror + Vector3(0, 0.02, -0.01), Vector3(0.0, glass_y, mirror.z - 0.03), 0.025, dark)
 	MeshKit.box(st, Vector3(0.23, 0.065, 0.03), mirror, Color(0.1, 0.1, 0.11))
 	MeshKit.box(st, Vector3(0.21, 0.05, 0.005), mirror + Vector3(0, 0, 0.016), Color(0.3, 0.34, 0.38))
@@ -250,6 +276,17 @@ func _screen(region: Rect2, size: Vector2, material: Material, xf: Transform3D) 
 	add_child(node)
 	_screens.append([node, region, size])
 	return node
+
+
+## How high the roof lining (or the glass) is over (x, z): the lowest bit of it above `from`.
+static func _lining_y(lining: PackedVector3Array, x: float, z: float, from: float) -> float:
+	var best := INF
+	var start := Vector3(x, from - 1.0, z)
+	for t in range(0, lining.size(), 3):
+		var hit = Geometry3D.ray_intersects_triangle(start, Vector3.UP, lining[t], lining[t + 1], lining[t + 2])
+		if hit != null and hit.y > from - 0.2:
+			best = minf(best, hit.y)
+	return best if best < INF else from
 
 
 ## A rim of `radius` in the XY plane, `thickness` round (an octagon swept round).

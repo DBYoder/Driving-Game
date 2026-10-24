@@ -43,6 +43,40 @@ func test_no_tire_ever_goes_through_the_body() -> void:
 		check(dented.clips == 0, "%s beaten in from all round: %d clips (worst %s)" % [id, dented.clips, dented.worst])
 
 
+func test_hit_again_and_again_from_one_side() -> void:
+	# Six hard hits from the same side (the stress run's Tercel, nose first into one thing
+	# after another, was pushing its front fender back into the tire): every pose, no clips.
+	for id: String in MODELS:
+		var stats := CarStats.preset(id)
+		for k in 8:
+			var a := TAU * (k + 0.5) / 8.0
+			var model := CarModel.new()
+			var wheels: Array = []
+			for z: float in [-stats.wheelbase / 2.0, stats.wheelbase / 2.0]:
+				for x: float in [-stats.track / 2.0, stats.track / 2.0]:
+					var w := Car.Wheel.new()
+					w.mount = Vector3(x, stats.mount_y, z)
+					w.front = z < 0.0
+					w.left = x < 0.0
+					w.spring_length = stats.rest_length
+					w.grounded = true
+					wheels.append(w)
+			model.build(stats, wheels)
+			for i in 6:
+				model.dent(Vector3(sin(a), 0.0, cos(a)), 1.0)
+			var clips := 0
+			for steer: float in [-1.0, 0.0, 1.0]:
+				for spring: float in [0.0, stats.rest_length]:
+					for w: Car.Wheel in wheels:
+						w.spring_length = spring
+					for i in 4:
+						model.update(wheels, steer * deg_to_rad(stats.max_steer_deg), Vector3.ZERO, 20.0, 1.0)
+					for c in ModelCheck.tire_clips(model):
+						clips += c
+			check(clips == 0, "%s hit six times from %.0f°: %d clips" % [id, rad_to_deg(a), clips])
+			model.free()
+
+
 func test_the_arches_stay_below_the_beltline() -> void:
 	for id: String in MODELS:
 		var stats := CarStats.preset(id)
