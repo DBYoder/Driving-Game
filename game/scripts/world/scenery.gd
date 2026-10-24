@@ -18,7 +18,7 @@ const NEAR_LOD := 450.0  ## the usual `near_lod` (the High preset pushes it out)
 const LOD_HYSTERESIS := 50.0
 const COLLIDE_RADIUS := 250.0
 const COLLIDE_UNLOAD := 400.0
-const KINDS := ["house", "barn", "shed", "bin", "tree", "conifer", "yard_light"]
+const KINDS := ["house", "barn", "shed", "bin", "elevator", "tree", "conifer", "yard_light"]
 const YARD_LIGHT_HEIGHT := 8.0
 const TRUNK_RADIUS := 0.35
 const TRUNK_HEIGHT := 5.0
@@ -29,6 +29,8 @@ const HOUSE_COLORS: Array[Color] = [Color(0.95, 0.95, 0.93), Color(0.95, 0.95, 0
 	Color(0.80, 0.85, 0.88), Color(0.86, 0.82, 0.70), Color(0.70, 0.70, 0.68), Color(0.62, 0.42, 0.32)]
 const BARN_COLORS: Array[Color] = [Color(0.62, 0.13, 0.10), Color(0.62, 0.13, 0.10), Color(0.55, 0.12, 0.10),
 	Color(0.92, 0.92, 0.90), Color(0.60, 0.58, 0.55)]
+## Grain elevators: galvanized steel, or concrete.
+const ELEVATOR_COLORS: Array[Color] = [Color(0.86, 0.87, 0.88), Color(0.80, 0.80, 0.78), Color(0.74, 0.73, 0.70)]
 const SHED_COLORS: Array[Color] = [Color(0.88, 0.89, 0.90), Color(0.80, 0.81, 0.82), Color(0.93, 0.93, 0.91),
 	Color(0.62, 0.15, 0.12), Color(0.72, 0.66, 0.55), Color(0.55, 0.62, 0.66)]
 
@@ -315,6 +317,8 @@ func _building_color(kind: String, i: int) -> Color:
 			return BARN_COLORS[int(h * BARN_COLORS.size()) % BARN_COLORS.size()]
 		"bin":
 			return Color.WHITE
+		"elevator":
+			return ELEVATOR_COLORS[int(h * ELEVATOR_COLORS.size()) % ELEVATOR_COLORS.size()]
 	return SHED_COLORS[int(h * SHED_COLORS.size()) % SHED_COLORS.size()]
 
 
@@ -380,7 +384,7 @@ func building_boxes(near: Vector3, radius: float) -> Array:
 	for block: Block in _blocks.values():
 		if block.node == null or _distance(block) > radius + BLOCK:
 			continue
-		for kind: String in ["house", "barn", "shed", "bin"]:
+		for kind: String in ["house", "barn", "shed", "bin", "elevator"]:
 			if not block.multimeshes.has(kind):
 				continue
 			var mm: MultiMesh = block.multimeshes[kind].multimesh

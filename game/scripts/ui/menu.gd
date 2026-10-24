@@ -2,7 +2,8 @@ class_name Menu
 extends CanvasLayer
 ## A panel of choices: the title screen, the pause menu, the settings, the records.
 ## ▲ ▼ (W / S, stick, D-pad) picks a line, ◀ ▶ changes a setting, Enter / Space / A
-## chooses, Esc / Backspace / B goes back. The mouse works too (click a setting to step it).
+## chooses, Esc / Backspace / B goes back. The mouse and touch work too: tap a line to
+## choose it, tap the left or right of a setting to step it back or on.
 
 signal chosen(id: String)  ## a button line was chosen
 signal adjusted(id: String, direction: int)  ## a setting line was changed (±1)
@@ -21,6 +22,7 @@ var _subtitle: Label
 var _body: Control  ## optional extra content between the title and the lines (a table)
 var _list: VBoxContainer
 var _footer: Label
+var _keys_footer := "▲ ▼ choose     Enter / A: OK     Esc / B: back"  ## shown unless the touch controls are up
 
 
 ## `side`: "center", or "left" to leave the right of the screen to the car.
@@ -53,8 +55,9 @@ func setup(title: String, subtitle := "", side := "center", title_size := 40, pa
 	_list = VBoxContainer.new()
 	_list.add_theme_constant_override("separation", 2)
 	_column.add_child(_list)
-	_footer = CarSelect._label("▲ ▼ choose     Enter / A: OK     Esc / B: back", 14, Color(0.7, 0.72, 0.75))
+	_footer = CarSelect._label(_keys_footer, 14, Color(0.7, 0.72, 0.75))
 	_column.add_child(_footer)
+	Touch.changed.connect(func(_on): set_footer(_keys_footer))
 	visible = false
 
 
@@ -77,7 +80,12 @@ func set_value(id: String, value: String) -> void:
 
 
 func set_footer(text: String) -> void:
-	_footer.text = text
+	_keys_footer = text
+	if Touch.active:
+		var options := items.any(func(it): return it.option)
+		_footer.text = "Tap a line     Tap the left or right of a setting to change it" if options else "Tap a line"
+	else:
+		_footer.text = text
 
 
 func set_subtitle(text: String) -> void:
@@ -97,6 +105,7 @@ func set_body(control: Control) -> void:
 func open(at := 0) -> void:
 	selected = clampi(at, 0, items.size() - 1)
 	visible = true
+	set_footer(_keys_footer)  # (for keys or touch, whichever's in use now)
 	_refresh()
 
 
@@ -164,7 +173,11 @@ func _add_row() -> void:
 			_refresh())
 	b.pressed.connect(func():
 		selected = i
-		accept())
+		# A setting: the left of the line steps it back, the rest steps it on.
+		if items[i].option and b.get_local_mouse_position().x < b.size.x * 0.4:
+			change(-1)
+		else:
+			accept())
 	_list.add_child(b)
 	_rows.append(b)
 	_refresh()

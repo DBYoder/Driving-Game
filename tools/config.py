@@ -29,6 +29,7 @@ UTM_CRS = "EPSG:26915"  # NAD83 / UTM 15N, meters
 #   *_stop_line_m  the start and finish lines: stop lines this far short of the middle
 #                  of each intersection (a start line past the middle, negative, starts
 #                  you in the intersection, pointed out of it)
+#   search_via     optional: a point the route passes through on its way to search_to
 #   pre_roll_m, run_out_m   road kept behind the start line and past the finish line
 #   start/finish_no_passing_m   solid lines out of town at the start, and into the finish
 #   nhd_hu8        the watersheds (USGS NHD) its creeks are in
@@ -43,13 +44,14 @@ ROUTES = {
         "finish_roads": {"Mormon Trek Blvd"},
         "underpass_us": "218",
         "search_from": (-91.7144, 41.4790),
-        "search_to": (-91.5600, 41.6405),
+        "search_to": (-91.5420, 41.6475),  # (on past the finish, short of Riverside Dr)
+        "search_via": (-91.5600, 41.6405),  # (where it ended before: the same carriageway to the finish)
         "road_bbox": (-91.78, 41.44, -91.50, 41.70),
         "origin": (608444, 4605201, 241),  # the midpoint when first baked
         "start_stop_line_m": 12.0,
         "finish_stop_line_m": 12.0,
         "pre_roll_m": 188.0,  # (station 0 where it's always been)
-        "run_out_m": 300.0,
+        "run_out_m": 2000.0,  # the road carries on past the finish, into town
         "start_no_passing_m": 300.0,    # out of Kalona
         "finish_no_passing_m": 1100.0,  # the divided stretch from US 218 into Iowa City
         "nhd_hu8": ["07080208", "07080209"],  # English River; Iowa River below Iowa City (Old Mans Creek)
@@ -66,13 +68,13 @@ ROUTES = {
         "finish_roads": {"8th Ave N", "8th Ave SW"},
         "underpass_us": None,
         "search_from": (-91.6950, 41.4820),
-        "search_to": (-91.8550, 41.4675),
+        "search_to": (-91.8900, 41.4684),  # (on west out of Wellman)
         "road_bbox": (-91.90, 41.42, -91.66, 41.53),
         "origin": (602197, 4592402, 220),  # about the middle
         "start_stop_line_m": -12.0,  # the far side of the 4-way stop: straight out of it, west
         "finish_stop_line_m": 8.0,  # a town street
         "pre_roll_m": 224.0,  # (station 0 where it's always been)
-        "run_out_m": 300.0,
+        "run_out_m": 2000.0,  # the road carries on past the finish, into town
         "start_no_passing_m": 300.0,     # out of Kalona
         "finish_no_passing_m": 900.0,    # through the built-up part of Wellman
         "nhd_hu8": ["07080208", "07080209"],
@@ -89,6 +91,7 @@ ROUTE_STATE = START_STATE = ""
 FINISH_ROADS: set[str] = set()
 UNDERPASS_US: str | None = None
 SEARCH_FROM = SEARCH_TO = (0.0, 0.0)
+SEARCH_VIA: tuple[float, float] | None = None
 ROAD_BBOX = (0.0, 0.0, 0.0, 0.0)
 ORIGIN = (0, 0, 0)
 START_STOP_LINE_M = FINISH_STOP_LINE_M = 12.0
@@ -101,7 +104,7 @@ OUT_DIR = PREVIEW_DIR = ROOT
 
 def use(route_id: str) -> None:
     """Point every knob at this route (one of ROUTES)."""
-    global ROUTE_ID, ROUTE_NAME, ROUTE_STATE, START_STATE, FINISH_ROADS, UNDERPASS_US, SEARCH_FROM, SEARCH_TO
+    global ROUTE_ID, ROUTE_NAME, ROUTE_STATE, START_STATE, FINISH_ROADS, UNDERPASS_US, SEARCH_FROM, SEARCH_TO, SEARCH_VIA
     global ROAD_BBOX, ORIGIN, START_STOP_LINE_M, FINISH_STOP_LINE_M, PRE_ROLL_M, RUN_OUT_M
     global START_NO_PASSING_M, FINISH_NO_PASSING_M, NHD_HU8, START_LABEL, FINISH_LABEL, OUT_DIR, PREVIEW_DIR
     r = ROUTES[route_id]
@@ -109,6 +112,7 @@ def use(route_id: str) -> None:
     ROUTE_STATE, START_STATE = r["route_state"], r["start_state"]
     FINISH_ROADS, UNDERPASS_US = set(r["finish_roads"]), r["underpass_us"]
     SEARCH_FROM, SEARCH_TO, ROAD_BBOX, ORIGIN = r["search_from"], r["search_to"], r["road_bbox"], r["origin"]
+    SEARCH_VIA = r.get("search_via")
     START_STOP_LINE_M, FINISH_STOP_LINE_M = r["start_stop_line_m"], r["finish_stop_line_m"]
     PRE_ROLL_M, RUN_OUT_M = r["pre_roll_m"], r["run_out_m"]
     START_NO_PASSING_M, FINISH_NO_PASSING_M = r["start_no_passing_m"], r["finish_no_passing_m"]

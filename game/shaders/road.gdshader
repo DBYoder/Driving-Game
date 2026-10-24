@@ -1,8 +1,9 @@
 // Two-lane rural highway: asphalt, gravel shoulders, white edge lines, and a yellow
 // center line that's solid where you can't pass and dashed where you can.
 // UV.x is meters from the centerline (negative = left), UV.y is the station, and
-// UV2 is 1 where the line is solid for (northbound, southbound) traffic, and COLOR.r is
-// 1 on a bridge's deck (concrete shoulders and edges).
+// UV2 is 1 where the line is solid for (northbound, southbound) traffic, COLOR.r is
+// 1 on a bridge's deck (concrete shoulders and edges), and COLOR.g is 1 on a town's main
+// street (a parking lane and a concrete gutter where the gravel would be).
 shader_type spatial;
 render_mode diffuse_lambert, specular_disabled;
 
@@ -23,6 +24,7 @@ varying float lateral;
 varying float station;
 varying vec2 solid;
 varying float deck;
+varying float town;
 
 // 1 inside a stripe of half-width `hw` around `center`, antialiased by screen-space width.
 float stripe(float x, float center, float hw) {
@@ -35,6 +37,7 @@ void vertex() {
 	station = UV.y;
 	solid = UV2;
 	deck = COLOR.r;
+	town = COLOR.g;
 }
 
 void fragment() {
@@ -44,6 +47,9 @@ void fragment() {
 	float a = abs(lateral);
 	vec3 col = a <= paved_half_width ? asphalt : (a <= gravel_half_width ? gravel : verge);
 	col = mix(col, concrete, step(0.5, deck) * step(paved_half_width, a));
+	float curbed = step(0.5, town) * step(paved_half_width, a) * step(a, gravel_half_width);
+	col = mix(col, asphalt, curbed * step(a, gravel_half_width - 0.6));
+	col = mix(col, concrete * 1.15, curbed * step(gravel_half_width - 0.6, a));
 	// US marking: 10 ft dashes every 40 ft. Each driver obeys the line nearer their lane
 	// (northbound drive on the +x side); if both may pass, it's one dashed line.
 	float dash = step(fract(station / 12.19), 0.25);

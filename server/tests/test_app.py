@@ -43,6 +43,13 @@ def test_serves_the_game_cross_origin_isolated(client):
     assert plain.status_code == 200 and "content-encoding" not in plain.headers, "the unzipped file is another version"
 
 
+def test_a_phone_can_keep_it_on_the_home_screen(client):
+    r = client.get("/manifest.webmanifest")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("application/manifest+json")
+    m = r.json()
+    assert m["display"] == "fullscreen" and m["orientation"] == "landscape" and m["start_url"] == "."
+
+
 def test_nothing_outside_the_game_folder(client):
     assert client.get("/../runs.db").status_code == 404
     assert client.get("/nope.js").status_code == 404

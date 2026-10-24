@@ -1,5 +1,5 @@
 {
-  "note": "Landmarks built by hand (scripts/world/landmarks.gd) at their real spots, measured off the 2019 USGS lidar (game x/z, meters). The lidar's own buildings and trees inside each `clear` rectangle are left out: the landmark stands there instead. A rectangle is [x0, z0, x1, z1] square to the compass, or [x, z, half_x, half_z, yaw]: centered on (x, z) and turned by yaw (radians, like Godot's rotation.y) with the building. tools/bake_lidar.py --yards counts the rectangles as buildings, so the corn and fences keep their distance.",
+  "note": "Landmarks built by hand (scripts/world/landmarks.gd) at their real spots, measured off the 2019 USGS lidar (game x/z, meters). The lidar's own buildings and trees inside each `clear` rectangle are left out: the landmark stands there instead. A rectangle is [x0, z0, x1, z1] square to the compass, or [x, z, half_x, half_z, yaw]: centered on (x, z) and turned by yaw (radians, like Godot's rotation.y) with the building. tools/bake_lidar.py --yards counts the rectangles as buildings, so the corn and fences keep their distance. A \"town_street\" is a stretch of the route (stations from/to) that's a town's main street: curbs (a parking lane and a gutter where the gravel shoulders would be) and street lights.",
   "landmarks": [
     {
       "id": "mid_prairie",
@@ -54,6 +54,235 @@
           1098.0
         ]
       ]
+    },
+    {
+      "id": "wellman_downtown",
+      "name": "Downtown Wellman",
+      "where": "8th Ave S between 3rd St and 2nd St (one-way, downhill), and the storefronts north of 3rd St; 300 m south of IA 22",
+      "x": -5151.0,
+      "z": 1400.0,
+      "street_x": -5151.0,
+      "street_half_width": 3.6,
+      "note": "fronts: the building fronts on each side (x). west/east: [z0, z1, height at the front, depth] per building, measured off the lidar's roofs; walks: the sidewalks' z spans (3rd St and 2nd St cross at 1356 and 1502)",
+      "fronts": [
+        -5161.0,
+        -5139.0
+      ],
+      "walks": [
+        [
+          1298.0,
+          1351.5
+        ],
+        [
+          1360.5,
+          1497.5
+        ]
+      ],
+      "west": [
+        [
+          1302,
+          1317,
+          8.5,
+          25
+        ],
+        [
+          1317,
+          1324,
+          6.5,
+          36
+        ],
+        [
+          1376,
+          1390,
+          9.0,
+          34
+        ],
+        [
+          1390,
+          1400,
+          9.6,
+          32
+        ],
+        [
+          1400,
+          1410,
+          9.6,
+          34
+        ],
+        [
+          1410,
+          1417,
+          10.1,
+          20
+        ],
+        [
+          1417,
+          1430,
+          5.5,
+          38
+        ],
+        [
+          1430,
+          1436,
+          4.3,
+          17
+        ],
+        [
+          1436,
+          1450,
+          6.8,
+          34
+        ],
+        [
+          1450,
+          1470,
+          10.1,
+          30
+        ],
+        [
+          1470,
+          1478,
+          9.0,
+          23
+        ],
+        [
+          1478,
+          1484,
+          3.6,
+          12
+        ],
+        [
+          1484,
+          1495,
+          3.6,
+          36
+        ]
+      ],
+      "east": [
+        [
+          1300,
+          1316,
+          7.8,
+          30
+        ],
+        [
+          1361,
+          1376,
+          9.7,
+          38
+        ],
+        [
+          1376,
+          1395,
+          5.9,
+          36
+        ],
+        [
+          1395,
+          1404,
+          8.8,
+          26
+        ],
+        [
+          1404,
+          1410,
+          5.9,
+          25
+        ],
+        [
+          1416,
+          1430,
+          6.2,
+          33
+        ],
+        [
+          1432,
+          1444,
+          11.1,
+          26
+        ],
+        [
+          1444,
+          1450,
+          5.8,
+          26
+        ],
+        [
+          1450,
+          1456,
+          9.0,
+          34
+        ],
+        [
+          1456,
+          1460,
+          6.5,
+          34
+        ],
+        [
+          1460,
+          1495,
+          4.5,
+          36
+        ]
+      ],
+      "clear": [
+        [
+          -5200.0,
+          1299.0,
+          -5157.0,
+          1325.0
+        ],
+        [
+          -5200.0,
+          1373.0,
+          -5157.0,
+          1497.0
+        ],
+        [
+          -5143.0,
+          1297.0,
+          -5100.0,
+          1318.0
+        ],
+        [
+          -5143.0,
+          1358.0,
+          -5100.0,
+          1497.0
+        ],
+        [
+          -5157.0,
+          1297.0,
+          -5143.0,
+          1497.0
+        ]
+      ]
+    },
+    {
+      "id": "wellman_water_tower",
+      "name": "Wellman's water tower",
+      "where": "north Wellman, 880 m north of IA 22 near 8th Ave",
+      "x": -5174.6,
+      "z": 223.3,
+      "clear": [
+        [
+          -5184.0,
+          213.0,
+          -5165.0,
+          233.0
+        ]
+      ]
+    },
+    {
+      "id": "town_street",
+      "name": "IA 22 through Wellman",
+      "where": "from 1st Ave SE to the co-op on the west edge of town",
+      "from": 10340.0,
+      "to": 11660.0,
+      "curbs": true,
+      "lights": true,
+      "clear": []
     }
   ]
 }

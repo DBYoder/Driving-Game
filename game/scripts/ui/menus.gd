@@ -10,10 +10,10 @@ signal garage
 signal to_title
 signal quit
 
-const VERSION := "v0.9"
+const VERSION := "v0.9.2"
 const SETTINGS := [["preset", "Graphics"], ["render_scale", "Resolution"], ["scenery", "Scenery"],
 	["fullscreen", "Display"], ["master_volume", "Volume"], ["effects_volume", "Car and effects"],
-	["radio_volume", "Radio"], ["rumble", "Controller rumble"]]
+	["radio_volume", "Radio"], ["rumble", "Controller rumble"], ["touch_controls", "Touch controls"]]
 
 var title: Menu
 var pause: Menu

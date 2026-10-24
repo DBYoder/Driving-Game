@@ -19,6 +19,7 @@ general/default_playback_type.web=0
 Controls="*res://scripts/autoload/controls.gd"
 Settings="*res://scripts/autoload/settings.gd"
 Leaderboard="*res://scripts/autoload/leaderboard.gd"
+Touch="*res://scripts/autoload/touch.gd"
 
 [display]
 

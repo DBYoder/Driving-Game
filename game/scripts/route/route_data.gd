@@ -11,6 +11,7 @@ const MILE_M := 1609.344
 const RAILED_BRIDGE_M := 3.0  ## a bridge standing this high has a deck and guardrails (tools/config.py)
 const RAIL_APPROACH_M := 25.0  ## the guardrails run on this far past each end of the deck
 const LANE := 1.83  ## the middle of a lane, off the centerline, on a two-lane road
+const TALL_BARN_M := 14.0  ## see tidy_kind()
 const JUNCTION_CLEAR := 3.0  ## nothing roadside stands this close to the 4-way's pavement
 
 var id := Routes.DEFAULT  ## the route's folder name (one of Routes.IDS)
@@ -31,7 +32,7 @@ var decks: Array = []  ## the real bridges (bridges at least RAILED_BRIDGE_M up)
 var terrain: TerrainTiles
 var horizon: HorizonTerrain
 ## Real buildings from the lidar (tools/bake_lidar.py): Dictionaries with x, z, length,
-## width, yaw, height, kind ("house", "barn", "shed", "bin"). Empty if not baked.
+## width, yaw, height, kind ("house", "barn", "shed", "bin", "elevator"). Empty if not baked.
 var buildings: Array = []
 ## Real trees from the lidar: 5 floats each (x, z, height, crown radius, conifer 0/1).
 var trees := PackedFloat32Array()
@@ -41,6 +42,10 @@ var places := {"creeks": [], "cities": [], "counties": []}
 ## ("paved", "gravel", "lane"), half_width, joins ([start, end] meet the highway) and points
 ## (PackedFloat32Array, 5 per point: x, left edge y, middle y, right edge y, z).
 var streets: Array = []
+## Stretches that are a town's main street (landmarks.json, id "town_street"): [from, to,
+## curbs, lights]: a parking lane and a concrete gutter where the gravel shoulders would
+## be, and street lights.
+var town_streets: Array = []
 ## Hand-built landmarks (the route's landmarks.json, built by Landmarks): Dictionaries with
 ## id, name, x, z and the `clear` rectangles their own buildings fill.
 var landmarks: Array = []
@@ -93,6 +98,8 @@ static func load_from(dir: String) -> RouteData:
 	var structures = _optional_json(dir.path_join("structures.json"))
 	if typeof(structures) == TYPE_DICTIONARY:
 		r.buildings = structures.buildings
+		for b: Dictionary in r.buildings:
+			b.kind = tidy_kind(b)
 	if FileAccess.file_exists(dir.path_join("trees.bin")):
 		r.trees = FileAccess.get_file_as_bytes(dir.path_join("trees.bin")).to_float32_array()
 	var places = _optional_json(dir.path_join("places.json"))
@@ -107,7 +114,9 @@ static func load_from(dir: String) -> RouteData:
 	if typeof(landmarks) == TYPE_DICTIONARY:
 		r.landmarks = landmarks.landmarks
 		for l: Dictionary in r.landmarks:
-			for c: Array in l.clear:
+			if l.id == "town_street":
+				r.town_streets.append([float(l.from), float(l.to), bool(l.get("curbs", false)), bool(l.get("lights", false))])
+			for c: Array in l.get("clear", []):
 				if c.size() == 5:
 					r.landmark_boxes.append([Vector2(c[0], c[1]), Vector2(c[2], c[3]), float(c[4])])
 				else:
@@ -155,6 +164,14 @@ func near_junction(x: float, z: float) -> bool:
 	return _junction_box.has_point(p) and Geometry2D.is_point_in_polygon(p, _junction_near)
 
 
+## Curbs and gutters here (a town's main street), not gravel shoulders.
+func curbed(station: float) -> bool:
+	for t: Array in town_streets:
+		if t[2] and station >= t[0] and station <= t[1]:
+			return true
+	return false
+
+
 ## Is the road at `station` the 4-way's (left out of the road mesh)?
 func in_junction(station: float) -> bool:
 	return station > junction_gap.x and station < junction_gap.y
@@ -200,6 +217,17 @@ func _clear_for_landmarks() -> void:
 		if not in_landmark(trees[i * 5], trees[i * 5 + 1]):
 			kept.append_array(trees.slice(i * 5, i * 5 + 5))
 	trees = kept
+
+
+## What the lidar calls a barn but stands over TALL_BARN_M is a co-op's: a big round
+## steel bin (a footprint about as wide as it's long), or the elevator itself (long and
+## narrow, the leg and the headhouse up top). No barn's that tall.
+static func tidy_kind(b: Dictionary) -> String:
+	if b.kind != "barn" or float(b.height) < TALL_BARN_M:
+		return b.kind
+	var long := maxf(float(b.length), float(b.width))
+	var short := maxf(minf(float(b.length), float(b.width)), 0.1)
+	return "bin" if long / short <= 1.4 else "elevator"
 
 
 ## A data file that may not have been baked: its parsed JSON, or null.

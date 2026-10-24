@@ -1,5 +1,5 @@
 {
-  "note": "Landmarks built by hand (scripts/world/landmarks.gd) at their real spots, measured off the 2019 USGS lidar (game x/z, meters). The lidar's own buildings and trees inside each `clear` rectangle are left out: the landmark stands there instead. A rectangle is [x0, z0, x1, z1] square to the compass, or [x, z, half_x, half_z, yaw]: centered on (x, z) and turned by yaw (radians, like Godot's rotation.y) with the building. tools/bake_lidar.py --yards counts the rectangles as buildings, so the corn and fences keep their distance.",
+  "note": "Landmarks built by hand (scripts/world/landmarks.gd) at their real spots, measured off the 2019 USGS lidar (game x/z, meters). The lidar's own buildings and trees inside each `clear` rectangle are left out: the landmark stands there instead. A rectangle is [x0, z0, x1, z1] square to the compass, or [x, z, half_x, half_z, yaw]: centered on (x, z) and turned by yaw (radians, like Godot's rotation.y) with the building. tools/bake_lidar.py --yards counts the rectangles as buildings, so the corn and fences keep their distance. A \"town_street\" is a stretch of the route (stations from/to) that's a town's main street: curbs (a parking lane and a gutter where the gravel shoulders would be) and street lights.",
   "landmarks": [
     {
       "id": "kalona_cheese",
@@ -7,7 +7,30 @@
       "where": "NE corner of IA 1 and 540th St SW, 3.9 mi north of Kalona",
       "x": -1076.3,
       "z": 5614.3,
-      "clear": [[-1090.3, 5595.8, -1042.3, 5641.8], [-1042.3, 5589.8, -998.3, 5630.8]]
+      "clear": [
+        [
+          -1090.3,
+          5595.8,
+          -1042.3,
+          5641.8
+        ],
+        [
+          -1042.3,
+          5589.8,
+          -998.3,
+          5630.8
+        ]
+      ]
+    },
+    {
+      "id": "town_street",
+      "name": "IA 1 into Iowa City",
+      "where": "past Mormon Trek Blvd, on toward Riverside Dr",
+      "from": 24780.0,
+      "to": 26900.0,
+      "curbs": true,
+      "lights": true,
+      "clear": []
     }
   ]
 }

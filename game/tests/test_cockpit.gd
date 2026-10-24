@@ -1,6 +1,8 @@
 extends "res://tests/test_case.gd"
 ## The in-car view: in every car the driver can see the speedometer, the tachometer and
-## the radio past the steering wheel and the bodywork, and the gauges follow the car.
+## the radio past the steering wheel and the bodywork, nowhere can they see out through
+## the bodywork (between the dash and the hood, under the dash, past the doors), the view
+## ahead is clear, and the gauges follow the car.
 
 const CARS := ["windstar", "tercel", "legend"]
 var route := RouteData.load_from("res://data/routes/highway1")
@@ -76,6 +78,149 @@ func test_the_driver_sees_the_gauges() -> void:
 			var speedo: Vector2 = targets["the speedometer"]
 			check(_sees(eye, body.transform * cockpit.gauge_point(speedo), with_floor) != "",
 				"%s: the check would notice the floor in the way" % id)
+		model.free()
+
+
+## Everything in the car (the model's space) as triangles: [a, b, c, drawn (shown, so the
+## renderer draws its front), bodywork (the body and its parts, not the cockpit), glass].
+func _faces(node: Node, xf: Transform3D, glass: Material, shown: bool, cockpit: bool, out: Array) -> void:
+	for child in node.get_children():
+		if not child is Node3D:
+			continue
+		var cxf: Transform3D = xf * child.transform
+		var drawn: bool = shown and child.visible
+		var inside: bool = cockpit or child is Cockpit
+		if child is MeshInstance3D and child.mesh and not (child.has_meta("no_clip_check") and not inside):
+			var mesh: Mesh = child.mesh
+			for s in mesh.get_surface_count():
+				var arrays := mesh.surface_get_arrays(s)
+				var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+				var idx = arrays[Mesh.ARRAY_INDEX]
+				var order: Array = range(verts.size()) if idx == null or (idx as PackedInt32Array).is_empty() else Array(idx)
+				var material: Material = child.material_override if child.material_override else mesh.surface_get_material(s)
+				for k in range(0, order.size(), 3):
+					out.append([cxf * verts[order[k]], cxf * verts[order[k + 1]], cxf * verts[order[k + 2]], drawn,
+						not inside, material == glass])
+		_faces(child, cxf, glass, drawn, inside, out)
+
+
+## Rays from the driver's eyes across the whole view (as wide as a phone held sideways)
+## that see out through the bodywork. Each piece of the body is closed, its faces facing
+## out, so going through one facing the eyes is going into a piece and through one facing
+## away is coming out of it; starting inside the cabin, a ray that's out of the car before
+## it gets to anything drawn, and got out through paint and not glass, sees through the
+## car. (The top of the body under the cabin is hidden in the in-car view: going through
+## it just goes from the cabin into the body.) Each [degrees right, degrees up, where it
+## got out].
+func _see_through(model: CarModel, eye: Transform3D) -> Array:
+	var faces := []
+	_faces(model, Transform3D(), model._glass, true, false, faces)
+	const ACROSS := 76
+	const DOWN := 34
+	var tan_v := tan(deg_to_rad(Cockpit.FOV / 2.0))
+	var tan_h := tan_v * 2.2
+	var inv := eye.affine_inverse()
+	# Each face into the cells of the view it covers (all of them, if it reaches behind the eyes).
+	var cells := []
+	cells.resize(ACROSS * DOWN)
+	for i in cells.size():
+		cells[i] = []
+	var everywhere := []
+	for f: Array in faces:
+		f.append((f[2] - f[0]).cross(f[1] - f[0]).dot(eye.origin - f[0]) > 0.0)  # [6]: facing the eyes
+		var lo := Vector2(INF, INF)
+		var hi := Vector2(-INF, -INF)
+		var behind := false
+		for k in 3:
+			var p: Vector3 = inv * (f[k] as Vector3)
+			if p.z > -0.02:
+				behind = true
+				break
+			var q := Vector2(p.x / -p.z / tan_h, p.y / -p.z / tan_v)
+			lo = lo.min(q)
+			hi = hi.max(q)
+		if behind:
+			everywhere.append(f)
+			continue
+		if hi.x < -1.0 or lo.x > 1.0 or hi.y < -1.0 or lo.y > 1.0:
+			continue
+		for cx in range(clampi(floori((lo.x + 1.0) / 2.0 * ACROSS), 0, ACROSS - 1), clampi(floori((hi.x + 1.0) / 2.0 * ACROSS), 0, ACROSS - 1) + 1):
+			for cy in range(clampi(floori((lo.y + 1.0) / 2.0 * DOWN), 0, DOWN - 1), clampi(floori((hi.y + 1.0) / 2.0 * DOWN), 0, DOWN - 1) + 1):
+				cells[cy * ACROSS + cx].append(f)
+	var out := []
+	for cy in DOWN:
+		for cx in ACROSS:
+			var q := Vector2((cx + 0.5) / ACROSS * 2.0 - 1.0, (cy + 0.5) / DOWN * 2.0 - 1.0)
+			var dir := (eye.basis * Vector3(q.x * tan_h, q.y * tan_v, -1.0)).normalized()
+			var seen := INF
+			var crossings := []
+			for list: Array in [cells[cy * ACROSS + cx], everywhere]:
+				for f: Array in list:
+					var hit = Geometry3D.ray_intersects_triangle(eye.origin, dir, f[0], f[1], f[2])
+					if hit == null:
+						continue
+					var t: float = (hit - eye.origin).dot(dir)
+					if f[3] and f[6]:
+						seen = minf(seen, t)
+					if f[4]:
+						crossings.append([t, f[6], f[5], hit])
+			crossings.sort_custom(func(a, b): return a[0] < b[0])
+			var depth := 1  # in the cabin
+			for c: Array in crossings:
+				if c[0] >= seen - 0.003:
+					break
+				depth += 1 if c[1] else -1
+				if depth <= 0:
+					if not c[2]:
+						out.append([rad_to_deg(atan(q.x * tan_h)), rad_to_deg(atan(q.y * tan_v)) + Cockpit.EYE_PITCH_DEG, c[3]])
+					break
+	return out
+
+
+func test_no_seeing_out_through_the_bodywork() -> void:
+	for id: String in CARS:
+		var stats := CarStats.preset(id)
+		var model := _model(id)
+		var body := model.body_node()
+		var cockpit := Cockpit.new()
+		body.add_child(cockpit)
+		cockpit.build(stats)
+		cockpit.active = true
+		model.show_cabin_floor(false)
+		var gaps := _see_through(model, body.transform * cockpit.eye)
+		check(gaps.is_empty(), "%s: %d rays from the driver's seat see out through the bodywork%s" % [id, gaps.size(),
+			"" if gaps.is_empty() else ", the first %.0f° right, %.0f° up, through %s" % gaps[0]])
+		# And the check sees one when there is: with no cockpit, in under the hood.
+		var eye := body.transform * cockpit.eye
+		cockpit.free()
+		check(not _see_through(model, eye).is_empty(), "%s: the check would notice no dash" % id)
+		model.free()
+
+
+func test_the_view_ahead_is_clear() -> void:
+	for id: String in CARS:
+		var stats := CarStats.preset(id)
+		var model := _model(id)
+		var body := model.body_node()
+		var cockpit := Cockpit.new()
+		body.add_child(cockpit)
+		cockpit.build(stats)
+		cockpit.active = true
+		model.show_cabin_floor(false)
+		var faces := []
+		_faces(model, Transform3D(), model._glass, true, false, faces)
+		var eye := body.transform * cockpit.eye
+		var blocked := []
+		for yaw in range(-20, 21, 5):
+			for up in [0.0, 4.0]:  # level and a little up: the road ahead and the sky over it
+				var dir := Vector3.FORWARD.rotated(Vector3.RIGHT, deg_to_rad(up)).rotated(Vector3.UP, deg_to_rad(-yaw))
+				dir = body.transform.basis * dir
+				for f: Array in faces:
+					var facing: bool = (f[2] - f[0]).cross(f[1] - f[0]).dot(eye.origin - f[0]) > 0.0
+					if f[3] and facing and Geometry3D.ray_intersects_triangle(eye.origin, dir, f[0], f[1], f[2]) != null:
+						blocked.append("%d° right, %.0f° up" % [yaw, up])
+						break
+		check(blocked.is_empty(), "%s: something's in the way straight ahead: %s" % [id, blocked])
 		model.free()
 
 

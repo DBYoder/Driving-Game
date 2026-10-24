@@ -1045,8 +1045,8 @@
   {
    "name": "Smith Creek",
    "points": [
-    -5517.6,
-    2285.6,
+    -5520.6,
+    2287.7,
     -5482.5,
     2262.7,
     -5367.7,
@@ -1084,6 +1084,12 @@
    "name": "Wellman",
    "population": 1524,
    "entering": true
+  },
+  {
+   "station": 11599.7,
+   "name": "Wellman",
+   "population": 1524,
+   "entering": false
   }
  ],
  "counties": [],

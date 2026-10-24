@@ -36,6 +36,7 @@ var effects_volume := 1.0
 var radio_volume := 0.8
 var rumble := true
 var player_name := ""  ## on the shared leaderboard ("": asked after the next run)
+var touch_controls := "auto"  ## see Touch: "auto", "on" or "off"
 var save_path := ""  ## "" = don't save (tests)
 
 
@@ -75,16 +76,32 @@ func particles() -> float:
 	return PRESET_VALUES[preset].particles
 
 
-## Back to the defaults (Medium, full volume, rumble on), without saving.
+## Back to the defaults (Medium, full volume, rumble on), without saving. On a phone or
+## tablet: Low, with the 3D drawn at about 600 lines (their screens have two or three times
+## the pixels a PC's has, and much less to draw them with).
 func reset() -> void:
 	set_preset("medium", false)
+	if handheld():
+		set_preset("low", false)
+		render_scale = handheld_render_scale(DisplayServer.window_get_size().y)
 	fullscreen = false
 	master_volume = 1.0
 	effects_volume = 1.0
 	radio_volume = 0.8
 	rumble = true
 	player_name = ""
+	touch_controls = "auto"
 	_apply_volumes()
+
+
+## A phone or a tablet (in a browser, or a mobile build).
+static func handheld() -> bool:
+	return OS.has_feature("web_android") or OS.has_feature("web_ios") or OS.has_feature("mobile")
+
+
+## The resolution that draws the 3D at about 600 lines on a screen this many pixels high.
+static func handheld_render_scale(screen_height: int) -> float:
+	return _nearest(clampf(600.0 / maxf(screen_height, 1.0), RENDER_SCALES[0], 1.0), RENDER_SCALES)
 
 
 ## Read them from `path` (and remember it for saving). A first run picks up the scenery
@@ -108,6 +125,8 @@ func load_file(path := SAVE_PATH) -> void:
 	radio_volume = clampf(float(cfg.get_value("sound", "radio", radio_volume)), 0.0, 1.0)
 	rumble = bool(cfg.get_value("controller", "rumble", true))
 	player_name = str(cfg.get_value("leaderboard", "name", ""))
+	var t: String = cfg.get_value("controls", "touch", "auto")
+	touch_controls = t if t in ["auto", "on", "off"] else "auto"
 	_apply_volumes()
 
 
@@ -124,6 +143,7 @@ func save() -> void:
 	cfg.set_value("sound", "radio", radio_volume)
 	cfg.set_value("controller", "rumble", rumble)
 	cfg.set_value("leaderboard", "name", player_name)
+	cfg.set_value("controls", "touch", touch_controls)
 	cfg.save(save_path)
 
 
@@ -154,6 +174,9 @@ func step(setting: String, direction: int) -> void:
 			rumble = not rumble
 		"player_name":
 			player_name = ""  # asked again after the next run
+		"touch_controls":
+			var modes := ["auto", "on", "off"]
+			touch_controls = modes[posmod(modes.find(touch_controls) + direction, modes.size())]
 	_changed()
 
 
@@ -174,6 +197,8 @@ func describe(setting: String) -> String:
 			return "On" if rumble else "Off"
 		"player_name":
 			return player_name + "  (◀ ▶ to change)" if player_name != "" else "Asked after your next run"
+		"touch_controls":
+			return {"auto": "Auto (when the screen's touched)", "on": "On", "off": "Off"}[touch_controls]
 	return ""
 
 

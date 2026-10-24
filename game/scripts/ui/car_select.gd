@@ -4,7 +4,8 @@ extends CanvasLayer
 ## in practice, where to start). The car sits on the road with the camera circling it.
 ## Another route means another world: route_changed, and the game reloads for it.
 ## ▲ ▼ picks the line, ◀ ▶ changes it, Enter / Space / A drives, Esc / B goes back to the
-## title screen. Remembers the last pick.
+## title screen. Or tap (or click) the left or right of a line to change it, and the Drive
+## and Back buttons (with the touch controls up). Remembers the last pick.
 
 signal browsed(car_id: String, paint: int, condition_id: String)  ## what's on show changed
 signal chosen(car_id: String, paint: int, condition_id: String)  ## drive it
@@ -39,6 +40,8 @@ var _condition_tagline: Label
 var _records: Label
 var _start: Label
 var _heading: Label
+var _footer: Label  ## the keys (or, with the touch controls up, the Back and Drive buttons)
+var _buttons: HBoxContainer
 
 
 func setup(path: String) -> void:
@@ -95,28 +98,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not visible or _switching:
 		return
 	if event.is_action_pressed("menu_left") or event.is_action_pressed("menu_right"):
-		var step := -1 if event.is_action_pressed("menu_left") else 1
-		match row:
-			Row.ROUTE:
-				route_index = posmod(route_index + step, Routes.IDS.size())
-				_save()
-				_route.text = _choice(Routes.headline(current_route()), true)
-				_route_tagline.text = "Loading..."
-				_switching = true
-				route_changed.emit(current_route())
-				if get_viewport():
-					get_viewport().set_input_as_handled()
-				return
-			Row.CAR:
-				car_index = posmod(car_index + step, CarStats.CARS.size())
-				paint_index = 0
-			Row.PAINT:
-				paint_index = posmod(paint_index + step, _stats.paints.size())
-			Row.CONDITION:
-				condition_index = posmod(condition_index + step, Condition.IDS.size())
-			Row.START:
-				start_index = posmod(start_index + step, starts.size())
-		_show()
+		change(-1 if event.is_action_pressed("menu_left") else 1)
 	elif event.is_action_pressed("menu_up"):
 		row = posmod(row - 1, _rows()) as Row
 		_show()
@@ -124,15 +106,57 @@ func _unhandled_input(event: InputEvent) -> void:
 		row = posmod(row + 1, _rows()) as Row
 		_show()
 	elif event.is_action_pressed("menu_accept"):
-		visible = false
-		_save()
-		chosen.emit(current_car(), paint_index, current_condition())
+		drive()
 	elif event.is_action_pressed("menu_back"):
-		visible = false
-		back.emit()
+		go_back()
 	else:
 		return
-	get_viewport().set_input_as_handled()
+	if get_viewport():
+		get_viewport().set_input_as_handled()
+
+
+## The selected line, one choice back (-1) or on (1). Another route reloads the world.
+func change(step: int) -> void:
+	match row:
+		Row.ROUTE:
+			route_index = posmod(route_index + step, Routes.IDS.size())
+			_save()
+			_route.text = _choice(Routes.headline(current_route()), true)
+			_route_tagline.text = "Loading..."
+			_switching = true
+			route_changed.emit(current_route())
+			return
+		Row.CAR:
+			car_index = posmod(car_index + step, CarStats.CARS.size())
+			paint_index = 0
+		Row.PAINT:
+			paint_index = posmod(paint_index + step, _stats.paints.size())
+		Row.CONDITION:
+			condition_index = posmod(condition_index + step, Condition.IDS.size())
+		Row.START:
+			start_index = posmod(start_index + step, starts.size())
+	_show()
+
+
+func drive() -> void:
+	visible = false
+	_save()
+	chosen.emit(current_car(), paint_index, current_condition())
+
+
+func go_back() -> void:
+	visible = false
+	back.emit()
+
+
+## A tap or click on a line: it's the selected line now, and the left of it steps back, the
+## right steps on.
+func _tapped(on_row: Row, event: InputEvent, line: Control) -> void:
+	if _switching or not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
+		return
+	row = on_row
+	change(-1 if event.position.x < line.size.x * 0.5 else 1)
+	line.accept_event()
 
 
 func _show() -> void:
@@ -158,6 +182,8 @@ func _show() -> void:
 		start_index = clampi(start_index, 0, starts.size() - 1)
 		_start.text = _choice("Start: %s" % starts[start_index][1], row == Row.START)
 	_heading.text = "PRACTICE: NOTHING'S SAVED" if practice else "PICK YOUR CAR"
+	_footer.visible = not Touch.active
+	_buttons.visible = Touch.active
 	browsed.emit(current_car(), paint_index, current_condition())
 
 
@@ -165,9 +191,10 @@ func _rows() -> int:
 	return 5 if practice and not starts.is_empty() else 4
 
 
-## A line you can change: arrows and highlighted when it's the selected one.
+## A line you can change: arrows when it's the selected one (on every line for touch,
+## where they're what you tap).
 func _choice(text: String, selected: bool) -> String:
-	return "◀  %s  ▶" % text if selected else text
+	return "◀  %s  ▶" % text if selected or Touch.active else text
 
 
 func _save() -> void:
@@ -245,8 +272,23 @@ func _build() -> void:
 	column.add_child(_start)
 	_records = _label("", 16, Color(0.85, 0.87, 0.9))
 	column.add_child(_records)
-	column.add_child(_label("▲ ▼ choose a line     ◀ ▶ change     Enter / Space / A: drive     Esc / B: back", 15,
-		Color(0.7, 0.72, 0.75)))
+	_footer = _label("▲ ▼ choose a line     ◀ ▶ change     Enter / Space / A: drive     Esc / B: back", 15,
+		Color(0.7, 0.72, 0.75))
+	column.add_child(_footer)
+	_buttons = HBoxContainer.new()
+	_buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	_buttons.add_theme_constant_override("separation", 16)
+	_buttons.add_child(Hud._big_button("Back", go_back))
+	_buttons.add_child(Hud._big_button("Drive  ▶", drive))
+	column.add_child(_buttons)
+	# Every line you can change takes a tap.
+	for pair: Array in [[_route, Row.ROUTE], [_name, Row.CAR], [_paint, Row.PAINT], [_condition, Row.CONDITION],
+			[_start, Row.START]]:
+		var line: Label = pair[0]
+		var on_row: Row = pair[1]
+		line.mouse_filter = Control.MOUSE_FILTER_STOP
+		line.gui_input.connect(func(event: InputEvent): _tapped(on_row, event, line))
+	Touch.changed.connect(func(_on): if visible: _show())
 
 
 static func _label(text: String, size: int, color := Color.WHITE) -> Label:
