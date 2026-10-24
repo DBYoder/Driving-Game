@@ -9,6 +9,8 @@ takes them, and a small JSON API:
                                           points, seconds (null if it didn't finish), car,
                                           condition, version}; answers with where it placed
   GET  /api/health
+  GET  /manifest.webmanifest              lets a phone keep it on the home screen, full screen
+                                          and sideways
 
 Runs are kept in Postgres when DATABASE_URL is set (Railway's Postgres), else in SQLite
 (LEADERBOARD_DB, default ./leaderboard.db: fine for trying it out, but on Railway it's
@@ -53,6 +55,14 @@ ISOLATION = {
     "Cross-Origin-Opener-Policy": "same-origin",
     "Cross-Origin-Embedder-Policy": "require-corp",
     "Cross-Origin-Resource-Policy": "same-origin",
+}
+# "Add to Home Screen": the game opens full screen and sideways, like an app.
+MANIFEST = {
+    "name": "Highway 1", "short_name": "Highway 1", "start_url": ".", "scope": ".",
+    "display": "fullscreen", "orientation": "landscape",
+    "background_color": "#000000", "theme_color": "#000000",
+    "icons": [{"src": "index.apple-touch-icon.png", "sizes": "180x180", "type": "image/png"},
+              {"src": "index.icon.png", "sizes": "128x128", "type": "image/png"}],
 }
 TYPES = {".wasm": "application/wasm", ".pck": "application/octet-stream", ".js": "text/javascript",
          ".html": "text/html; charset=utf-8", ".png": "image/png"}
@@ -177,6 +187,9 @@ def create_app(game_dir: str | Path | None = None, store: Store | None = None,
     async def health(_: Request) -> Response:
         return JSONResponse({"ok": True})
 
+    async def manifest(_: Request) -> Response:
+        return JSONResponse(MANIFEST, media_type="application/manifest+json")
+
     async def leaderboard(request: Request) -> Response:
         route = request.query_params.get("route", "")
         if route not in ROUTES:
@@ -225,6 +238,7 @@ def create_app(game_dir: str | Path | None = None, store: Store | None = None,
 
     app = Starlette(routes=[
         Route("/api/health", health),
+        Route("/manifest.webmanifest", manifest),
         Route("/api/leaderboard", leaderboard),
         Route("/api/runs", post_run, methods=["POST"]),
         Route("/", static),

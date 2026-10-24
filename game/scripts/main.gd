@@ -86,6 +86,7 @@ var run: Run
 var hud: Hud
 var garage: CarSelect
 var menus: Menus
+var touch_pad: TouchPad  ## the on-screen wheel and pedals (when Touch says so)
 var _driver: Object
 var _demo: Autopilot  ## drives the title screen's car
 var _demo_wait := 0.0
@@ -138,6 +139,7 @@ func _ready() -> void:
 		Settings.reset()
 	else:
 		Settings.load_file()
+	Touch.refresh()
 	if args.has("preset") and args.preset in Settings.PRESETS:
 		Settings.set_preset(args.preset, false)
 	if args.has("scenery"):
@@ -236,6 +238,17 @@ func _ready() -> void:
 	add_child(hud)
 	hud.setup(route, car, run, camera)
 	hud.name_entered.connect(_on_name_entered)
+	hud.set_touch(Touch.active)
+	Touch.changed.connect(hud.set_touch)
+	var touch_layer := CanvasLayer.new()
+	touch_layer.layer = 2  # over the HUD, under the garage and the menus
+	add_child(touch_layer)
+	touch_pad = TouchPad.new()
+	touch_layer.add_child(touch_pad)
+	touch_pad.should_drive = func() -> bool:
+		return Touch.active and not _testing and hud.visible and not garage.visible and not menus.any_open() \
+			and not get_tree().paused and not tracker.over() and car.driver == _driver
+	touch_pad.meter = func() -> float: return car.boost.meter
 	Leaderboard.posted.connect(_on_posted)
 	hud.cops = cops
 	hud.deer = deer
@@ -244,7 +257,7 @@ func _ready() -> void:
 		Cockpit.radio_text = title.trim_prefix("♪  ").to_upper())
 	cops.chase_started.connect(func(county):
 		hud.banner("SPEED TRAP!\n%s County deputy" % county)
-		hud.note("Near misses fill your boost: Shift or B to lose the deputy", 6.0))
+		hud.note("Near misses fill your boost: %s to lose the deputy" % ("hold BOOST" if Touch.active else "Shift or B"), 6.0))
 	garage = CarSelect.new()
 	add_child(garage)
 	garage.setup("" if _testing else RunTracker.SAVE_PATH)
@@ -416,8 +429,13 @@ func _on_run_over() -> void:
 
 
 func _on_name_entered(text: String) -> void:
+	if _pending_run.is_empty():
+		return
 	var player := Leaderboard.tidy_name(text)
-	if player.is_empty() or _pending_run.is_empty():
+	if player.is_empty():
+		if hud.asking_in_page:  # skipped the phone's name box: not this time
+			_pending_run = {}
+			hud.set_leaderboard("Not posted: no name")
 		return
 	Settings.player_name = player
 	Settings.save()

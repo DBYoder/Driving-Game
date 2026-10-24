@@ -56,7 +56,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/godot
-          key: godot-${{ env.GODOT_VERSION }}-v2
+          key: godot-${{ env.GODOT_VERSION }}-v3
 
       - name: Download Godot and export templates
         if: steps.godot-cache.outputs.cache-hit != 'true'
@@ -67,7 +67,8 @@ jobs:
           unzip -q godot.zip && mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot && rm godot.zip
           curl -fsSL -o templates.tpz "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
           unzip -q -j templates.tpz templates/version.txt templates/windows_release_x86_64.exe \
-            templates/linux_release.x86_64 templates/web_release.zip -d templates
+            templates/linux_release.x86_64 templates/web_nothreads_release.zip templates/web_nothreads_debug.zip \
+            -d templates
           rm templates.tpz
 
       - name: Install Godot
@@ -93,6 +94,8 @@ jobs:
 
       # The browser version: the server (server/) with the web build in its public/. The
       # deploy job below pushes it to the `web` branch, which Railway builds and runs.
+      # Single-threaded (no SharedArrayBuffer), so it runs on iPhones too; the page is
+      # game/web/shell.html (Godot's own plus what phones need).
       - name: Export the web build
         run: |
           mkdir -p build/web

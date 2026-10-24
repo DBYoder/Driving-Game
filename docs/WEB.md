@@ -7,9 +7,12 @@ runs. It's open to anyone with the address; there's no password.
 ## How it fits together
 
 - **The web build** is Godot's Web export of the same game (`game/export_presets.cfg`,
-  preset "Web"). In a browser there's no radio (no folder to put music in) and no Quit.
-- **The server** (`server/app.py`) serves the game with the headers its threads need
-  (cross-origin isolation), gzipped, and the leaderboard's API. Runs are kept in Postgres.
+  preset "Web"), single-threaded so it runs on iPhones and iPads too. Its page is
+  `game/web/shell.html`: Godot's own, plus what phones need (below). In a browser there's
+  no radio (no folder to put music in) and no Quit.
+- **The server** (`server/app.py`) serves the game gzipped, with cross-origin isolation
+  headers (harmless now; a threaded build would need them), the leaderboard's API and a
+  web app manifest. Runs are kept in Postgres.
 - **The game** posts every run that ends (finished or wrecked; not practice runs) with
   the player's name, asked once after their first run and changeable in Settings. The
   results screen says where it placed; the title screen's Leaderboard shows the top tens.
@@ -21,6 +24,26 @@ runs. It's open to anyone with the address; there's no password.
   the server and the build to the **`web` branch** (one fresh commit each time; don't
   edit it). Railway watches that branch and redeploys when it changes, a few minutes
   after each merge.
+
+## On phones and tablets
+
+- **Touch controls** come up on a phone or tablet, and on any screen as soon as it's
+  touched (a key or a gamepad puts them away again; Settings has Touch controls: Auto,
+  On, Off). While driving: put a thumb down anywhere on the left and slide it to steer;
+  GAS and BRAKE (hold it to back up) bottom right, with BOOST, HANDBRAKE and HORN above
+  them; pause, camera and the tow truck top right. Menus take taps (the left or right of
+  a setting steps it), the garage has Back and Drive buttons and arrows on every line,
+  and the results have Run it again, Change car and Menu.
+- **The name for the leaderboard** is asked in a box on the page itself, so the phone's
+  own keyboard comes up.
+- **Sideways only:** held upright, the page says to turn it. On Android the first tap
+  goes full screen and locks it sideways. An iPhone can't do that in Safari, so while it
+  loads the page suggests Share, then Add to Home Screen: from the home screen it opens
+  full screen like an app (the server's manifest says so).
+- **Lighter graphics:** a phone or tablet starts on Low, with the 3D drawn at about 600
+  lines (their screens have two or three times a PC's pixels). Settings can change it.
+- Tested in Chrome's phone emulation (a Pixel 7 and an iPhone 14, sideways), about 240 MB
+  of memory. Not yet on a real iPhone.
 
 ## Setting up Railway (once)
 
@@ -60,4 +83,5 @@ GAME_DIR=build/web uvicorn --app-dir server app:app --port 8080
 python -m pytest server/tests   # (pip install -r server/requirements-dev.txt)
 ```
 
-The Web export needs Godot's export templates installed (`web_release.zip` among them).
+The Web export needs Godot's export templates installed (`web_nothreads_release.zip`
+and `web_nothreads_debug.zip` among them).

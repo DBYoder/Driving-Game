@@ -544,6 +544,16 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
   - **The deploy:** CI exports the web build on every push and pull request, builds the server's Docker image and checks it (the headers, gzip, a run posted and on the board); on `main` it pushes the server and the build to the `web` branch as one fresh commit, which Railway builds and runs. The owner's one-time Railway setup is in `docs/WEB.md`.
 - **Tests:** the server (headers, gzip and caching, no files outside the game, the top tens and ranks, bad runs turned away, names tidied, the rate limit) and the game's side (no Leaderboard without a site, the name setting, names tidied like the server does, what's posted, where it placed, the top-ten table; every character the game writes has a glyph in its own fonts).
 
+### v0.9.1: on phones and tablets
+- The owner, before setting up Railway: "I want to be sure that the web access will also be able to play the game, so we need to have a mobile optimized site and the option for touch controls".
+- **Built:**
+  - **Single-threaded web build** (Godot's recommended web export since 4.3): it runs on iPhones and iPads, where threaded builds don't. The scenery's worker tasks just run on the main thread there; the generated sounds stream.
+  - **The page** (`game/web/shell.html`, Godot's own plus): no zooming or scrolling; held upright, a notice to turn the phone sideways; on Android the first tap goes full screen and locks it sideways; on an iPhone, a tip while it loads to add it to the home screen, where it opens full screen (the server's `/manifest.webmanifest`).
+  - **Touch controls** (`Touch`, `TouchPad`): up on a phone or tablet from the start, on anything else once the screen's touched, away again on a key or gamepad; Settings, Touch controls: Auto, On, Off. Driving: the left of the screen is the wheel (thumb down anywhere, slide; 120 px for full lock), GAS and BRAKE bottom right (slide between them), BOOST (its meter round it), HANDBRAKE and HORN above, pause, camera and tow top right. Each is the same action its key is. The speed and meters move to the top right, out of the pedals' way, and the key hints go.
+  - **Tapping everything else:** menu lines (the left or right of a setting steps it back or on), the garage's lines (arrows on all of them) with Back and Drive buttons, Run it again, Change car and Menu on the results, and the leaderboard name in a box on the page so the phone's keyboard comes up.
+  - **Phones start on Low**, with the 3D at about 600 lines (`Settings.handheld_render_scale`).
+- **Tests:** Auto follows the last thing used, On and Off stick; the setting; the 3D resolution for a phone's screen; the pedals (slide from gas to brake), the wheel (half the slide is half lock, past the end full lock, let go straight), two thumbs on one button, everything let go when the run ends; the garage takes taps; menus say tap. Checked in Chrome's phone emulation (Pixel 7, iPhone 14): menus, garage, driving with touch, pause, a finished run's name box and its place on the board, the portrait notice.
+
 **Scope-creep parking lot** (not planned; pick from here for what's next): multiplayer, ghosts, steering wheels, a southbound run, traffic on the side roads.
 
 ---

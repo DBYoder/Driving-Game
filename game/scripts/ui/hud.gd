@@ -20,7 +20,13 @@ var practice := false  ## a practice run: nothing's saved
 signal name_entered(text: String)
 var leaderboard_line := ""
 var asking_name := false
+var asking_in_page := false  ## the name's being typed in the web page's own box (a phone's keyboard)
 var _name_edit: LineEdit
+var _name_callback: JavaScriptObject  ## (kept, or the browser's call back finds it gone)
+## Touch controls are up (Touch): no key hints, the speed and meters out of the pedals' way
+## at the bottom middle, and buttons on the results.
+var touch := false
+var _results_buttons: HBoxContainer
 var deer: Deer  ## for the run's title (deer honked off the road)
 var _trip: Label
 var _clock: Label
@@ -213,7 +219,9 @@ func _fill_results() -> void:
 		_row("Practice runs aren't saved", "")
 	else:
 		_row("Best score", _fmt(tracker.best_score))
-	if asking_name:
+	if asking_name and asking_in_page:
+		_row("Leaderboard", "Type your name in the box", 22, Menu.GOLD)
+	elif asking_name:
 		var ask := Label.new()
 		ask.text = "Your name for the leaderboard"
 		ask.add_theme_font_size_override("font_size", 22)
@@ -231,26 +239,67 @@ func _fill_results() -> void:
 		_name_edit.grab_focus.call_deferred()
 	elif leaderboard_line != "":
 		_row("Leaderboard", leaderboard_line, 22, Menu.GOLD)
-	_row("R: run it again", "Enter / LB: change car    Esc: menu", 20)
+	if not touch:
+		_row("R: run it again", "Enter / LB: change car    Esc: menu", 20)
+	_results_buttons.visible = touch
 
 
-## Ask for a name for the leaderboard on the results.
+## Ask for a name for the leaderboard on the results. In a browser with the touch controls
+## up it's the page's own text box, so the phone's keyboard comes up for it.
 func ask_name() -> void:
 	asking_name = true
 	leaderboard_line = ""
+	asking_in_page = touch and OS.has_feature("web")
+	if asking_in_page:
+		_name_callback = JavaScriptBridge.create_callback(func(args: Array):
+			name_entered.emit.call_deferred(str(args[0]) if args.size() > 0 else ""))
+		JavaScriptBridge.get_interface("window").highwayAskName(Settings.player_name, _name_callback)
 	_refresh_results()
 
 
 ## Where the run placed on the leaderboard (or that it's on its way).
 func set_leaderboard(text: String) -> void:
 	asking_name = false
+	asking_in_page = false
 	leaderboard_line = text
 	_refresh_results()
 
 
 func clear_leaderboard() -> void:
 	asking_name = false
+	asking_in_page = false
 	leaderboard_line = ""
+
+
+## The touch controls came up or went away.
+func set_touch(on: bool) -> void:
+	touch = on
+	_hint.visible = not on
+	_place_meters()
+	_refresh_results()
+
+
+## The speed, health and boost: bottom right, or with the pedals there, top right under
+## the pause, camera and tow buttons.
+func _place_meters() -> void:
+	if touch:
+		_put(_speed, Control.PRESET_TOP_RIGHT, Vector2(-28, 192), Control.GROW_DIRECTION_BEGIN, false)
+		_put(_boost, Control.PRESET_TOP_RIGHT, Vector2(-30, 268), Control.GROW_DIRECTION_BEGIN, false)
+		_put(_health, Control.PRESET_TOP_RIGHT, Vector2(-30, 288), Control.GROW_DIRECTION_BEGIN, false)
+		_put(_boost_label, Control.PRESET_TOP_RIGHT, Vector2(-218, 262), Control.GROW_DIRECTION_BEGIN, false)
+	else:
+		_put(_speed, Control.PRESET_BOTTOM_RIGHT, Vector2(-28, -20), Control.GROW_DIRECTION_BEGIN)
+		_put(_health, Control.PRESET_BOTTOM_RIGHT, Vector2(-30, -92), Control.GROW_DIRECTION_BEGIN)
+		_put(_boost, Control.PRESET_BOTTOM_RIGHT, Vector2(-30, -112), Control.GROW_DIRECTION_BEGIN)
+		_put(_boost_label, Control.PRESET_BOTTOM_RIGHT, Vector2(-218, -106), Control.GROW_DIRECTION_BEGIN)
+	_put(_note, Control.PRESET_BOTTOM_LEFT, Vector2(24, -216 if touch else -66), Control.GROW_DIRECTION_END)  # over the wheel
+
+
+func _put(c: Control, preset: Control.LayoutPreset, offset: Vector2, grow: Control.GrowDirection, up := true) -> void:
+	c.set_anchors_and_offsets_preset(preset, Control.PRESET_MODE_MINSIZE)
+	c.grow_horizontal = grow
+	c.grow_vertical = Control.GROW_DIRECTION_BEGIN if up else Control.GROW_DIRECTION_END
+	c.position += offset
 
 
 func _refresh_results() -> void:
@@ -275,16 +324,44 @@ func _results_panel() -> PanelContainer:
 	style.set_corner_radius_all(10)
 	style.set_content_margin_all(28)
 	panel.add_theme_stylebox_override("panel", style)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 16)
+	panel.add_child(column)
 	_results_grid = GridContainer.new()
 	_results_grid.columns = 2
 	_results_grid.add_theme_constant_override("h_separation", 60)
-	panel.add_child(_results_grid)
+	column.add_child(_results_grid)
+	_results_buttons = HBoxContainer.new()
+	_results_buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	_results_buttons.add_theme_constant_override("separation", 16)
+	for b: Array in [["Run it again", "restart"], ["Change car", "change_car"], ["Menu", "pause"]]:
+		_results_buttons.add_child(_big_button(b[0], func(): Touch.tap(b[1])))
+	_results_buttons.visible = false
+	column.add_child(_results_buttons)
 	add_child(panel)
 	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER, Control.PRESET_MODE_MINSIZE)
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	panel.visible = false
 	return panel
+
+
+## A button big enough for a thumb.
+static func _big_button(text: String, pressed: Callable) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(190, 62)
+	b.add_theme_font_size_override("font_size", 24)
+	for state in ["normal", "hover", "pressed"]:
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(1.0, 0.85, 0.3) if state == "pressed" else Color(1, 1, 1, 0.14 if state == "normal" else 0.22)
+		style.set_corner_radius_all(10)
+		style.set_content_margin_all(12)
+		b.add_theme_stylebox_override(state, style)
+	b.add_theme_color_override("font_pressed_color", Color(0.1, 0.1, 0.1))
+	b.pressed.connect(pressed)
+	return b
 
 
 func _health_bar() -> ProgressBar:

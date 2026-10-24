@@ -164,6 +164,10 @@ Mute                          M
 
 WHAT'S IN THIS BUILD
 --------------------
+v0.9.1: the browser version plays on phones and tablets, with touch controls. On a
+touch-screen PC they come up here too as soon as you touch the screen (Settings, Touch
+controls: Auto, On or Off).
+
 v0.9: the game runs in a browser too, with a shared leaderboard of everyone's ten
 fastest runs and ten best scores on each route (ask whoever sent you this for the
 address). This download joins in once it's pointed at that site.
