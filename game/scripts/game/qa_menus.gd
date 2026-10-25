@@ -3,9 +3,10 @@ extends Node
 ## A scripted walk through the menus, pressing buttons the way a player would:
 ##   HighwayOne --headless --fixed-fps 60 -- --qa-menus
 ## Title screen (its car drives itself, on runs that don't count) → Settings (High
-## graphics) → Records → Practice from mile 4 (gas, horn) → pause → Change car → back to
-## the title → Drive a real run from Kalona → pause → quit to the title. Checks each screen
-## shows up and does what it should; prints a report and exits 0/1.
+## graphics) → Records → Practice from mile 4 (gas, horn, a deputy on your tail) → pause →
+## Change car (the chase stays behind) → back to the title → Drive a real run from Kalona →
+## pause → quit to the title. Checks each screen shows up and does what it should; prints
+## a report and exits 0/1.
 
 var main: Node
 var _steps: Array[Callable] = []
@@ -66,6 +67,8 @@ func _ready() -> void:
 			_expect(main.tracker.running(), "the clock's running")
 			Input.action_release("accelerate")
 			Input.action_release("horn")
+			main.cops.chase_from_behind()
+			_expect(main.cops.chasing(), "a deputy's on your tail")
 			_press("pause"),
 		func():
 			_expect(get_tree().paused and main.menus.pause.visible, "Esc pauses, with the pause menu")
@@ -73,6 +76,7 @@ func _ready() -> void:
 			_press("menu_accept"),
 		func():
 			_expect(not get_tree().paused and main.garage.visible and main.garage.practice, "Change car goes to the garage (still practice)")
+			_expect(not main.cops.chasing() and not main.cops.siren.on, "and the deputy doesn't follow you there")
 			_press("menu_back"),
 		func():
 			_expect(main.menus.title.visible and not main.garage.visible, "Esc in the garage goes back to the title")

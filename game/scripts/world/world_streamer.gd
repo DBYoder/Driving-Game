@@ -46,6 +46,9 @@ var _street_material: ShaderMaterial
 var _meshes := {}  ## "tile:12" / "road:3" / "far:40" / "street:7" -> MeshInstance3D
 var _bodies := {}  ## "tile:12" / "road:3" / "street:7" -> its StaticBody3D(s)
 var _queue: Array = []  ## [key, priority, lod], most urgent first
+var _centers := {}  ## kind -> PackedVector2Array: where each piece is (flat)
+var _keys := {}  ## kind -> PackedStringArray: "tile:12" and so on
+var _reach := {}  ## kind -> how far a piece reaches from its center (m)
 var _warming_up := false
 
 
@@ -70,6 +73,24 @@ func setup(r: RouteData) -> void:
 	streets = Streets.new(r)
 	_street_material = ShaderMaterial.new()
 	_street_material.shader = preload("res://shaders/street.gdshader")
+	_index("tile", route.terrain.count(), route.terrain.tile_center, TILE_HALF_DIAGONAL)
+	_index("road", _road.chunk_count(), _road.chunk_center, ROAD_HALF_LENGTH)
+	_index("far", route.horizon.chunk_count(), route.horizon.chunk_center, route.horizon.chunk_size() * sqrt(0.5))
+	_index("street", streets.cell_count(), streets.cell_center, Streets.CELL_HALF_DIAGONAL)
+
+
+## Where each piece of a kind is and its key, worked out once: the queue's refreshed several
+## times a second and looks at every piece of the route (thousands).
+func _index(kind: String, count: int, center: Callable, reach: float) -> void:
+	var centers := PackedVector2Array()
+	var keys := PackedStringArray()
+	for i in count:
+		var c: Vector3 = center.call(i)
+		centers.append(Vector2(c.x, c.z))
+		keys.append("%s:%d" % [kind, i])
+	_centers[kind] = centers
+	_keys[kind] = keys
+	_reach[kind] = reach
 
 
 ## Build everything around `pos` right now (before the first frame, or after a teleport).
@@ -110,35 +131,27 @@ func _process(_delta: float) -> void:
 
 ## Distance from the focus to the nearest point of a piece (roughly).
 func _distance(kind: String, index: int) -> float:
-	var flat_focus := Vector3(focus.x, 0.0, focus.z)
-	match kind:
-		"tile":
-			return maxf(route.terrain.tile_center(index).distance_to(flat_focus) - TILE_HALF_DIAGONAL, 0.0)
-		"road":
-			var c := _road.chunk_center(index)
-			return maxf(Vector3(c.x, 0.0, c.z).distance_to(flat_focus) - ROAD_HALF_LENGTH, 0.0)
-		"street":
-			return maxf(streets.cell_center(index).distance_to(flat_focus) - Streets.CELL_HALF_DIAGONAL, 0.0)
-		_:
-			var half := route.horizon.chunk_size() * sqrt(0.5)
-			return maxf(route.horizon.chunk_center(index).distance_to(flat_focus) - half, 0.0)
+	var centers: PackedVector2Array = _centers[kind]
+	return maxf(centers[index].distance_to(Vector2(focus.x, focus.z)) - float(_reach[kind]), 0.0)
 
 
 func _refresh_queue() -> void:
 	_queue.clear()
-	for i in route.terrain.count():
-		_consider("tile", i)
-	for c in _road.chunk_count():
-		_consider("road", c)
-	for c in route.horizon.chunk_count():
-		_consider("far", c)
-	for c in streets.cell_count():
-		_consider("street", c)
+	var flat_focus := Vector2(focus.x, focus.z)
+	for kind: String in RADII:
+		var centers: PackedVector2Array = _centers[kind]
+		var keys: PackedStringArray = _keys[kind]
+		# Further out than this, a piece that isn't built has nothing to do (most of them).
+		var reach: float = RADII[kind][1] + float(_reach[kind])
+		var reach_squared := reach * reach
+		for i in centers.size():
+			if centers[i].distance_squared_to(flat_focus) > reach_squared and not _meshes.has(keys[i]):
+				continue
+			_consider(kind, i, keys[i])
 	_queue.sort_custom(func(a, b): return a[1] < b[1])
 
 
-func _consider(kind: String, index: int) -> void:
-	var key := "%s:%d" % [kind, index]
+func _consider(kind: String, index: int, key: String) -> void:
 	var d := _distance(kind, index)
 	var radii: Array = RADII[kind]
 	var load_at: float = radii[0]

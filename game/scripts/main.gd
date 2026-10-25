@@ -546,6 +546,7 @@ func open_garage(practice := false, on_route := false) -> void:
 	_practice = practice
 	tracker.demo = false
 	run.restart()
+	cops.reset(_seed)  # a deputy on your tail doesn't follow you into the garage
 	car.driver = null
 	camera.crash_cam = false
 	camera.showroom = true

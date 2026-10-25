@@ -164,7 +164,8 @@ Mute                          M
 
 WHAT'S IN THIS BUILD
 --------------------
-v0.9.3: fixes. The title screen's car can't set your records or post to the
+v0.9.3: fixes. No more freezing for a moment by the woods (worst on Highway 22) or
+hitching as the world loads. The title screen's car can't set your records or post to the
 leaderboard any more, bridges and the town streets don't kick up gravel dust, and typing
 your name doesn't drive the car. Past the finish the road ends at a ROAD CLOSED
 barricade; keep your foot on the gas after the finish and the results get out of the way
