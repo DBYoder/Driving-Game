@@ -13,6 +13,7 @@ const RAIL_APPROACH_M := 25.0  ## the guardrails run on this far past each end o
 const LANE := 1.83  ## the middle of a lane, off the centerline, on a two-lane road
 const TALL_BARN_M := 14.0  ## see tidy_kind()
 const JUNCTION_CLEAR := 3.0  ## nothing roadside stands this close to the 4-way's pavement
+const ROAD_END_M := 25.0  ## a road that runs on past the finish is closed this far short of its end
 
 var id := Routes.DEFAULT  ## the route's folder name (one of Routes.IDS)
 var info: Dictionary  ## what the game knows about it besides the data (Routes.INFO)
@@ -21,6 +22,10 @@ var spacing: float
 var length: float
 var start_station: float
 var finish_station: float
+## Where a road that runs on past the finish (into town) ends: a ROAD CLOSED barricade
+## (Landmarks) that traffic stops for and the tow truck stays this side of. The road's
+## own end (length) if it stops at the finish.
+var road_end: float
 var points := PackedVector3Array()
 var crossroads: Array = []  ## Dictionaries: station, name, route, kind, side
 ## Where the road crosses a dip on a fill: [from, to, height, open]. `height` is the deck
@@ -88,6 +93,7 @@ static func load_from(dir: String) -> RouteData:
 	for i in r.points.size():
 		r.points[i] = Vector3(flat[i * 3], flat[i * 3 + 1], flat[i * 3 + 2])
 	r.length = (r.points.size() - 1) * r.spacing
+	r.road_end = r.length - ROAD_END_M if r.length - r.finish_station > 200.0 else r.length
 
 	r._no_pass_north = r._flags(d.no_passing.northbound)
 	r._no_pass_south = r._flags(d.no_passing.southbound)

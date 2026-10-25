@@ -245,9 +245,9 @@ func _ready() -> void:
 	add_child(touch_layer)
 	touch_pad = TouchPad.new()
 	touch_layer.add_child(touch_pad)
-	touch_pad.should_drive = func() -> bool:
+	touch_pad.should_drive = func() -> bool:  # (and on past the finish, into town; not once wrecked)
 		return Touch.active and not _testing and hud.visible and not garage.visible and not menus.any_open() \
-			and not get_tree().paused and not tracker.over() and car.driver == _driver
+			and not get_tree().paused and tracker.state != RunTracker.State.WRECKED and car.driver == _driver
 	touch_pad.meter = func() -> float: return car.boost.meter
 	Leaderboard.posted.connect(_on_posted)
 	hud.cops = cops
@@ -414,10 +414,10 @@ func restart() -> void:
 
 ## A run ended (finished or wrecked): onto the shared leaderboard, if there is one, under
 ## the player's name (asked for the first time). Only whole runs from Kalona count: not
-## practice, and not a run started down the road with --station.
+## practice, not the title screen's car, and not a run started down the road with --station.
 func _on_run_over() -> void:
 	var from_kalona := is_equal_approx(_spawn_station, route.start_station - SPAWN_BEHIND_START)
-	if _testing or tracker.practice or not from_kalona or not Leaderboard.enabled():
+	if _testing or not tracker.counts() or not from_kalona or not Leaderboard.enabled():
 		return
 	var seconds := tracker.elapsed if tracker.state == RunTracker.State.FINISHED else 0.0
 	_pending_run = Leaderboard.run_body(Routes.current, Settings.player_name, run.score.banked, seconds,
@@ -509,6 +509,7 @@ func open_title() -> void:
 
 func _start_demo() -> void:
 	_demo_wait = 0.0
+	tracker.demo = true  # its runs don't count: no records, nothing posted
 	_reset_world()
 	car.driver = _demo
 
@@ -543,6 +544,7 @@ func open_garage(practice := false, on_route := false) -> void:
 	get_tree().paused = false
 	menus.close_all()
 	_practice = practice
+	tracker.demo = false
 	run.restart()
 	car.driver = null
 	camera.crash_cam = false
@@ -642,6 +644,7 @@ func _drive(_car_id: String, _paint: int, _condition_id: String) -> void:
 	var at := garage.start_station()
 	_spawn_station = at if at >= 0.0 else _default_spawn
 	tracker.practice = at >= 0.0
+	tracker.demo = false
 	hud.practice = tracker.practice
 	restart()
 	radio.start()
@@ -663,7 +666,7 @@ func _tow() -> void:
 		return
 	_lost_time = 0.0
 	run.tow()
-	_spawn(clampf(car.station, 0.0, route.length - 10.0))
+	_spawn(clampf(car.station, 0.0, minf(route.road_end - 15.0, route.length - 10.0)))
 
 
 ## Put the car on the road and build everything around it right away.

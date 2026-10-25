@@ -49,6 +49,9 @@ const GOLD_BALL := Color(0.85, 0.70, 0.25, 0.0)
 const LIGHT_EVERY := 55.0  ## a town street's lights, along the road
 const LIGHT_OFFSET := 8.0  ## off the centerline: behind the gutter, on the grass
 const LABEL_RANGE := 1100.0  ## like the road signs: a pixel or two in the haze past this
+const BARRICADE_ORANGE := Color(0.96, 0.42, 0.06, 0.0)
+const BARRICADE_WHITE := Color(0.95, 0.95, 0.92, 0.0)
+const WARNING_LAMP := Color(1.0, 0.62, 0.12, 0.66)  ## amber, lit at night
 
 var route: RouteData
 var material: ShaderMaterial
@@ -77,6 +80,82 @@ func setup(r: RouteData) -> void:
 			"town_street":
 				if l.get("lights", false):
 					_street_lights(float(l.from), float(l.to))
+	if route.road_end < route.length:
+		_road_end(route.road_end)
+
+
+## The end of a road that runs on past the finish: ROAD CLOSED. Three Type III barricades
+## across the lanes and shoulders (boards striped orange and white on two legs, an amber
+## lamp on top, lit at night), the sign on the middle one, and a wall from ditch to ditch
+## you can't get by.
+func _road_end(s: float) -> void:
+	var right := route.right_at(s)
+	# Local x across the road (to the right), local -z up it: the faces at +z are the ones
+	# coming up the road sees.
+	var g := {"st": MeshKit.begin(), "at": route.position_at(s), "basis": Basis(Vector3.UP, atan2(-right.z, right.x))}
+	var st: SurfaceTool = g.st
+	for x0: float in [-8.8, -4.4, 0.0, 4.4, 8.8]:  # (the outer two over the ditches, down the slope)
+		var y0 := _road_section_y(absf(x0))
+		for leg: float in [-1.6, 1.6]:
+			var foot := _road_section_y(absf(x0 + leg)) - 0.1
+			_box(st, g, Vector3(x0 + leg - 0.05, foot, -0.05), Vector3(x0 + leg + 0.05, y0 + 1.45, 0.05), BARRICADE_WHITE, false)
+		for y: float in [0.45, 0.8, 1.15]:
+			_box(st, g, Vector3(x0 - 1.95, y0 + y, -0.06), Vector3(x0 + 1.95, y0 + y + 0.22, -0.02), BARRICADE_WHITE, false)
+			for face: float in [1.0, -1.0]:
+				_stripes(st, x0 - 1.95, x0 + 1.95, y0 + y, y0 + y + 0.22, -0.04 + face * 0.021, face)
+		for leg: float in [-1.6, 1.6]:
+			if x0 == 0.0 and leg > 0.0:
+				continue
+			_box(st, g, Vector3(x0 + leg - 0.08, y0 + 1.45, -0.09), Vector3(x0 + leg + 0.08, y0 + 1.63, 0.07), WARNING_LAMP, false)
+	# The sign, on the middle barricade's top rail, both ways.
+	_box(st, g, Vector3(-0.62, 1.3, -0.07), Vector3(0.62, 2.05, -0.01), BARRICADE_WHITE, false)
+	for face: float in [1.0, -1.0]:
+		var label := Label3D.new()
+		label.text = "ROAD\nCLOSED"
+		label.font_size = 64
+		label.pixel_size = 0.0042
+		label.outline_size = 0
+		label.modulate = Color(0.05, 0.05, 0.05)
+		label.line_spacing = -10.0
+		label.double_sided = false
+		label.visibility_range_end = LABEL_RANGE
+		label.position = g.at + g.basis * Vector3(0.0, 1.675, -0.04 + face * 0.035)
+		label.rotation.y = g.basis.get_euler().y + (0.0 if face > 0.0 else PI)
+		add_child(label)
+	_finish(g)
+	# Solid from ditch to ditch, as far as the barricades go.
+	_solid(g, Vector3(0.0, 0.2, -0.04), Vector3(10.75, 1.8, 0.25))
+
+
+## How high the road's cross-section is (RoadMesher.SECTION) `offset` m out from the
+## centerline, relative to the crown: flat across the lanes, down the foreslope to the ditch.
+static func _road_section_y(offset: float) -> float:
+	var section: Array = RoadMesher.SECTION
+	for i in section.size() - 1:
+		var a: Array = section[i]
+		var b: Array = section[i + 1]
+		if offset >= float(a[0]) and offset <= float(b[0]):
+			return lerpf(float(a[1]), float(b[1]), (offset - float(a[0])) / maxf(float(b[0]) - float(a[0]), 0.001))
+	return float(section[section.size() - 1][1]) if offset > 0.0 else 0.0
+
+
+## Orange and white diagonal stripes on a board's face (local, x from x0 to x1, y from y0
+## to y1, at z, facing +z if `face` > 0): bands 15 cm wide at 45 degrees, cut off square
+## at the board's ends.
+func _stripes(st: SurfaceTool, x0: float, x1: float, y0: float, y1: float, z: float, face: float) -> void:
+	const BAND := 0.15
+	var h := y1 - y0
+	var x := x0 - h
+	var i := 0
+	while x < x1:
+		var corners: Array[Vector3] = []
+		for c: Vector2 in [Vector2(x, y0), Vector2(x + BAND, y0), Vector2(x + BAND + h, y1), Vector2(x + h, y1)]:
+			corners.append(Vector3(clampf(c.x, x0, x1), c.y, z))
+		if corners[1].x - corners[0].x > 0.001 or corners[2].x - corners[3].x > 0.001:
+			MeshKit.quad(st, corners[0], corners[1], corners[2], corners[3], Vector3(0, 0, face),
+				BARRICADE_ORANGE if i % 2 == 0 else BARRICADE_WHITE)
+		x += BAND
+		i += 1
 
 
 ## A town's main street's lights, from station `from` to `to`: every LIGHT_EVERY m on

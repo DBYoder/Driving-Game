@@ -5,6 +5,7 @@ extends SceneTree
 
 
 func _initialize() -> void:
+	await process_frame  # the scene tree's up: a test can put nodes in it (and they're in the world)
 	var files := Array(DirAccess.get_files_at("res://tests")).filter(
 		func(f: String): return f.begins_with("test_") and f.ends_with(".gd") and f != "test_case.gd")
 	files.sort()

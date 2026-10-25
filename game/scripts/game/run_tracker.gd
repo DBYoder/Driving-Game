@@ -3,11 +3,13 @@ extends RefCounted
 ## Times a run: the clock starts when the car crosses the start line (the stop line at
 ## the Kalona 4-way stop) and stops at the finish (the stop line at the Mormon Trek Blvd
 ## light in Iowa City), or when the car is wrecked. Keeps the best time and best score
-## per car in a small save file.
+## per car in a small save file, for runs that count (counts()): not practice, not the
+## title screen's car driving itself, and not a car put down up the road.
 
 enum State { READY, RUNNING, FINISHED, WRECKED }
 
 const SAVE_PATH := "user://records.cfg"
+const LATE_START_M := 100.0  ## a clock that starts further past the line than this: the car was put down up the road
 
 var start_station: float
 var finish_station: float
@@ -21,6 +23,8 @@ var best_score := 0
 var new_best := false  ## best time
 var new_best_score := false
 var practice := false  ## started somewhere up the road: nothing's saved
+var demo := false  ## the title screen's car driving itself: nothing's saved (or posted)
+var _late := false  ## this run's clock started well past the line
 
 
 func _init(start: float, finish: float, name_of_car: String, path := SAVE_PATH) -> void:
@@ -47,6 +51,13 @@ func reset() -> void:
 	wreck_reason = ""
 	new_best = false
 	new_best_score = false
+	_late = false
+
+
+## Whether this run's records are kept (and it goes on the shared leaderboard): a real
+## run from the start line, by the player.
+func counts() -> bool:
+	return not practice and not demo and not _late
 
 
 func running() -> bool:
@@ -64,11 +75,12 @@ func update(station: float, delta: float) -> void:
 			if station >= start_station:
 				state = State.RUNNING
 				elapsed = 0.0
+				_late = station > start_station + LATE_START_M
 		State.RUNNING:
 			elapsed += delta
 			if station >= finish_station:
 				state = State.FINISHED
-				if practice:
+				if not counts():
 					return
 				if best_time <= 0.0 or elapsed < best_time:
 					best_time = elapsed
@@ -85,7 +97,7 @@ func wreck(reason: String) -> void:
 
 ## Record the final score of a finished or wrecked run.
 func record_score(score: int) -> void:
-	if practice:
+	if not counts():
 		return
 	if score > best_score:
 		best_score = score

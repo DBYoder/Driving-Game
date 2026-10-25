@@ -55,3 +55,21 @@ func test_score_multiplier_applies_to_points() -> void:
 	s.car_multiplier = 1.5
 	s.add("Mailbox", 50)
 	check(s.pot == 75, "a Tercel mailbox is worth 75")
+
+
+func test_what_the_road_is_made_of_across_it() -> void:
+	var r := RouteData.load_from(Routes.dir("highway22"))
+	var country := 3000.0  # out in the country, no bridge
+	check(r.deck_at(country).is_empty() and not r.curbed(country), "(out in the country)")
+	check(Car.road_surface(r, country, 1.0) == "asphalt" and Car.road_surface(r, country, 4.0) == "asphalt", "the lanes are asphalt")
+	check(Car.road_surface(r, country, 5.5) == "gravel", "the shoulder's gravel")
+	check(Car.road_surface(r, country, 8.0) == "grass", "and past it, down to the ditch, it's grass (not gravel)")
+	var deck: Array = r.decks[0]
+	var on_bridge := (float(deck[0]) + float(deck[1])) / 2.0
+	check(Car.road_surface(r, on_bridge, 5.5) == "asphalt" and Car.road_surface(r, on_bridge, 7.0) == "asphalt",
+		"a bridge's shoulders are concrete out to the edge of the deck (no dust, full grip)")
+	var town := 10800.0  # IA 22 through Wellman
+	check(r.curbed(town), "(through Wellman)")
+	check(Car.road_surface(r, town, 5.5) == "asphalt" and Car.road_surface(r, town, 6.3) == "asphalt",
+		"through town the parking lane and the gutter are paved")
+	check(Car.road_surface(r, town, 8.0) == "grass", "and behind the gutter it's grass")

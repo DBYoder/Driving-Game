@@ -26,6 +26,7 @@ const HEAD_ON_SPEED := 25.0  ## closing speed (m/s) at which a head-on ends the 
 const NEAR_MISS_GAP := 1.2  ## meters between mirrors
 const YIELD_RANGE := 250.0  ## m: pull over for a siren coming up this close
 const YIELD_SHIFT := 2.4  ## m further out, onto the shoulder
+const END_GAP := 6.0  ## m short of the barricade where the road ends that traffic stops
 const NEAR_MISS_POINTS := 250
 const CLOSE_PASS_POINTS := 100  ## on top of the pass, for squeezing by within NEAR_MISS_GAP
 
@@ -195,7 +196,7 @@ func _add(kind: String, direction: float, station := -1.0) -> void:
 	var streaming := station < 0.0
 	if streaming:
 		station = car.station + _rng.randf_range(SPAWN_AHEAD_MIN, SPAWN_AHEAD_MAX)
-	if station > route.length - 50.0:
+	if station > route.road_end - 50.0:
 		return
 	for v in vehicles:
 		if v.direction == direction and absf(v.station - station) < 80.0:
@@ -245,11 +246,18 @@ func _drive(v: Vehicle, delta: float) -> void:
 			v.yielding = true
 	if v.yielding:
 		wanted = minf(wanted, v.cruise * 0.35)
+	# The road's closed where it ends past the finish: stop short of the barricade.
+	var stop_at: float = route.road_end - END_GAP - float(spec.length) / 2.0
+	if v.direction > 0.0:
+		wanted = minf(wanted, maxf(0.0, (stop_at - v.station) * 0.5))
 	var lane_target := v.lane + signf(v.lane) * YIELD_SHIFT if v.yielding else v.lane
 	v.offset = move_toward(v.offset, lane_target, 1.5 * delta)
 	var rate := 2.0 if wanted > v.speed else 6.0
 	v.speed = move_toward(v.speed, wanted, rate * delta)
 	v.station += v.direction * v.speed * delta
+	if v.direction > 0.0 and v.station > stop_at:
+		v.station = stop_at
+		v.speed = 0.0
 	_place(v)
 
 

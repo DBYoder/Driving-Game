@@ -1,8 +1,8 @@
 """Highway 1 on the web: the game itself, and its shared leaderboard.
 
-Serves the Godot web build (GAME_DIR, default ./public) with the headers its threads
-need (cross-origin isolated), using the gzip copies made at build time when the browser
-takes them, and a small JSON API:
+Serves the Godot web build (GAME_DIR, default ./public), cross-origin isolated (the
+single-threaded build doesn't need it, but a threaded one would), using the gzip copies
+made at build time when the browser takes them, and a small JSON API:
 
   GET  /api/leaderboard?route=highway1   the top ten times and the top ten scores on a route
   POST /api/runs                          a run that ended, finished or not: {route, name,
@@ -50,7 +50,8 @@ NAME = re.compile(r"^[A-Za-z0-9 .'_-]{1,16}$")
 TOP = 10
 POSTS_PER_WINDOW = 20  # runs one address can post...
 WINDOW_SECONDS = 600.0  # ...in this long
-# What the browser needs for the game's threads (SharedArrayBuffer).
+# Cross-origin isolation: what a threaded build would need (SharedArrayBuffer); harmless
+# for the single-threaded one the game ships as (docs/WEB.md).
 ISOLATION = {
     "Cross-Origin-Opener-Policy": "same-origin",
     "Cross-Origin-Embedder-Policy": "require-corp",

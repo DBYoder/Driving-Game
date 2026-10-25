@@ -164,6 +164,12 @@ Mute                          M
 
 WHAT'S IN THIS BUILD
 --------------------
+v0.9.3: fixes. The title screen's car can't set your records or post to the
+leaderboard any more, bridges and the town streets don't kick up gravel dust, and typing
+your name doesn't drive the car. Past the finish the road ends at a ROAD CLOSED
+barricade; keep your foot on the gas after the finish and the results get out of the way
+(let off and they're back), and on a phone the pedals stay up so you can drive on.
+
 v0.9.2: the road no longer just stops at the finish: it carries on into Iowa City and
 through Wellman, with curbs and street lights. Wellman's built up: downtown's storefronts
 down 8th Ave (left at the finish), the water tower, and the co-op's grain elevators.
