@@ -43,13 +43,14 @@ phone's own keyboard for the leaderboard name, sideways full screen, and lighter
 to start with. The web build is single-threaded now, so it runs on iPhones too.
 
 **v0.9.3: a once-over.** Fixes from a pass through the whole game: the game froze for a
-moment coming up on thick woods (up to a second and a half on Highway 22), and building the
-world as you drive hitched; the title screen's car could set your records and post to the
-leaderboard; bridge shoulders and the town gutters drove like gravel (and the grass verge
-did too); mailboxes scored after the finish; a chase carried on over the finish line, or
-into the garage; typing your name drove the car. And past the finish the road now ends at
-a ROAD CLOSED barricade, the phone's pedals stay up so you can drive on into town, and the
-results tuck away while you do.
+moment coming up on thick woods (up to a second and a half on Highway 22), and building
+the world as you drive hitched; iPads got a PC's graphics settings (too much for them);
+the title screen's car could set your records and post to the leaderboard; bridge
+shoulders and the town gutters drove like gravel (and the grass verge did too); mailboxes
+scored after the finish; a chase carried on over the finish line, or into the garage;
+typing your name drove the car. And past the finish the road now ends at a ROAD CLOSED
+barricade, the phone's pedals stay up so you can drive on into town, and the results tuck
+away while you do.
 
 **v0.9.2: into town.** The road no longer just stops at the finish: it carries on into
 Iowa City past Mormon Trek and on through Wellman, with curbs and street lights. Wellman

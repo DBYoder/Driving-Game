@@ -94,9 +94,12 @@ func reset() -> void:
 	_apply_volumes()
 
 
-## A phone or a tablet (in a browser, or a mobile build).
+## A phone or a tablet (in a browser, or a mobile build). An iPad's Safari says it's a Mac:
+## a "Mac" with a touch screen is an iPad (as the page's own script reckons, web/shell.html).
 static func handheld() -> bool:
-	return OS.has_feature("web_android") or OS.has_feature("web_ios") or OS.has_feature("mobile")
+	if OS.has_feature("web_android") or OS.has_feature("web_ios") or OS.has_feature("mobile"):
+		return true
+	return OS.has_feature("web_macos") and int(JavaScriptBridge.eval("navigator.maxTouchPoints || 0", true)) > 1
 
 
 ## The resolution that draws the 3D at about 600 lines on a screen this many pixels high.
