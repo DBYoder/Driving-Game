@@ -80,15 +80,20 @@ func play(id: String, loudness := 1.0) -> void:
 func _on_hit(damage: float, smash: bool) -> void:
 	if smash:
 		Settings.rumble_pad(0.35, 0.1, 0.12)
-		return  # its own sound comes with the points (_on_scored)
+		return  # its own sound comes from what it was (on_smash)
 	play("crunch", 0.3 + damage / 40.0)
 	Settings.rumble_pad(0.4 + damage / 30.0, damage / 20.0, 0.15 + damage / 60.0)
 
 
-func _on_scored(label: String, _points: int) -> void:
+## Smashed a prop (PropField.smashed): a clang for a mailbox, a crack for a fence rail, a
+## thud for a hay bale.
+func on_smash(label: String) -> void:
 	if SMASH_SOUNDS.has(label):
 		play(SMASH_SOUNDS[label], 0.8)
-	elif label in WHOOSH_FOR:
+
+
+func _on_scored(label: String, _points: int) -> void:
+	if label in WHOOSH_FOR:
 		play("whoosh", 0.9)
 		Settings.rumble_pad(0.5, 0.0, 0.1)
 

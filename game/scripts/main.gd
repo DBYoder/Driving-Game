@@ -191,6 +191,7 @@ func _ready() -> void:
 	props = PropField.new()
 	add_child(props)
 	props.setup(route, fields, car, run.score)
+	props.smashed.connect(feel.on_smash)
 	corn = CornField.new()
 	add_child(corn)
 	corn.setup(route, fields, car, run.score)

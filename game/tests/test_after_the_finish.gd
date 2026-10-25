@@ -60,6 +60,36 @@ func test_points_only_count_on_the_clock() -> void:
 	w.destroy()
 
 
+func test_a_mailbox_smashed_off_the_clock_still_clangs() -> void:
+	# (The smash sounds came with the points, and after the finish there aren't any.)
+	var w := World.new()
+	var props := PropField.new()
+	w.root.add_child(props)
+	props.setup(w.route, Fields.new(w.route), w.car, w.run.score)
+	var feel := CarFeel.new()
+	w.root.add_child(feel)
+	feel.setup(w.car, w.run)
+	props.smashed.connect(feel.on_smash)
+	w.at(w.route.start_station + 3000.0)
+	w.tracker.state = RunTracker.State.FINISHED
+	w.run._physics_process(DT)
+	props.refresh()
+	var mailbox: PropField.Prop = null
+	var chunk := -1
+	for c: int in props._chunks:
+		for p: PropField.Prop in props._chunks[c].props:
+			if p.kind == "mailbox" and mailbox == null:
+				mailbox = p
+				chunk = c
+	check(mailbox != null, "a mailbox along the road")
+	if mailbox:
+		props._smash(chunk, mailbox)
+		check(w.run.score.pot == 0 and w.run.score.banked == 0, "no points for it off the clock")
+		check(feel._players.any(func(p: AudioStreamPlayer) -> bool: return p.stream == Sfx.get_stream("clang")),
+			"but it still clangs")
+	w.destroy()
+
+
 func test_a_chase_ends_at_the_finish() -> void:
 	var w := World.new()
 	w.at(w.route.finish_station - 200.0)
