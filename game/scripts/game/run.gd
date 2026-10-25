@@ -52,6 +52,9 @@ func _physics_process(delta: float) -> void:
 		score.finish(tracker.elapsed)
 		tracker.record_score(score.banked)
 		finished.emit()
+	# Points only count on the clock: a mailbox flattened after the finish (driving on into
+	# town) or before the line isn't scored.
+	score.open = tracker.running()
 	if not tracker.running():
 		return
 

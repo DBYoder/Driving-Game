@@ -157,6 +157,8 @@ func _physics_process(delta: float) -> void:
 			trap.car.freeze = trap.car.global_position.distance_to(player.global_position) > PHYSICS_RANGE
 	if chase == null:
 		_watch_radar()
+	elif run.tracker.state == RunTracker.State.FINISHED:
+		_end(Pursuit.Outcome.GAVE_UP)  # made it: the deputy lets them go (no points: the score's final)
 	else:
 		_run_chase(delta)
 

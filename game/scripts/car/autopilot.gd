@@ -16,6 +16,8 @@ const ICE_SPEED := 22.0  ## m/s (50 mph) over black ice
 const ICE_LOOK_SECONDS := 4.0
 const STUCK_SECONDS := 4.0  ## flooring it and going nowhere this long: back out
 const BACK_OUT_SECONDS := 2.0
+const END_GAP := 12.0  ## m short of the barricade at the end of the road it stops
+const END_BRAKING := 4.0  ## m/s² it slows at for it
 
 var target_speed := 31.3  ## m/s, 70 mph
 var cruise_lane := LANE_OFFSET  ## meters right of the centerline it holds when not passing
@@ -39,6 +41,9 @@ func update(car: Car, delta: float) -> void:
 		wanted = minf(wanted, maxf(speed, 0.0) + 0.2)  # no speeding up into them
 	if _ice_ahead(car, maxf(speed * ICE_LOOK_SECONDS, 60.0)):
 		wanted = minf(wanted, ICE_SPEED)
+	# The road's closed where it ends (past the finish): stop short of the barricade.
+	var to_end := car.route.road_end - END_GAP - car.station
+	wanted = minf(wanted, sqrt(2.0 * END_BRAKING * maxf(to_end, 0.0)))
 	# Across to the other lane and back, gently when slow (the car has to keep up).
 	lane = move_toward(lane, -LANE_OFFSET if passing else cruise_lane, clampf(speed * 0.12, 1.0, 3.0) * delta)
 

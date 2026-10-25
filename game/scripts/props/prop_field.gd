@@ -16,6 +16,10 @@ const BALE_RADIUS := 0.85
 const BALE_WIDTH := 1.5
 const CROSSROAD_CLEARANCE := 20.0
 
+## The car smashed one: "Mailbox", "Fence" or "Hay bale" (its sound plays whether it
+## scores or not: after the finish it doesn't).
+signal smashed(label: String)
+
 ## label, points, mass (kg), collision radius (m), damage per m/s of impact speed
 const KINDS := {
 	"mailbox": {"label": "Mailbox", "points": 50, "mass": 15.0, "radius": 0.3, "damage": 0.02},
@@ -281,6 +285,7 @@ func _smash(chunk: int, p: Prop) -> void:
 	var velocity := car.linear_velocity
 	var speed := velocity.length()
 	score.add(kind.label, kind.points)
+	smashed.emit(kind.label)
 	# Momentum: the heavier the thing, the more it slows you (a glancing share of it).
 	car.bump(car.stats.mass / (car.stats.mass + kind.mass * 0.7), kind.damage * speed)
 	_launch_debris(p, velocity, kind.mass)

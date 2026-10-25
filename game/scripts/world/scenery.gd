@@ -7,9 +7,9 @@ extends Node3D
 ## Drawn as GPU instances of a few low-poly models (SceneryMeshes), in BLOCK-sized
 ## squares that load and unload around the car at the same distances as the detailed
 ## terrain under them, with plainer models past `near_lod`. A block's instances are worked
-## out on a worker thread the first time it's needed (a wooded one has thousands of
-## trees) and kept. Near the car they're solid: buildings as boxes (and cylinders for
-## bins), trees as their trunks.
+## out the first time it's needed (a wooded one has thousands of trees) and kept: on a
+## worker thread, or without one (a single-threaded web build) a slice a frame. Near the
+## car they're solid: buildings as boxes (and cylinders for bins), trees as their trunks.
 
 const BLOCK := 512.0
 const LOAD_RADIUS := 1250.0  ## the detailed terrain's (WorldStreamer.RADII.tile)
@@ -24,6 +24,7 @@ const TRUNK_RADIUS := 0.35
 const TRUNK_HEIGHT := 5.0
 const REFRESH_SECONDS := 0.2
 const BUILD_BUDGET_USEC := 3000
+const SLICE := 64  ## buildings and trees placed between looks at the clock, working a block out here
 ## Wall colors: mostly white farmhouses; barns mostly red; sheds steel.
 const HOUSE_COLORS: Array[Color] = [Color(0.95, 0.95, 0.93), Color(0.95, 0.95, 0.93), Color(0.93, 0.89, 0.78),
 	Color(0.80, 0.85, 0.88), Color(0.86, 0.82, 0.70), Color(0.70, 0.70, 0.68), Color(0.62, 0.42, 0.32)]
@@ -33,6 +34,14 @@ const BARN_COLORS: Array[Color] = [Color(0.62, 0.13, 0.10), Color(0.62, 0.13, 0.
 const ELEVATOR_COLORS: Array[Color] = [Color(0.86, 0.87, 0.88), Color(0.80, 0.80, 0.78), Color(0.74, 0.73, 0.70)]
 const SHED_COLORS: Array[Color] = [Color(0.88, 0.89, 0.90), Color(0.80, 0.81, 0.82), Color(0.93, 0.93, 0.91),
 	Color(0.62, 0.15, 0.12), Color(0.72, 0.66, 0.55), Color(0.55, 0.62, 0.66)]
+
+
+## A block being worked out a slice at a time: its instances so far, and how far through
+## its buildings, then its trees, it's got.
+class Work:
+	var by_kind := {}
+	var trees := []  ## in a shuffled (but fixed) order, so drawing the first half thins them evenly
+	var next := 0
 
 
 class Block:
@@ -46,6 +55,7 @@ class Block:
 	var shapes: Array[RID] = []
 	var buffers := {}  ## kind -> PackedFloat32Array of instances, once worked out
 	var task := -1  ## the worker working them out
+	var work: Work  ## or how far they've got here, without one
 
 
 var route: RouteData
@@ -62,6 +72,9 @@ var density := 1.0:
 				_drop_body(block)  # rebuilt with only what's drawn
 ## Detailed models within this of the car, plainer ones past it.
 var near_lod := NEAR_LOD
+## Work blocks out on worker threads. A single-threaded web build has none (a task added
+## runs there and then, the whole block in one frame): a slice a frame on this one instead.
+var threads := OS.has_feature("threads")
 ## The closest a block appeared to the focus while driving (QA checks it).
 var nearest_pop_in := INF
 var _blocks := {}  ## Vector2i -> Block
@@ -132,9 +145,12 @@ func _process(delta: float) -> void:
 	if _refresh <= 0.0:
 		_refresh = REFRESH_SECONDS
 		_refresh_all()
-	var start := Time.get_ticks_usec()
-	while not _queue.is_empty() and Time.get_ticks_usec() - start < BUILD_BUDGET_USEC:
-		_build(_queue.pop_front())
+	var deadline := Time.get_ticks_usec() + BUILD_BUDGET_USEC
+	while not _queue.is_empty() and Time.get_ticks_usec() < deadline:
+		var block: Block = _queue.pop_front()
+		if not _build(block, deadline):
+			_queue.push_front(block)  # more of it next frame
+			return
 
 
 func _block_at(x: float, z: float) -> Block:
@@ -174,21 +190,27 @@ func _refresh_all() -> void:
 		_queue.append(w[1])
 
 
-func _build(block: Block) -> void:
+## Build what a block needs now. False if it ran out of time (`deadline`, usec) working
+## the block out: there's more to do next frame.
+func _build(block: Block, deadline := 0) -> bool:
 	var d := _distance(block)
 	if d > LOAD_RADIUS:
-		return
+		return true
 	var lod := 0 if d < near_lod - (LOD_HYSTERESIS if block.lod == 1 else 0.0) else 1
 	if block.node == null:
 		if block.task == -1 and block.buffers.is_empty():
 			if _warming_up:
 				_compute(block)
+				block.work = null
+			elif not threads:
+				if not _compute_until(block, deadline):
+					return false
 			else:
 				block.task = WorkerThreadPool.add_task(_compute.bind(block), false, "scenery block")
-				return
+				return true
 		if block.task != -1:
 			if not WorkerThreadPool.is_task_completed(block.task) and not _warming_up:
-				return  # still working; the next refresh asks again
+				return true  # still working; the next refresh asks again
 			WorkerThreadPool.wait_for_task_completion(block.task)
 			block.task = -1
 		if not _warming_up:
@@ -203,72 +225,108 @@ func _build(block: Block) -> void:
 			block.multimeshes[kind].multimesh.mesh = _meshes["%s:%d" % [kind, lod]]
 	if d < COLLIDE_RADIUS and not block.body.is_valid():
 		_make_body(block)
+	return true
 
 
-## Every instance of the block placed on the terrain (runs on a worker thread: it only
-## reads the route data and writes the block's buffers).
+## Every instance of the block placed on the terrain, all at once (on a worker thread: it
+## only reads the route data and writes the block's buffers; or warming up).
 func _compute(block: Block) -> void:
-	var by_kind := {}
+	var work := _start_work(block)
+	_work_on(block, work, block.buildings.size() + work.trees.size())
+	block.buffers = work.by_kind
+
+
+## The same a slice at a time on this thread, until `deadline` (usec): true once it's done.
+func _compute_until(block: Block, deadline: int) -> bool:
+	if block.work == null:
+		block.work = _start_work(block)
+	while not _work_on(block, block.work, SLICE):
+		if Time.get_ticks_usec() >= deadline:
+			return false
+	block.buffers = block.work.by_kind
+	block.work = null
+	return true
+
+
+func _start_work(block: Block) -> Work:
+	var work := Work.new()
 	for kind: String in KINDS:
-		by_kind[kind] = PackedFloat32Array()
-	var t := route.terrain
-	for i in block.buildings:
-		var b: Dictionary = route.buildings[i]
-		var x := float(b.x)
-		var z := float(b.z)
-		var yaw := float(b.yaw)
-		var length := float(b.length)
-		var width := float(b.width)
-		var basis := Basis(Vector3.UP, yaw)
-		# Sit on the lowest corner so nothing floats on a slope; the walls run down into the hill.
-		var ground := INF
-		for corner: Vector3 in [Vector3(-0.5, 0, -0.5), Vector3(0.5, 0, -0.5), Vector3(0.5, 0, 0.5), Vector3(-0.5, 0, 0.5)]:
-			var c := basis * (corner * Vector3(length, 0, width))
-			var h := t.height_at(x + c.x, z + c.z)
-			if not is_nan(h):
-				ground = minf(ground, h)
-		if is_inf(ground):
-			continue
-		var center_h := t.height_at(x, z)
-		var height := float(b.height) + (center_h - ground if not is_nan(center_h) else 0.0) + 0.2
-		var kind: String = b.kind
-		if kind == "bin":
-			length = (length + width) / 2.0
-			width = length
-		var xf := Transform3D(basis * Basis.from_scale(Vector3(length, height, width)), Vector3(x, ground - 0.2, z))
-		_append(by_kind[kind], xf, _building_color(kind, i))
-		if kind == "house":
-			# Every farmhouse has its pole light out in the yard.
-			var spot := Vector3(x, 0, z) + basis * Vector3(length * 0.5 + 6.0, 0, width * 0.5 + 4.0)
-			var h := t.height_at(spot.x, spot.z)
-			if not is_nan(h):
-				var pole := Transform3D(Basis(Vector3.UP, yaw + PI * 0.5) * Basis.from_scale(Vector3(1.0, YARD_LIGHT_HEIGHT, 1.0)),
-					Vector3(spot.x, h - 0.2, spot.z))
-				_append(by_kind["yard_light"], pole, Color.WHITE)
-	# Trees in a shuffled (but fixed) order, so drawing the first half thins them evenly.
-	var order := Array(block.trees)
+		work.by_kind[kind] = PackedFloat32Array()
+	work.trees = Array(block.trees)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(block.key)
-	for j in range(order.size() - 1, 0, -1):
+	for j in range(work.trees.size() - 1, 0, -1):
 		var r := rng.randi_range(0, j)
-		var swap: int = order[j]
-		order[j] = order[r]
-		order[r] = swap
-	for i: int in order:
-		var k := i * 5
-		var x := route.trees[k]
-		var z := route.trees[k + 1]
-		var ground := t.height_at(x, z)
-		if is_nan(ground):
-			continue
-		var height := route.trees[k + 2]
-		var crown := route.trees[k + 3] * 2.0
-		var kind := "conifer" if route.trees[k + 4] > 0.5 else "tree"
-		var spin := _hash(i * 3 + 1) * TAU
-		var xf := Transform3D(Basis(Vector3.UP, spin) * Basis.from_scale(Vector3(crown, height, crown)), Vector3(x, ground - 0.3, z))
-		var shade := 0.85 + 0.3 * _hash(i * 7 + 2)
-		_append(by_kind[kind], xf, Color(shade, shade * (0.95 + 0.1 * _hash(i * 11)), shade * 0.9))
-	block.buffers = by_kind
+		var swap: int = work.trees[j]
+		work.trees[j] = work.trees[r]
+		work.trees[r] = swap
+	return work
+
+
+## Place up to `count` more of the block's buildings, then its trees: true once they're
+## all placed.
+func _work_on(block: Block, work: Work, count: int) -> bool:
+	var buildings := block.buildings.size()
+	var stop := mini(work.next + count, buildings + work.trees.size())
+	while work.next < stop:
+		if work.next < buildings:
+			_place_building(work.by_kind, block.buildings[work.next])
+		else:
+			_place_tree(work.by_kind, work.trees[work.next - buildings])
+		work.next += 1
+	return work.next >= buildings + work.trees.size()
+
+
+func _place_building(by_kind: Dictionary, i: int) -> void:
+	var t := route.terrain
+	var b: Dictionary = route.buildings[i]
+	var x := float(b.x)
+	var z := float(b.z)
+	var yaw := float(b.yaw)
+	var length := float(b.length)
+	var width := float(b.width)
+	var basis := Basis(Vector3.UP, yaw)
+	# Sit on the lowest corner so nothing floats on a slope; the walls run down into the hill.
+	var ground := INF
+	for corner: Vector3 in [Vector3(-0.5, 0, -0.5), Vector3(0.5, 0, -0.5), Vector3(0.5, 0, 0.5), Vector3(-0.5, 0, 0.5)]:
+		var c := basis * (corner * Vector3(length, 0, width))
+		var h := t.height_at(x + c.x, z + c.z)
+		if not is_nan(h):
+			ground = minf(ground, h)
+	if is_inf(ground):
+		return
+	var center_h := t.height_at(x, z)
+	var height := float(b.height) + (center_h - ground if not is_nan(center_h) else 0.0) + 0.2
+	var kind: String = b.kind
+	if kind == "bin":
+		length = (length + width) / 2.0
+		width = length
+	var xf := Transform3D(basis * Basis.from_scale(Vector3(length, height, width)), Vector3(x, ground - 0.2, z))
+	_append(by_kind[kind], xf, _building_color(kind, i))
+	if kind == "house":
+		# Every farmhouse has its pole light out in the yard.
+		var spot := Vector3(x, 0, z) + basis * Vector3(length * 0.5 + 6.0, 0, width * 0.5 + 4.0)
+		var h := t.height_at(spot.x, spot.z)
+		if not is_nan(h):
+			var pole := Transform3D(Basis(Vector3.UP, yaw + PI * 0.5) * Basis.from_scale(Vector3(1.0, YARD_LIGHT_HEIGHT, 1.0)),
+				Vector3(spot.x, h - 0.2, spot.z))
+			_append(by_kind["yard_light"], pole, Color.WHITE)
+
+
+func _place_tree(by_kind: Dictionary, i: int) -> void:
+	var k := i * 5
+	var x := route.trees[k]
+	var z := route.trees[k + 1]
+	var ground := route.terrain.height_at(x, z)
+	if is_nan(ground):
+		return
+	var height := route.trees[k + 2]
+	var crown := route.trees[k + 3] * 2.0
+	var kind := "conifer" if route.trees[k + 4] > 0.5 else "tree"
+	var spin := _hash(i * 3 + 1) * TAU
+	var xf := Transform3D(Basis(Vector3.UP, spin) * Basis.from_scale(Vector3(crown, height, crown)), Vector3(x, ground - 0.3, z))
+	var shade := 0.85 + 0.3 * _hash(i * 7 + 2)
+	_append(by_kind[kind], xf, Color(shade, shade * (0.95 + 0.1 * _hash(i * 11)), shade * 0.9))
 
 
 ## One multimesh per kind present in the block.
@@ -308,6 +366,14 @@ static func _append(buffer: PackedFloat32Array, xf: Transform3D, tint: Color) ->
 		b.x.z, b.y.z, b.z.z, xf.origin.z, tint.r, tint.g, tint.b, 1.0])
 
 
+## Instance `j`'s transform, from a block's buffer. (Not from the MultiMesh: that reads it
+## back from the renderer, a GPU read in a browser, and a headless run has nothing there.)
+static func _instance(buffer: PackedFloat32Array, j: int) -> Transform3D:
+	var k := j * 16
+	return Transform3D(Vector3(buffer[k], buffer[k + 4], buffer[k + 8]), Vector3(buffer[k + 1], buffer[k + 5], buffer[k + 9]),
+		Vector3(buffer[k + 2], buffer[k + 6], buffer[k + 10]), Vector3(buffer[k + 3], buffer[k + 7], buffer[k + 11]))
+
+
 func _building_color(kind: String, i: int) -> Color:
 	var h := _hash(i * 13 + 5)
 	match kind:
@@ -323,41 +389,42 @@ func _building_color(kind: String, i: int) -> Color:
 
 
 ## Solid near the car: a box per building (cylinder for a bin), a trunk per tree; only
-## what's drawn.
+## what's drawn. The shapes all go on before the body joins the physics space: with Jolt,
+## each one added after rebuilds the whole body (seconds, for a wood of thousands of trees).
 func _make_body(block: Block) -> void:
 	if density <= 0.0:
 		return
-	var space := get_world_3d().space
 	block.body = PhysicsServer3D.body_create()
 	PhysicsServer3D.body_set_mode(block.body, PhysicsServer3D.BODY_MODE_STATIC)
-	PhysicsServer3D.body_set_space(block.body, space)
 	PhysicsServer3D.body_set_collision_layer(block.body, 1 << (Car.WORLD_LAYER - 1))
 	PhysicsServer3D.body_set_collision_mask(block.body, 0)
 	PhysicsServer3D.body_set_state(block.body, PhysicsServer3D.BODY_STATE_TRANSFORM, Transform3D.IDENTITY)
 	for kind: String in block.multimeshes:
+		if kind == "yard_light":
+			continue
 		var mm: MultiMesh = block.multimeshes[kind].multimesh
 		var shown := mm.instance_count if mm.visible_instance_count < 0 else mm.visible_instance_count
+		var buffer: PackedFloat32Array = block.buffers[kind]
 		for j in shown:
-			var xf := mm.get_instance_transform(j)
-			var scale := xf.basis.get_scale()
+			var xf := _instance(buffer, j)
 			var shape: RID
 			var at: Transform3D
-			if kind == "yard_light":
-				continue
 			if kind == "tree" or kind == "conifer":
 				shape = _trunk_shape
 				at = Transform3D(Basis.IDENTITY, xf.origin + Vector3.UP * TRUNK_HEIGHT / 2.0)
-			elif kind == "bin":
-				shape = PhysicsServer3D.cylinder_shape_create()
-				PhysicsServer3D.shape_set_data(shape, {"radius": scale.x / 2.0, "height": scale.y})
-				block.shapes.append(shape)
-				at = Transform3D(Basis.IDENTITY, xf.origin + Vector3.UP * scale.y / 2.0)
 			else:
-				shape = PhysicsServer3D.box_shape_create()
-				PhysicsServer3D.shape_set_data(shape, scale / 2.0)
+				var scale := xf.basis.get_scale()
+				if kind == "bin":
+					shape = PhysicsServer3D.cylinder_shape_create()
+					PhysicsServer3D.shape_set_data(shape, {"radius": scale.x / 2.0, "height": scale.y})
+					at = Transform3D(Basis.IDENTITY, xf.origin + Vector3.UP * scale.y / 2.0)
+				else:
+					shape = PhysicsServer3D.box_shape_create()
+					PhysicsServer3D.shape_set_data(shape, scale / 2.0)
+					at = Transform3D(xf.basis.orthonormalized(), xf.origin + Vector3.UP * scale.y / 2.0)
 				block.shapes.append(shape)
-				at = Transform3D(xf.basis.orthonormalized(), xf.origin + Vector3.UP * scale.y / 2.0)
 			PhysicsServer3D.body_add_shape(block.body, shape, at)
+	PhysicsServer3D.body_set_space(block.body, get_world_3d().space)
 
 
 func _drop_body(block: Block) -> void:
@@ -387,9 +454,9 @@ func building_boxes(near: Vector3, radius: float) -> Array:
 		for kind: String in ["house", "barn", "shed", "bin", "elevator"]:
 			if not block.multimeshes.has(kind):
 				continue
-			var mm: MultiMesh = block.multimeshes[kind].multimesh
-			for j in mm.instance_count:
-				var xf := mm.get_instance_transform(j)
+			var buffer: PackedFloat32Array = block.buffers[kind]
+			for j in buffer.size() / 16:
+				var xf := _instance(buffer, j)
 				if Vector2(xf.origin.x - near.x, xf.origin.z - near.z).length() > radius:
 					continue
 				var scale := xf.basis.get_scale()

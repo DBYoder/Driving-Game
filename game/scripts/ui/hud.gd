@@ -6,6 +6,10 @@ extends CanvasLayer
 
 const MPH := 2.23694
 const RESULTS_DELAY := 2.5  ## seconds of crash cam before the results after a wreck
+const RESULTS_HOLD := 3.0  ## after a finish the results stay up this long, gas or not...
+const GAS_TO_TUCK := 0.6  ## ...then this long on the gas tucks them away (driving on into town)...
+const OFF_GAS_TO_SHOW := 1.5  ## ...and this long off it brings them back
+const FEET := 3.28084
 
 var route: RouteData
 var car: Car
@@ -50,6 +54,8 @@ var _results_grid: GridContainer
 var _popups: VBoxContainer
 var _go_flash := 0.0
 var _over_time := 0.0
+var results_tucked := false  ## driving on after the finish: the results are a line at the top
+var _gas_time := 0.0  ## how long the gas has been held (or, negative, let off)
 
 
 func setup(r: RouteData, c: Car, game_run: Run, cam: ChaseCamera) -> void:
@@ -103,10 +109,10 @@ func _process(delta: float) -> void:
 		"%s  ·  points ×%s%s" % [car.stats.display_name, str(car.stats.score_multiplier),
 			"  ·  " + condition_name if condition_name != "" else ""],
 		"Mile %.1f of %.1f    %s view" % [clampf(route.mile_at(s), 0.0, finish_mile), finish_mile, camera.mode_name()]]
-	var next := route.next_crossroad(s)
+	var next := route.next_crossroad(s + 15.0)  # (once you're at one, the one after it)
 	if not next.is_empty() and s < route.finish_station:
 		var label: String = next.name if next.route == "" else "%s (%s)" % [next.name, next.route]
-		lines.append("Next: %s in %.1f mi" % [label, (next.station - s) / RouteData.MILE_M])
+		lines.append("Next: %s in %s" % [label, distance_text(next.station - s)])
 	_trip.text = "\n".join(lines)
 
 	var best := "Best  %s" % RunTracker.format_time(tracker.best_time) if tracker.best_time > 0.0 else "No best time yet"
@@ -141,9 +147,10 @@ func _process(delta: float) -> void:
 	_over_time = _over_time + delta if tracker.over() else 0.0
 	var show_results := tracker.state == RunTracker.State.FINISHED \
 		or (tracker.state == RunTracker.State.WRECKED and _over_time > RESULTS_DELAY)
-	if show_results and not _results.visible:
+	_tuck_results(delta)
+	if show_results and not results_tucked and not _results.visible:
 		_fill_results()
-	_results.visible = show_results
+	_results.visible = show_results and not results_tucked
 
 	if get_tree().paused:
 		_show("", 40)  # the pause menu says so
@@ -152,6 +159,8 @@ func _process(delta: float) -> void:
 		_go_flash = 1.2
 	elif tracker.state == RunTracker.State.WRECKED and not show_results:
 		_show(tracker.wreck_reason.to_upper(), 52)
+	elif results_tucked:
+		_show("%s!  %s  ·  %s" % [String(route.info.to).to_upper(), RunTracker.format_time(tracker.elapsed), _fmt(run.score.banked)], 30)
 	elif tracker.over():
 		_show("", 40)
 	elif _go_flash > 0.0:
@@ -162,13 +171,37 @@ func _process(delta: float) -> void:
 		_show("", 40)
 
 
-## A big message for a couple of seconds ("SPEED TRAP!").
+## Made it, and driving on (into town): once the results have been up a few seconds, the
+## gas tucks them away to a line at the top, and letting off brings them back.
+func _tuck_results(delta: float) -> void:
+	if tracker.state != RunTracker.State.FINISHED:
+		results_tucked = false
+		_gas_time = 0.0
+		return
+	if car.throttle > 0.3:
+		_gas_time = maxf(_gas_time, 0.0) + delta
+	else:
+		_gas_time = minf(_gas_time, 0.0) - delta
+	if not results_tucked and _over_time > RESULTS_HOLD and _gas_time > GAS_TO_TUCK:
+		results_tucked = true
+	elif results_tucked and -_gas_time > OFF_GAS_TO_SHOW:
+		results_tucked = false
+
+
+## How far, the way a road sign says it: "1.4 mi", or in feet when it's close ("300 ft").
+static func distance_text(meters: float) -> String:
+	if meters >= 0.1 * RouteData.MILE_M:
+		return "%.1f mi" % (meters / RouteData.MILE_M)
+	return "%d ft" % maxi(50, roundi(meters * FEET / 50.0) * 50)
+
+
 ## A small line at the bottom left for a few seconds (the radio's song).
 func note(text: String, seconds := 4.0) -> void:
 	_note.text = text
 	_note_time = seconds
 
 
+## A big message for a couple of seconds ("SPEED TRAP!").
 func banner(text: String, seconds := 2.0) -> void:
 	_banner = text
 	_banner_time = seconds

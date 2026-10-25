@@ -18,6 +18,7 @@ const PAR_SECONDS := 900.0  ## 15 minutes: Highway 1's par (each route has its o
 const BONUS_PER_SECOND := 20
 
 var par_seconds := PAR_SECONDS  ## a finish faster than this earns the time bonus
+var open := true  ## taking points (Run: only while the clock's running; the score's final after)
 var car_multiplier := 1.0
 var banked := 0
 var pot := 0  ## combo points not yet banked (before the multiplier)
@@ -47,6 +48,8 @@ func reset() -> void:
 ## Score something. `event` = false adds points without bumping the multiplier
 ## (for continuous things like plowing corn), but still keeps the combo alive.
 func add(label: String, points: int, event := true) -> void:
+	if not open:
+		return
 	counts[label] = counts.get(label, 0) + 1
 	raw[label] = raw.get(label, 0) + points
 	points = roundi(points * car_multiplier)
