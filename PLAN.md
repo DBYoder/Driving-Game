@@ -590,6 +590,12 @@ Each phase ends with a **zip you can send to friends**. Nothing past a phase gat
   - **"Next: 8th Ave SW in 300 ft"** when it's close, not "in 0.0 mi", and the next one along once you're at it.
 - **Tests:** runs that don't count (the title screen's car, a car put down up the road, practice) save nothing and real ones still do; the menus walk checks the title screen's car isn't on a run that counts; what the road's made of across it (lanes, shoulder, verge; a bridge; through Wellman); after the finish: no points, the chase ends, the results tuck away and come back, the road's closed at a solid barricade square across it with the sign both ways, traffic stops short of it and none turns up past it; distances like a road sign; typing a name doesn't drive the car; a mailbox smashed off the clock still clangs; a block worked out a slice at a time comes out the same as all at once; the thickest wood's collision builds in a few ms, a trunk where each tree is; buildings' boxes are where the buildings are; the world's built around you and taken down behind. The menus walk checks a chase stays behind when you change car. The tests now start a frame in, so they can put nodes in the scene tree.
 
+### v0.9.4: sound on phones
+- The owner, on the browser version: "the mobile version had a slight stutter in the sound which wasn't present when running the web version from a pc browser".
+- **Why:** the web build is single-threaded, so the game mixes its sound on the main thread between frames, into the browser's buffer. Godot sizes that buffer from the web output latency, 50 ms by default, rounded to a power of two: 2048 frames, 43 ms at a phone's 48 kHz. A phone draws a frame in about 33 ms at 30 fps, so any frame slower than 43 ms let the buffer run dry. A PC never comes close.
+- **Fix:** `audio/driver/output_latency.web` is 100 ms: 4096 frames, 85 to 93 ms, twice the headroom. The generated sounds (engine, tires, rain, siren) already keep 186 ms ready, so they cover it. Sound in a browser now lags its cause by about 0.1 s instead of 0.05 s, which is hard to notice. The desktop game is unchanged (15 ms; it mixes on its own thread).
+- Checked in Chromium: the browser buffer is 8192 samples (4096 frames) with the change, against 4096 before. A test checks the browser holds at least 80 ms of sound at 44.1 and 48 kHz, and that the engine keeps that much ready.
+
 **Scope-creep parking lot** (not planned; pick from here for what's next): multiplayer, ghosts, steering wheels, a southbound run, traffic on the side roads.
 
 ---

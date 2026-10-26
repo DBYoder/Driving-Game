@@ -100,3 +100,29 @@ func test_the_tires_are_heard() -> void:
 	var gravel := audible_db(left(feel.synth_tires(22050)), CarFeel.SQUEAL_RATE, CarFeel.TIRES_DB)
 	check(gravel > horn - 20.0, "gravel crunches (%.1f dB)" % gravel)
 	feel.free()
+
+
+## The buffer Godot's web build mixes into for `latency_ms` at `rate` (a power of two).
+static func _web_buffer_ms(latency_ms: int, rate: int) -> float:
+	var x := latency_ms * rate / 1000
+	var up := 1
+	while up < x:
+		up <<= 1
+	var down := up >> 1
+	return float(down if up - x > x - down else up) * 1000.0 / rate
+
+
+func test_a_phone_browser_has_sound_ready_for_a_slow_frame() -> void:
+	# In a browser there's one thread: the sound's mixed between frames into a buffer the web
+	# output latency sizes. Godot's 50 ms made it 43 ms at a phone's 48 kHz, and a phone's
+	# frames often take longer than that: the sound stuttered.
+	var latency_ms: int = ProjectSettings.get_setting("audio/driver/output_latency.web")
+	for rate: int in [44100, 48000]:
+		var ms := _web_buffer_ms(latency_ms, rate)
+		check(ms >= 80.0, "at %d Hz the browser holds %.0f ms of sound (want 80+)" % [rate, ms])
+	# And the generated sounds keep at least that much ready to mix.
+	var engine := EngineSound.new()
+	(Engine.get_main_loop() as SceneTree).root.add_child(engine)
+	var ready_ms := (engine.stream as AudioStreamGenerator).buffer_length * 1000.0
+	check(ready_ms >= _web_buffer_ms(latency_ms, 44100), "the engine keeps %.0f ms ready" % ready_ms)
+	engine.free()

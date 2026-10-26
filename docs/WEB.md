@@ -42,6 +42,9 @@ runs. It's open to anyone with the address; there's no password.
   full screen like an app (the server's manifest says so).
 - **Lighter graphics:** a phone or tablet starts on Low, with the 3D drawn at about 600
   lines (their screens have two or three times a PC's pixels). Settings can change it.
+- **Sound:** in the browser the game mixes its sound between frames, so it keeps about
+  90 ms ready (`audio/driver/output_latency.web` = 100): enough to get over a phone's slow
+  frames without a stutter. Godot's default left about 43 ms, less than a slow phone frame.
 - Tested in Chrome's phone emulation (a Pixel 7 and an iPhone 14, sideways), about 240 MB
   of memory. Not yet on a real iPhone.
 
@@ -53,14 +56,19 @@ half an hour). Then, on [railway.com](https://railway.com):
 1. Sign in with GitHub. A small game like this fits in the Hobby plan.
 2. **New Project → Deploy from GitHub repo →** `DBYoder/Driving-Game`. (If Railway asks
    to be allowed into the repo, allow it.)
-3. Open the new service, then **Settings → Source**: set the branch to **`web`**. Railway
-   finds the Dockerfile there and builds it. (Its first try, from `main`, fails: that's
-   expected, `main` has no Dockerfile at the top.)
+3. Open the new service, then **Settings → Source**: check the repo is
+   `DBYoder/Driving-Game` (the pencil changes it), and set **Branch connected to
+   production** to **`web`**. Railway finds the Dockerfile there and builds it. (Its first
+   try, from `main`, fails: that's expected, `main` has no Dockerfile at the top.) If the
+   repo or the `web` branch isn't offered, Railway can't see the repo yet: on GitHub,
+   Settings → Applications → Railway → Configure, and add it under Repository access.
 4. Back on the project, **+ Create → Database → PostgreSQL**.
 5. In the game's service, **Variables → New Variable**: name `DATABASE_URL`, value
    `${{Postgres.DATABASE_URL}}` (Railway offers it as a reference). It redeploys.
 6. **Settings → Networking → Generate Domain** (if it asks for a port, 8080). That's
    the address to share: anyone who opens it can play.
+7. **Settings → Deploy → Healthcheck Path**: `/api/health`. A new build only takes over
+   once it answers, so a broken one never replaces a working one.
 
 To check on it: `https://<the address>/api/health` says `{"ok":true}`.
 
