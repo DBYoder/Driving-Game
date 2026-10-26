@@ -42,6 +42,10 @@ gas, brake, boost, handbrake and horn on the right), tappable menus and garage, 
 phone's own keyboard for the leaderboard name, sideways full screen, and lighter graphics
 to start with. The web build is single-threaded now, so it runs on iPhones too.
 
+**v0.9.4: sound on phones.** The sound stuttered a little on phones in the browser: the
+game mixes it between frames there, and a phone's slower frames could let the browser's
+sound run out. It now keeps twice as much ready.
+
 **v0.9.3: a once-over.** Fixes from a pass through the whole game: the game froze for a
 moment coming up on thick woods (up to a second and a half on Highway 22), and building
 the world as you drive hitched; iPads got a PC's graphics settings (too much for them);
