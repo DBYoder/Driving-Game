@@ -8,3 +8,5 @@ networkx>=3.2
 matplotlib>=3.8
 pytest>=8.0
 laspy[lazrs]>=2.5
+pymupdf>=1.24  # the aerial photos in the US Topo maps (aerial.py)
+pillow>=10.0

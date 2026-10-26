@@ -92,7 +92,7 @@ func _road_end(s: float) -> void:
 	var right := route.right_at(s)
 	# Local x across the road (to the right), local -z up it: the faces at +z are the ones
 	# coming up the road sees.
-	var g := {"st": MeshKit.begin(), "at": route.position_at(s), "basis": Basis(Vector3.UP, atan2(-right.z, right.x))}
+	var g := {"st": MeshKit.begin(true), "at": route.position_at(s), "basis": Basis(Vector3.UP, atan2(-right.z, right.x))}
 	var st: SurfaceTool = g.st
 	for x0: float in [-8.8, -4.4, 0.0, 4.4, 8.8]:  # (the outer two over the ditches, down the slope)
 		var y0 := _road_section_y(absf(x0))
@@ -162,7 +162,7 @@ func _stripes(st: SurfaceTool, x0: float, x1: float, y0: float, y1: float, z: fl
 ## alternate sides, a galvanized pole behind the gutter with a mast arm and a cobra head
 ## over the parking lane, lit at night. None by a crossroad or on a bridge.
 func _street_lights(from: float, to: float) -> void:
-	var st := MeshKit.begin()
+	var st := MeshKit.begin(true)
 	var origin := route.position_at(from)
 	var side := 1.0
 	var s := from
@@ -649,7 +649,7 @@ func _lot_light(st: SurfaceTool, g: Dictionary, at: Vector2) -> void:
 func _school_sign(at: Vector3) -> void:
 	var s := route.nearest_station(at, 0.0, 1e9)
 	var along := route.tangent_at(s)
-	var g := {"st": MeshKit.begin(), "basis": Basis.looking_at(Vector3(along.x, 0.0, along.z), Vector3.UP)}
+	var g := {"st": MeshKit.begin(true), "basis": Basis.looking_at(Vector3(along.x, 0.0, along.z), Vector3.UP)}
 	g.at = at
 	var h := _ground(g, Vector2.ZERO)
 	g.at = Vector3(at.x, h if not is_nan(h) else route.position_at(s).y, at.z)
@@ -684,7 +684,7 @@ func _school_sign(at: Vector3) -> void:
 ## `yaw` turns the group's local axes (like rotation.y): a building that isn't square to the
 ## compass.
 func _group(origin: Vector3, area: Rect2, yaw := 0.0) -> Dictionary:
-	var g := {"st": MeshKit.begin(), "at": origin, "basis": Basis(Vector3.UP, yaw)}
+	var g := {"st": MeshKit.begin(true), "at": origin, "basis": Basis(Vector3.UP, yaw)}
 	var low := INF
 	for corner: Vector2 in [area.position, area.position + Vector2(area.size.x, 0), area.end,
 			area.position + Vector2(0, area.size.y)]:

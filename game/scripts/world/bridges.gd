@@ -44,7 +44,7 @@ func setup(r: RouteData) -> void:
 	var marker_material := _marker_material()
 	# Each bridge its own meshes, so each fades out with its own distance.
 	for b: Array in r.decks:
-		var st := MeshKit.begin()
+		var st := MeshKit.begin(true)
 		for side: float in [-1.0, 1.0]:
 			_rail(st, b, side)
 		var rails := MeshInstance3D.new()

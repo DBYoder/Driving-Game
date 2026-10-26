@@ -3,7 +3,7 @@ extends Node3D
 ## A line of wooden utility poles along the highway, just inside the right-of-way, with
 ## three wires sagging between them. It runs down one side and every so often swings
 ## across the road (at a crossroad) to carry on along the other. Poles step aside for
-## crossroads, streets, bridges and the landmarks. They're solid: hit one and it's like
+## crossroads, streets, bridges, buildings and the landmarks. They're solid: hit one and it's like
 ## hitting a tree.
 ##
 ## Built once, in chunks of CHUNK poles (a MultiMesh of poles and a mesh of wire lines
@@ -19,6 +19,7 @@ const CHUNK := 16
 const DRAW_RANGE := 1600.0
 const CLEAR_OF_CROSSROADS := 18.0
 const CLEAR_OF_BRIDGES := 12.0
+const CLEAR_OF_BUILDINGS := 2.0  ## a pole (and its crossarm) this far from any wall
 const SWITCH_EVERY := 3.0 * RouteData.MILE_M  ## roughly how often it crosses the road
 const POLE_RADIUS := 0.16
 
@@ -53,7 +54,7 @@ func _place(streets: Streets) -> void:
 		var base := route.position_at(s) + right * OFFSET * side
 		var ground := route.terrain.height_at(base.x, base.z)
 		if is_nan(ground) or route.in_landmark(base.x, base.z) or route.near_junction(base.x, base.z) \
-				or _on_street(streets, base):
+				or _on_street(streets, base) or route.near_building(base.x, base.z, CLEAR_OF_BUILDINGS):
 			s += 6.0
 			continue
 		base.y = ground - 0.2
@@ -148,13 +149,27 @@ static func _attach_points() -> Array[Vector3]:
 		Vector3(0.0, HEIGHT + 0.05, 0.0)]
 
 
-## A weathered pole, its crossarm (along x) and three glass insulators.
+## A weathered pole, its crossarm (along x) and three glass insulators. (No faces where
+## nobody looks: the pole's foot is in the ground, the insulators' undersides are tiny.)
 static func _pole_mesh() -> ArrayMesh:
 	var st := MeshKit.begin()
 	var wood := Color(0.36, 0.30, 0.24)
-	MeshKit.cylinder(st, POLE_RADIUS, HEIGHT, Vector3(0, HEIGHT * 0.5, 0), wood, wood.darkened(0.2), 7, Vector3.UP)
+	_post(st, POLE_RADIUS, 0.0, HEIGHT, 6, wood, wood.darkened(0.2))
 	MeshKit.box(st, Vector3(ARM * 2.0, 0.11, 0.11), Vector3(0, HEIGHT - 0.85, 0), wood.darkened(0.1))
 	var glass := Color(0.45, 0.62, 0.55)
 	for p: Vector3 in _attach_points():
-		MeshKit.box(st, Vector3(0.09, 0.16, 0.09), p - Vector3(0, 0.05, 0), glass)
+		_post(st, 0.06, p.y - 0.13, p.y + 0.03, 3, glass, glass, Vector3(p.x, 0, p.z))
 	return MeshKit.finish(st)
+
+
+## An upright prism from y0 to y1 with a top (no bottom).
+static func _post(st: SurfaceTool, radius: float, y0: float, y1: float, sides: int, color: Color, top: Color,
+		at := Vector3.ZERO) -> void:
+	for i in sides:
+		var a0 := TAU * (i + 0.5) / sides
+		var a1 := TAU * (i + 1.5) / sides
+		var p0 := at + Vector3(cos(a0), 0, sin(a0)) * radius
+		var p1 := at + Vector3(cos(a1), 0, sin(a1)) * radius
+		MeshKit.quad(st, p0 + Vector3.UP * y0, p1 + Vector3.UP * y0, p1 + Vector3.UP * y1, p0 + Vector3.UP * y1,
+			(p0 + p1) / 2.0 - at, color)
+		MeshKit.tri(st, p0 + Vector3.UP * y1, p1 + Vector3.UP * y1, at + Vector3.UP * y1, Vector3.UP, top)

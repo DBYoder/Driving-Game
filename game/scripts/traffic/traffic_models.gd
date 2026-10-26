@@ -12,6 +12,7 @@ const PAINT := [
 
 static func build(kind: String, rng: RandomNumberGenerator) -> ArrayMesh:
 	var st := MeshKit.begin()
+	st.set_smooth_group(-1)  # flat faces: crisp edges (smoothed, boxes and wheels go soft and blobby)
 	match kind:
 		"car":
 			_sedan(st, PAINT[rng.randi() % PAINT.size()])
@@ -70,25 +71,62 @@ static func lamps(kind: String, spec: Dictionary) -> MeshInstance3D:
 	return node
 
 
-static func _wheels(st: SurfaceTool, half_track: float, zs: Array, radius: float, width := 0.22) -> void:
+static func _wheels(st: SurfaceTool, half_track: float, zs: Array, radius: float, width := 0.22,
+		hub := Color(0.55, 0.55, 0.56)) -> void:
 	for z in zs:
-		for x in [-half_track, half_track]:
-			MeshKit.cylinder(st, radius, width, Vector3(x, radius, z), TIRE, Color(0.5, 0.5, 0.5), 8)
+		for x: float in [-half_track, half_track]:
+			MeshKit.cylinder(st, radius, width, Vector3(x, radius, z), TIRE, TIRE, 8)
+			# The wheel inside the tire, just proud of its sidewall.
+			MeshKit.cylinder(st, radius * 0.58, 0.02, Vector3(x + signf(x) * (width / 2.0 + 0.005), radius, z), hub, hub, 8)
 
 
 static func _sedan(st: SurfaceTool, paint: Color) -> void:
-	MeshKit.box(st, Vector3(1.78, 0.62, 4.7), Vector3(0, 0.62, 0), paint)
-	MeshKit.box(st, Vector3(1.5, 0.48, 2.2), Vector3(0, 1.17, 0.2), GLASS)
-	MeshKit.box(st, Vector3(1.52, 0.06, 1.9), Vector3(0, 1.43, 0.25), paint)
+	MeshKit.box(st, Vector3(1.78, 0.56, 4.7), Vector3(0, 0.62, 0), paint)
+	# The greenhouse: raked windshield and back glass, the roof painted.
+	_cabin(st, 0.9, 1.4, Vector2(-0.95, 1.35), Vector2(-0.35, 0.85), 1.66, 1.4, paint)
+	_ends(st, 1.78, 4.7, 0.62, 0.7)
 	_wheels(st, 0.78, [-1.4, 1.4], 0.33)
 
 
 static func _pickup(st: SurfaceTool, paint: Color) -> void:
-	MeshKit.box(st, Vector3(1.95, 0.7, 5.5), Vector3(0, 0.75, 0), paint)
-	MeshKit.box(st, Vector3(1.8, 0.65, 1.6), Vector3(0, 1.42, -0.9), GLASS)
-	MeshKit.box(st, Vector3(1.82, 0.06, 1.5), Vector3(0, 1.77, -0.9), paint)
+	MeshKit.box(st, Vector3(1.95, 0.66, 5.5), Vector3(0, 0.77, 0), paint)
+	_cabin(st, 1.1, 1.8, Vector2(-1.75, -0.1), Vector2(-1.35, -0.15), 1.84, 1.7, paint)
 	MeshKit.box(st, Vector3(1.85, 0.35, 2.3), Vector3(0, 1.27, 1.45), paint.darkened(0.25))  # bed sides
+	MeshKit.box(st, Vector3(1.6, 0.05, 2.2), Vector3(0, 1.11, 1.45), Color(0.12, 0.12, 0.12))  # bed liner
+	_ends(st, 1.95, 5.5, 0.72, 0.95)
 	_wheels(st, 0.85, [-1.75, 1.6], 0.38, 0.26)
+
+
+## A car's cabin from y0 to y1: glass all round, narrower and shorter at the top
+## (`top` z span over `bottom`'s: the windshield and back glass raked), a painted roof.
+static func _cabin(st: SurfaceTool, y0: float, y1: float, bottom: Vector2, top: Vector2, w0: float, w1: float,
+		roof: Color) -> void:
+	var b: Array[Vector3] = [Vector3(-w0 / 2, y0, bottom.x), Vector3(w0 / 2, y0, bottom.x), Vector3(w0 / 2, y0, bottom.y), Vector3(-w0 / 2, y0, bottom.y)]
+	var t: Array[Vector3] = [Vector3(-w1 / 2, y1, top.x), Vector3(w1 / 2, y1, top.x), Vector3(w1 / 2, y1, top.y), Vector3(-w1 / 2, y1, top.y)]
+	MeshKit.quad(st, b[0], b[1], t[1], t[0], Vector3(0, 0.5, -1), GLASS)  # windshield
+	MeshKit.quad(st, b[2], b[3], t[3], t[2], Vector3(0, 0.5, 1), GLASS)  # back glass
+	MeshKit.quad(st, b[1], b[2], t[2], t[1], Vector3(1, 0.2, 0), GLASS)
+	MeshKit.quad(st, b[3], b[0], t[0], t[3], Vector3(-1, 0.2, 0), GLASS)
+	MeshKit.quad(st, t[0], t[1], t[2], t[3], Vector3.UP, roof)
+	# The pillars between the side windows.
+	for x: float in [-1.0, 1.0]:
+		var mid := (b[1].z + b[2].z) / 2.0
+		var top_mid := (t[1].z + t[2].z) / 2.0
+		var p0 := Vector3(x * (w0 / 2 + 0.005), y0, mid)
+		var p1 := Vector3(x * (w1 / 2 + 0.005), y1, top_mid)
+		MeshKit.quad(st, p0 - Vector3(0, 0, 0.07), p0 + Vector3(0, 0, 0.07), p1 + Vector3(0, 0, 0.07), p1 - Vector3(0, 0, 0.07),
+			Vector3(x, 0, 0), roof)
+
+
+## Bumpers, head lamps and tail lamps on a body `width` x `length`, lamps at `lamp_y`
+## (what they look like by day: TrafficModels.lamps() lights them at night).
+static func _ends(st: SurfaceTool, width: float, length: float, bumper_y: float, lamp_y: float) -> void:
+	var trim := Color(0.16, 0.16, 0.17)
+	for end: float in [-1.0, 1.0]:
+		MeshKit.box(st, Vector3(width + 0.04, 0.16, 0.12), Vector3(0, bumper_y - 0.2, end * length / 2.0), trim)
+		for side: float in [-1.0, 1.0]:
+			var lamp := Color(0.92, 0.9, 0.82) if end < 0.0 else Color(0.6, 0.06, 0.05)
+			MeshKit.box(st, Vector3(0.3, 0.12, 0.04), Vector3(side * (width / 2.0 - 0.28), lamp_y, end * (length / 2.0 + 0.01)), lamp)
 
 
 static func _semi(st: SurfaceTool, paint: Color) -> void:
@@ -114,7 +152,7 @@ static func _buggy(st: SurfaceTool) -> void:
 	var black := Color(0.07, 0.07, 0.08)
 	MeshKit.box(st, Vector3(1.35, 1.4, 1.9), Vector3(0, 1.55, 0.9), black)
 	MeshKit.box(st, Vector3(1.0, 0.4, 0.02), Vector3(0, 1.75, -0.06), Color(0.2, 0.22, 0.25))  # windshield
-	_wheels(st, 0.72, [0.2, 1.6], 0.6, 0.06)
+	_wheels(st, 0.72, [0.2, 1.6], 0.6, 0.06, Color(0.2, 0.2, 0.2))
 	# SMV emblem: an orange triangle with a red border, facing backward (+Z).
 	var back := Vector3(0, 1.45, 1.86)
 	MeshKit.tri(st, back + Vector3(-0.4, -0.3, 0), back + Vector3(0.4, -0.3, 0), back + Vector3(0, 0.38, 0),

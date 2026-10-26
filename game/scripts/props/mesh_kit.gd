@@ -13,9 +13,13 @@ static func material() -> StandardMaterial3D:
 	return m
 
 
-static func begin() -> SurfaceTool:
+## `flat`: every face its own normal (crisp corners: buildings, signs, boxes); otherwise
+## faces meeting at a vertex share one (soft: car bodies, animals, round bales).
+static func begin(flat := false) -> SurfaceTool:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	if flat:
+		st.set_smooth_group(-1)
 	return st
 
 

@@ -164,6 +164,10 @@ Mute                          M
 
 WHAT'S IN THIS BUILD
 --------------------
+v0.9.5: every building has its own roof now: its pitch from the lidar and its color from
+aerial photos. New farmhouses, barns, sheds, grain bins, trees and traffic; no more trees
+growing out of roofs, or poles and yard lights through walls.
+
 v0.9.4: no more stutter in the sound when playing in a phone's browser.
 
 v0.9.3: fixes. No more freezing for a moment by the woods (worst on Highway 22) or

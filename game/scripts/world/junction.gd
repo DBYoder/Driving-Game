@@ -50,7 +50,7 @@ func setup(r: RouteData) -> void:
 	props.shader = load("res://shaders/scenery.gdshader")
 	_build_pavement()
 	_build_paint()
-	var st := MeshKit.begin()
+	var st := MeshKit.begin(true)
 	for l: Dictionary in r.junction.lights:
 		_light_pole(st, l)
 	_welcome_sign(st, r.junction.welcome_sign)

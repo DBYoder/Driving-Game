@@ -52,7 +52,7 @@ func test_woods_are_solid_and_quick_to_build() -> void:
 	check(ms < 150.0, "%d trees' collision builds in a few ms (%.0f ms)" % [block.trees.size(), ms])
 	var trees: PackedFloat32Array = block.buffers.tree
 	var shapes := PhysicsServer3D.body_get_shape_count(block.body)
-	check(shapes >= trees.size() / 16, "a trunk for every tree (%d shapes)" % shapes)
+	check(shapes >= trees.size() / Scenery.STRIDE, "a trunk for every tree (%d shapes)" % shapes)
 	var first := PhysicsServer3D.body_get_shape_transform(block.body, 0).origin
 	var tree := Vector3(trees[3], trees[7], trees[11])
 	check(Vector2(first.x - tree.x, first.z - tree.z).length() < 0.01,
