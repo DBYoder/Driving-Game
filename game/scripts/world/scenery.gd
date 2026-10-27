@@ -24,6 +24,9 @@ const KINDS := ["house", "barn", "shed", "bin", "elevator", "tree", "conifer", "
 const YARD_LIGHT_HEIGHT := 8.0
 const TRUNK_RADIUS := 0.35
 const TRUNK_HEIGHT := 5.0
+## A crown no wider than this times the tree's height (a low, wide lidar tree drawn at its
+## size is a parasol on a stick).
+const MAX_CROWN_SPREAD := 1.25
 const REFRESH_SECONDS := 0.2
 const BUILD_BUDGET_USEC := 3000
 const SLICE := 64  ## buildings and trees placed between looks at the clock, working a block out here
@@ -377,7 +380,7 @@ func _place_tree(by_kind: Dictionary, i: int) -> void:
 	if is_nan(ground):
 		return
 	var height := route.trees[k + 2]
-	var crown := route.trees[k + 3] * 2.0
+	var crown := minf(route.trees[k + 3] * 2.0, height * MAX_CROWN_SPREAD)
 	var kind := "conifer" if route.trees[k + 4] > 0.5 else "tree"
 	var spin := _hash(i * 3 + 1) * TAU
 	var xf := Transform3D(Basis(Vector3.UP, spin) * Basis.from_scale(Vector3(crown, height, crown)), Vector3(x, ground - 0.3, z))

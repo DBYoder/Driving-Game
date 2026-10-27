@@ -49,7 +49,7 @@ with lean-tos is built as the pieces it really has, not one big box over the yar
 models: farmhouses with chimneys, porches, trim and one or two stories of windows; barns
 with gambrel roofs, white trim, X-braced doors and cupolas; steel sheds with wainscots
 and big doors; rounder trees; traffic with real cabins and wheels. And things stay out of
-each other: no more trees growing out of roofs (some 1,900 moved out into the yards),
+each other: no more trees growing out of roofs (some 3,500 moved out into the yards),
 buildings in each other, on a street or in a landmark, or power poles and yard lights
 through a wall.
 
