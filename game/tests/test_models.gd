@@ -37,7 +37,7 @@ func test_buildings_are_built_in_two_stretches() -> void:
 			check(p.roof_slopes > 0 and p.roof_above, label + ": the roof up top (y 1 to 2), its slope with it")
 			check(p.walls_below, label + ": nothing over the ridge but a chimney or cupola")
 	var house := _parts(SceneryMeshes.build("house", 0))
-	check(house.sets.has(1) and house.sets.has(2), "a house has windows for one story and for two")
+	check(house.sets.has(1) and house.sets.has(2) and house.sets.has(3), "a house has two rows of windows and a door, for the shader to fit")
 	check(house.parts.has(int(SceneryMeshes.ROOF_TRIM)) and house.parts.has(int(SceneryMeshes.WALL_TRIM)), "and trim")
 	for kind: String in ["tree", "conifer", "bin", "elevator", "yard_light"]:
 		var verts: PackedVector3Array = SceneryMeshes.build(kind, 0).surface_get_arrays(0)[Mesh.ARRAY_VERTEX]

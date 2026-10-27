@@ -8,8 +8,10 @@ extends RefCounted
 ## (shaders/scenery.gdshader): its walls, y 0 to 1 here, from the ground to the eaves, and
 ## its roof, y 1 to 2, from the eaves to the ridge. So one model takes every building's
 ## own roof pitch, from the lidar (a flat roof when the eaves are the ridge). UV.x says
-## which part a face is (plus 10 for a one-story house's windows, 20 for a two-story
-## one's: the shader drops the set that doesn't fit the eaves):
+## which part a face is, plus a house's windows' row: they're built for a two-story house,
+## and on a one-story one (low eaves) the shader moves the lower row (LOWER_ROW) to the
+## middle of the wall and makes it taller, drops the upper row (UPPER_ROW) and brings the
+## door and porch (DOOR_ROW) up to suit:
 ##   WALLS      walls and gable ends; the instance's color tints them
 ##   ROOF       the roof; the instance's roof color (UV.y a shade), and UV2 the slope as
 ##              built here (run, rise) for the shader to light it at its real pitch
@@ -23,8 +25,9 @@ const WALLS := 0.0
 const ROOF := 1.0
 const ROOF_TRIM := 2.0
 const WALL_TRIM := 3.0
-const ONE_STORY := 10.0
-const TWO_STORY := 20.0
+const LOWER_ROW := 10.0
+const UPPER_ROW := 20.0
+const DOOR_ROW := 30.0
 
 const WALL := Color(1.0, 1.0, 1.0, 0.0)
 const PLAIN := Color(1.0, 1.0, 1.0, 0.0)  ## trim's vertex color: its color is in the UVs
@@ -71,10 +74,10 @@ static func build(kind: String, lod: int) -> ArrayMesh:
 				_patch(st, Vector3(0.5, 0.06, 0.2), Vector2(0.3, 0.12), Vector3(1, 0, 0), DOOR)
 		"tree":
 			if lod == 0:
-				_prism(st, 0.045, 0.0, 0.42, 4, TRUNK)
-				_crown(st, Vector3(0, 0.6, 0), Vector3(0.5, 0.39, 0.5), 7)
+				_prism(st, 0.045, 0.0, 0.42, 3, TRUNK)
+				_crown(st, Vector3(0, 0.6, 0), Vector3(0.5, 0.39, 0.5), 6)
 			else:
-				_blob(st, Vector3(0, 0.6, 0), Vector3(0.5, 0.4, 0.5), 5, 0.0)
+				_blob(st, Vector3(0, 0.6, 0), Vector3(0.5, 0.4, 0.5), 4, 0.125)
 		"yard_light":  # a farm's pole light; the instance is 1 x height x 1
 			if lod == 0:
 				_prism(st, 0.11, 0.0, 1.0, 4, POLE)
@@ -103,28 +106,27 @@ static func _house(st: SurfaceTool, lod: int) -> void:
 	_corners(st, 0.012, WHITE)
 	_part(st, ROOF_TRIM, BRICK)
 	MeshKit.box(st, Vector3(0.06, 1.0, 0.09), Vector3(0.31, 1.75, -0.16), PLAIN)  # its foot down in the roof
-	# Windows: one row on a one-story house, two on a two-story one, and the door.
-	for set: float in [ONE_STORY, TWO_STORY]:
-		var rows: Array = [0.52] if set == ONE_STORY else [0.27, 0.72]
-		var tall := 0.42 if set == ONE_STORY else 0.22
-		_part(st, WALLS + set)
-		for y: float in rows:
-			for x: float in [-0.34, -0.1, 0.12, 0.34]:
-				for side: float in [-1.0, 1.0]:
-					_patch(st, Vector3(x, y, side * 0.5), Vector2(0.07, tall), Vector3(0, 0, side), WINDOW)
-			for end: float in [-1.0, 1.0]:
-				_patch(st, Vector3(end * 0.5, y, 0.18), Vector2(0.1, tall), Vector3(end, 0, 0), WINDOW)
-		var porch := 0.8 if set == ONE_STORY else 0.4  # porch roof height at the wall
-		_patch(st, Vector3(-0.22, porch * 0.42, 0.5), Vector2(0.075, porch * 0.84), Vector3(0, 0, 1), DOOR)
-		_part(st, WALL_TRIM + set, PORCH_ROOF)
-		var a := Vector3(-0.42, porch, 0.5)
-		var b := Vector3(0.0, porch, 0.5)
-		var drop := Vector3(0, -porch * 0.12, 0.17)
-		MeshKit.quad(st, a, b, b + drop, a + drop, Vector3(0, 1, 0.3), PLAIN)
-		MeshKit.quad(st, a, b, b + drop, a + drop, Vector3(0, -1, 0), PLAIN)  # (seen from under it)
-		_part(st, WALL_TRIM + set, WHITE)
-		for x: float in [-0.41, -0.01]:
-			MeshKit.box(st, Vector3(0.012, porch * 0.88, 0.015), Vector3(x, porch * 0.44, 0.66), PLAIN)
+	# Two rows of windows (one, on a one-story house: see the top), the door and its porch.
+	for row: float in [LOWER_ROW, UPPER_ROW]:
+		var y := 0.27 if row == LOWER_ROW else 0.72
+		_part(st, WALLS + row)
+		for x: float in [-0.34, -0.1, 0.12, 0.34]:
+			for side: float in [-1.0, 1.0]:
+				_patch(st, Vector3(x, y, side * 0.5), Vector2(0.07, 0.22), Vector3(0, 0, side), WINDOW)
+		for end: float in [-1.0, 1.0]:
+			_patch(st, Vector3(end * 0.5, y, 0.18), Vector2(0.1, 0.22), Vector3(end, 0, 0), WINDOW)
+	var porch := 0.4  # the porch roof's height at the wall
+	_part(st, WALLS + DOOR_ROW)
+	_patch(st, Vector3(-0.22, porch * 0.42, 0.5), Vector2(0.075, porch * 0.84), Vector3(0, 0, 1), DOOR)
+	_part(st, WALL_TRIM + DOOR_ROW, PORCH_ROOF)
+	var a := Vector3(-0.42, porch, 0.5)
+	var b := Vector3(0.0, porch, 0.5)
+	var drop := Vector3(0, -porch * 0.12, 0.17)
+	MeshKit.quad(st, a, b, b + drop, a + drop, Vector3(0, 1, 0.3), PLAIN)
+	MeshKit.quad(st, a, b, b + drop, a + drop, Vector3(0, -1, 0), PLAIN)  # (seen from under it)
+	_part(st, WALL_TRIM + DOOR_ROW, WHITE)
+	for x: float in [-0.41, -0.01]:
+		_prism(st, 0.008, 0.0, porch * 0.88, 4, PLAIN, Vector3(x, 0, 0.66))
 	# The gable ends' attic windows (fitted with the roof: none on a flat one).
 	_part(st, WALLS)
 	for end: float in [-1.0, 1.0]:
@@ -314,15 +316,16 @@ static func _part(st: SurfaceTool, part: float, color := Color.WHITE, slope := V
 	st.set_uv2(Vector2(color.r, color.g) if trim else slope)
 
 
-## An upright n-sided prism (a trunk).
-static func _prism(st: SurfaceTool, radius: float, y0: float, y1: float, sides: int, color: Color) -> void:
+## An upright n-sided prism (a trunk, a post), open at the ends.
+static func _prism(st: SurfaceTool, radius: float, y0: float, y1: float, sides: int, color: Color,
+		at := Vector3.ZERO) -> void:
 	for i in sides:
 		var a0 := TAU * i / sides
 		var a1 := TAU * (i + 1) / sides
 		var p0 := Vector3(cos(a0), 0, sin(a0)) * radius
 		var p1 := Vector3(cos(a1), 0, sin(a1)) * radius
-		MeshKit.quad(st, p0 + Vector3.UP * y0, p1 + Vector3.UP * y0, p1 + Vector3.UP * y1, p0 + Vector3.UP * y1,
-			(p0 + p1).normalized(), color)
+		MeshKit.quad(st, at + p0 + Vector3.UP * y0, at + p1 + Vector3.UP * y0, at + p1 + Vector3.UP * y1,
+			at + p0 + Vector3.UP * y1, (p0 + p1).normalized(), color)
 
 
 ## A faceted crown: a ring of `sides` points around the middle, a point on top and one
