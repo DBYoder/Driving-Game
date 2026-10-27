@@ -42,6 +42,17 @@ gas, brake, boost, handbrake and horn on the right), tappable menus and garage, 
 phone's own keyboard for the leaderboard name, sideways full screen, and lighter graphics
 to start with. The web build is single-threaded now, so it runs on iPhones too.
 
+**v0.9.5: the buildings, from the air.** Every farmhouse, barn and shed now has its own
+roof: its pitch and eaves read off the lidar (gable, flat, or a single slope), its color
+off the 2015 aerial photos in the USGS US Topo maps, and an L-shaped house or a shed
+with lean-tos is built as the pieces it really has, not one big box over the yard. New
+models: farmhouses with chimneys, porches, trim and one or two stories of windows; barns
+with gambrel roofs, white trim, X-braced doors and cupolas; steel sheds with wainscots
+and big doors; rounder trees; traffic with real cabins and wheels. And things stay out of
+each other: no more trees growing out of roofs (some 3,500 moved out into the yards),
+buildings in each other, on a street or in a landmark, or power poles and yard lights
+through a wall.
+
 **v0.9.4: sound on phones.** The sound stuttered a little on phones in the browser: the
 game mixes it between frames there, and a phone's slower frames could let the browser's
 sound run out. It now keeps twice as much ready.
@@ -203,6 +214,8 @@ python tools/bake_streets.py   # the side roads and town streets
 python tools/bake_lidar.py     # buildings and trees from USGS lidar (~1.5 GB once, ~20 min)
 python tools/bake_lidar.py --yards  # after editing the route's landmarks.json
 python tools/bake_lidar.py --extend OLD/route.json  # just the tiles near road added past the old end
+python tools/bake_lidar.py --tidy   # just the tidying: trees out of buildings, yard lights placed
+python tools/bake_aerial.py    # roof colors from the 2015 aerial photos (after bake_lidar; ~140 MB of maps once)
 python tools/preview_route.py  # writes the route-map and profile PNGs to eyeball the result
 python tools/bake_route.py --route=highway22   # (and the same for the others): Kalona to Wellman
 python -m pytest tools/tests

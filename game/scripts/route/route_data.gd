@@ -14,6 +14,8 @@ const LANE := 1.83  ## the middle of a lane, off the centerline, on a two-lane r
 const TALL_BARN_M := 14.0  ## see tidy_kind()
 const JUNCTION_CLEAR := 3.0  ## nothing roadside stands this close to the 4-way's pavement
 const ROAD_END_M := 25.0  ## a road that runs on past the finish is closed this far short of its end
+const BUILDING_CELL := 32.0  ## near_building()'s grid
+const BUILDING_REACH := 4.0  ## the farthest near_building() looks past a footprint
 
 var id := Routes.DEFAULT  ## the route's folder name (one of Routes.IDS)
 var info: Dictionary  ## what the game knows about it besides the data (Routes.INFO)
@@ -66,6 +68,7 @@ var junction_gap := Vector2(-1.0, -1.0)
 var _junction_outline := PackedVector2Array()  ## the edge of its pavement
 var _junction_near := PackedVector2Array()  ## ...and JUNCTION_CLEAR m out from it
 var _junction_box := Rect2()  ## round the second
+var _building_cells := {}  ## Vector2i -> indices of the buildings reaching it (near_building)
 var _no_pass_north := PackedByteArray()  ## per sample: 1 = solid line for northbound
 var _no_pass_south := PackedByteArray()
 
@@ -212,6 +215,38 @@ func in_landmark(x: float, z: float) -> bool:
 		if absf(d.dot(Vector2(cos(yaw), -sin(yaw)))) <= half.x and absf(d.dot(Vector2(sin(yaw), cos(yaw)))) <= half.y:
 			return true
 	return false
+
+
+## Is (x, z) within `clearance` m (up to BUILDING_REACH) of a building's footprint? (Things
+## put down by the road step round them: the power poles.)
+func near_building(x: float, z: float, clearance: float) -> bool:
+	if _building_cells.is_empty() and not buildings.is_empty():
+		_grid_buildings()
+	var p := Vector2(x, z)
+	for i: int in _building_cells.get(Vector2i(floori(x / BUILDING_CELL), floori(z / BUILDING_CELL)), []):
+		var b: Dictionary = buildings[i]
+		var d := p - Vector2(float(b.x), float(b.z))
+		var yaw := float(b.yaw)
+		# The footprint's own axes, as Scenery turns it: x is (cos, -sin), z is (sin, cos).
+		var u := absf(d.dot(Vector2(cos(yaw), -sin(yaw)))) - float(b.length) / 2.0
+		var v := absf(d.dot(Vector2(sin(yaw), cos(yaw)))) - float(b.width) / 2.0
+		if Vector2(maxf(u, 0.0), maxf(v, 0.0)).length() < clearance:
+			return true
+	return false
+
+
+## Each building into every grid cell it (and BUILDING_REACH around it) touches. Done on
+## first use: after the landmarks and the junction have taken theirs out.
+func _grid_buildings() -> void:
+	for i in buildings.size():
+		var b: Dictionary = buildings[i]
+		var r := Vector2(float(b.length), float(b.width)).length() / 2.0 + BUILDING_REACH
+		for cx in range(floori((float(b.x) - r) / BUILDING_CELL), floori((float(b.x) + r) / BUILDING_CELL) + 1):
+			for cz in range(floori((float(b.z) - r) / BUILDING_CELL), floori((float(b.z) + r) / BUILDING_CELL) + 1):
+				var key := Vector2i(cx, cz)
+				if not _building_cells.has(key):
+					_building_cells[key] = []
+				_building_cells[key].append(i)
 
 
 ## Leave out the lidar's buildings and trees where a landmark stands: its own model

@@ -4,7 +4,9 @@ extends Node3D
 ## tools/bake_lidar.py: farmhouses, barns, machine sheds and grain bins at their real
 ## spots and sizes, the tree lines, windbreaks and creek woods.
 ##
-## Drawn as GPU instances of a few low-poly models (SceneryMeshes), in BLOCK-sized
+## Drawn as GPU instances of a few low-poly models (SceneryMeshes), each building's
+## fitted to its own eaves and ridge and given its roof's color from the 2015 aerial
+## photos (tools/bake_aerial.py) where it has one, in BLOCK-sized
 ## squares that load and unload around the car at the same distances as the detailed
 ## terrain under them, with plainer models past `near_lod`. A block's instances are worked
 ## out the first time it's needed (a wooded one has thousands of trees) and kept: on a
@@ -22,9 +24,26 @@ const KINDS := ["house", "barn", "shed", "bin", "elevator", "tree", "conifer", "
 const YARD_LIGHT_HEIGHT := 8.0
 const TRUNK_RADIUS := 0.35
 const TRUNK_HEIGHT := 5.0
+## A crown no wider than this times the tree's height (a low, wide lidar tree drawn at its
+## size is a parasol on a stick).
+const MAX_CROWN_SPREAD := 1.25
 const REFRESH_SECONDS := 0.2
 const BUILD_BUDGET_USEC := 3000
 const SLICE := 64  ## buildings and trees placed between looks at the clock, working a block out here
+const STRIDE := 20  ## floats an instance takes in a MultiMesh buffer: transform, color, custom data
+## Where a building has no eaves in its data: their share of the height.
+const EAVES := {"house": 0.6, "barn": 0.45, "shed": 0.75}
+const MIN_WALL_M := 2.2
+## Roofs a building has no photo of: dark shingles on houses; steel, mostly, on the rest.
+const HOUSE_ROOFS: Array[Color] = [Color(0.27, 0.26, 0.26), Color(0.22, 0.21, 0.22), Color(0.33, 0.27, 0.22),
+	Color(0.30, 0.31, 0.33), Color(0.24, 0.30, 0.26)]
+const BARN_ROOFS: Array[Color] = [Color(0.74, 0.75, 0.76), Color(0.74, 0.75, 0.76), Color(0.30, 0.29, 0.29),
+	Color(0.50, 0.15, 0.12)]
+const SHED_ROOFS: Array[Color] = [Color(0.80, 0.81, 0.82), Color(0.74, 0.75, 0.77), Color(0.86, 0.86, 0.85),
+	Color(0.45, 0.46, 0.47), Color(0.50, 0.15, 0.12), Color(0.30, 0.38, 0.45)]
+## A photo's color to the roof's own: the photos are hazy and bright from up there.
+const PHOTO_GAMMA := 1.3
+const PHOTO_GAIN := 0.95
 ## Wall colors: mostly white farmhouses; barns mostly red; sheds steel.
 const HOUSE_COLORS: Array[Color] = [Color(0.95, 0.95, 0.93), Color(0.95, 0.95, 0.93), Color(0.93, 0.89, 0.78),
 	Color(0.80, 0.85, 0.88), Color(0.86, 0.82, 0.70), Color(0.70, 0.70, 0.68), Color(0.62, 0.42, 0.32)]
@@ -89,6 +108,7 @@ func setup(r: RouteData) -> void:
 	route = r
 	material = ShaderMaterial.new()
 	material.shader = load("res://shaders/scenery.gdshader")
+	material.set_shader_parameter("fitted", true)
 	for kind: String in KINDS:
 		for lod in 2:
 			_meshes["%s:%d" % [kind, lod]] = SceneryMeshes.build(kind, lod)
@@ -296,21 +316,60 @@ func _place_building(by_kind: Dictionary, i: int) -> void:
 	if is_inf(ground):
 		return
 	var center_h := t.height_at(x, z)
-	var height := float(b.height) + (center_h - ground if not is_nan(center_h) else 0.0) + 0.2
+	var below := (center_h - ground if not is_nan(center_h) else 0.0) + 0.2  # down into the hill
+	var height := float(b.height) + below
 	var kind: String = b.kind
 	if kind == "bin":
 		length = (length + width) / 2.0
 		width = length
 	var xf := Transform3D(basis * Basis.from_scale(Vector3(length, height, width)), Vector3(x, ground - 0.2, z))
-	_append(by_kind[kind], xf, _building_color(kind, i))
+	_append(by_kind[kind], xf, _building_color(kind, i), _roof(b, kind, i, below, height))
 	if kind == "house":
-		# Every farmhouse has its pole light out in the yard.
-		var spot := Vector3(x, 0, z) + basis * Vector3(length * 0.5 + 6.0, 0, width * 0.5 + 4.0)
-		var h := t.height_at(spot.x, spot.z)
-		if not is_nan(h):
-			var pole := Transform3D(Basis(Vector3.UP, yaw + PI * 0.5) * Basis.from_scale(Vector3(1.0, YARD_LIGHT_HEIGHT, 1.0)),
-				Vector3(spot.x, h - 0.2, spot.z))
-			_append(by_kind["yard_light"], pole, Color.WHITE)
+		_place_yard_light(by_kind, b, basis, yaw)
+
+
+## A house's pole light: where the bake found room for it in the yard ("light"; null if
+## there's none), or (older data) off a corner.
+func _place_yard_light(by_kind: Dictionary, b: Dictionary, basis: Basis, yaw: float) -> void:
+	var spot: Vector3
+	if b.has("light"):
+		if b.light == null:
+			return
+		spot = Vector3(float(b.light[0]), 0.0, float(b.light[1]))
+	else:
+		spot = Vector3(float(b.x), 0, float(b.z)) + basis * Vector3(float(b.length) * 0.5 + 6.0, 0, float(b.width) * 0.5 + 4.0)
+	var h := route.terrain.height_at(spot.x, spot.z)
+	if is_nan(h):
+		return
+	var pole := Transform3D(Basis(Vector3.UP, yaw + PI * 0.5) * Basis.from_scale(Vector3(1.0, YARD_LIGHT_HEIGHT, 1.0)),
+		Vector3(spot.x, h - 0.2, spot.z))
+	_append(by_kind["yard_light"], pole, Color.WHITE)
+
+
+## A building's roof for the shader: its color (from the photos, or picked), and the
+## eaves' share of the model's `height` (walls `below` ground included; 1 for a flat roof;
+## plus 2 or 4 for a lean-to: see shaders/scenery.gdshader).
+func _roof(b: Dictionary, kind: String, i: int, below: float, height: float) -> Color:
+	if not EAVES.has(kind):
+		return Color(1, 1, 1, 1)
+	var color: Color
+	if b.has("roof_color"):
+		var c: Array = b.roof_color
+		color = Color(pow(float(c[0]) / 255.0, PHOTO_GAMMA), pow(float(c[1]) / 255.0, PHOTO_GAMMA),
+			pow(float(c[2]) / 255.0, PHOTO_GAMMA)) * PHOTO_GAIN
+	else:
+		var choices: Array[Color] = HOUSE_ROOFS if kind == "house" else BARN_ROOFS if kind == "barn" else SHED_ROOFS
+		color = choices[int(_hash(i * 17 + 3) * choices.size()) % choices.size()]
+	var top := float(b.height)
+	var eave := float(b.get("eave", top * EAVES[kind]))
+	var shape := str(b.get("roof", "gable"))
+	if shape == "flat":
+		eave = top
+	eave = clampf(eave, minf(MIN_WALL_M, top), top)
+	color.a = clampf((eave + below) / height, 0.05, 1.0)
+	if shape == "lean":  # one slope, up to its high side (+z or -z)
+		color.a += 2.0 if float(b.get("high", 1)) > 0.0 else 4.0
+	return color
 
 
 func _place_tree(by_kind: Dictionary, i: int) -> void:
@@ -321,12 +380,12 @@ func _place_tree(by_kind: Dictionary, i: int) -> void:
 	if is_nan(ground):
 		return
 	var height := route.trees[k + 2]
-	var crown := route.trees[k + 3] * 2.0
+	var crown := minf(route.trees[k + 3] * 2.0, height * MAX_CROWN_SPREAD)
 	var kind := "conifer" if route.trees[k + 4] > 0.5 else "tree"
 	var spin := _hash(i * 3 + 1) * TAU
 	var xf := Transform3D(Basis(Vector3.UP, spin) * Basis.from_scale(Vector3(crown, height, crown)), Vector3(x, ground - 0.3, z))
 	var shade := 0.85 + 0.3 * _hash(i * 7 + 2)
-	_append(by_kind[kind], xf, Color(shade, shade * (0.95 + 0.1 * _hash(i * 11)), shade * 0.9))
+	_append(by_kind[kind], xf, Color(shade, shade * (0.95 + 0.1 * _hash(i * 11)), shade * 0.9), Color(1, 1, 1, 1))
 
 
 ## One multimesh per kind present in the block.
@@ -338,8 +397,9 @@ func _instantiate(block: Block) -> void:
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		mm.use_colors = true
+		mm.use_custom_data = true
 		mm.mesh = _meshes["%s:%d" % [kind, maxi(block.lod, 0)]]
-		mm.instance_count = buffer.size() / 16
+		mm.instance_count = buffer.size() / STRIDE
 		mm.buffer = buffer
 		var inst := MultiMeshInstance3D.new()
 		inst.multimesh = mm
@@ -358,18 +418,19 @@ func _apply_density(block: Block) -> void:
 		mm.visible_instance_count = ceili(mm.instance_count * density) if trees and density < 1.0 else -1
 
 
-## MultiMesh buffer layout (3D transform + color): the basis rows with the origin at the
-## end of each, then the instance color (the tint).
-static func _append(buffer: PackedFloat32Array, xf: Transform3D, tint: Color) -> void:
+## MultiMesh buffer layout (3D transform + color + custom data): the basis rows with the
+## origin at the end of each, then the instance color (the tint), then the custom data
+## (a roof's color and the eaves' share of the height; see shaders/scenery.gdshader).
+static func _append(buffer: PackedFloat32Array, xf: Transform3D, tint: Color, custom := Color(1, 1, 1, 1)) -> void:
 	var b := xf.basis
 	buffer.append_array([b.x.x, b.y.x, b.z.x, xf.origin.x, b.x.y, b.y.y, b.z.y, xf.origin.y,
-		b.x.z, b.y.z, b.z.z, xf.origin.z, tint.r, tint.g, tint.b, 1.0])
+		b.x.z, b.y.z, b.z.z, xf.origin.z, tint.r, tint.g, tint.b, 1.0, custom.r, custom.g, custom.b, custom.a])
 
 
 ## Instance `j`'s transform, from a block's buffer. (Not from the MultiMesh: that reads it
 ## back from the renderer, a GPU read in a browser, and a headless run has nothing there.)
 static func _instance(buffer: PackedFloat32Array, j: int) -> Transform3D:
-	var k := j * 16
+	var k := j * STRIDE
 	return Transform3D(Vector3(buffer[k], buffer[k + 4], buffer[k + 8]), Vector3(buffer[k + 1], buffer[k + 5], buffer[k + 9]),
 		Vector3(buffer[k + 2], buffer[k + 6], buffer[k + 10]), Vector3(buffer[k + 3], buffer[k + 7], buffer[k + 11]))
 
@@ -455,7 +516,7 @@ func building_boxes(near: Vector3, radius: float) -> Array:
 			if not block.multimeshes.has(kind):
 				continue
 			var buffer: PackedFloat32Array = block.buffers[kind]
-			for j in buffer.size() / 16:
+			for j in buffer.size() / STRIDE:
 				var xf := _instance(buffer, j)
 				if Vector2(xf.origin.x - near.x, xf.origin.z - near.z).length() > radius:
 					continue

@@ -8,7 +8,7 @@ const POST_GRAY := Color(0.45, 0.45, 0.47)
 
 ## A rural mailbox on a post, opening toward the road (-X).
 static func mailbox() -> ArrayMesh:
-	var st := MeshKit.begin()
+	var st := MeshKit.begin(true)
 	MeshKit.box(st, Vector3(0.1, 1.1, 0.1), Vector3(0, 0.55, 0), WOOD)
 	MeshKit.box(st, Vector3(0.5, 0.24, 0.24), Vector3(-0.05, 1.2, 0), Color(0.12, 0.12, 0.13))
 	MeshKit.box(st, Vector3(0.03, 0.16, 0.05), Vector3(0.05, 1.38, 0.14), Color(0.8, 0.1, 0.08))  # the flag
@@ -17,7 +17,7 @@ static func mailbox() -> ArrayMesh:
 
 ## Four meters of pasture fence: two posts and three boards along Z.
 static func fence_span() -> ArrayMesh:
-	var st := MeshKit.begin()
+	var st := MeshKit.begin(true)
 	for z in [-2.0, 2.0]:
 		MeshKit.box(st, Vector3(0.12, 1.3, 0.12), Vector3(0, 0.65, z), WOOD)
 	for y in [0.45, 0.8, 1.15]:

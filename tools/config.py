@@ -33,6 +33,7 @@ UTM_CRS = "EPSG:26915"  # NAD83 / UTM 15N, meters
 #   pre_roll_m, run_out_m   road kept behind the start line and past the finish line
 #   start/finish_no_passing_m   solid lines out of town at the start, and into the finish
 #   nhd_hu8        the watersheds (USGS NHD) its creeks are in
+#   aerial_quads   the USGS 7.5' quads (US Topo maps) its corridor is on, for the aerial photos
 #   start/finish_label          for the preview map
 ROUTES = {
     # IA 1 from the 4-way stop at IA 22 in Kalona to the first stop light in Iowa City,
@@ -55,6 +56,7 @@ ROUTES = {
         "start_no_passing_m": 300.0,    # out of Kalona
         "finish_no_passing_m": 1100.0,  # the divided stretch from US 218 into Iowa City
         "nhd_hu8": ["07080208", "07080209"],  # English River; Iowa River below Iowa City (Old Mans Creek)
+        "aerial_quads": ["Kalona", "Frytown", "Hills", "Tiffin", "Iowa_City_West"],
         "start_label": "Kalona (IA 22)",
         "finish_label": "Mormon Trek Blvd",
         "out_dir": "game/data/routes/highway1",
@@ -78,6 +80,7 @@ ROUTES = {
         "start_no_passing_m": 300.0,     # out of Kalona
         "finish_no_passing_m": 900.0,    # through the built-up part of Wellman
         "nhd_hu8": ["07080208", "07080209"],
+        "aerial_quads": ["Kalona", "Wellman", "Amish"],
         "start_label": "Kalona (IA 1)",
         "finish_label": "Wellman (8th Ave)",
         "out_dir": "game/data/routes/highway22",
@@ -98,6 +101,7 @@ START_STOP_LINE_M = FINISH_STOP_LINE_M = 12.0
 PRE_ROLL_M = RUN_OUT_M = 0.0
 START_NO_PASSING_M = FINISH_NO_PASSING_M = 0.0
 NHD_HU8: list[str] = []
+AERIAL_QUADS: list[str] = []
 START_LABEL = FINISH_LABEL = ""
 OUT_DIR = PREVIEW_DIR = ROOT
 
@@ -107,6 +111,7 @@ def use(route_id: str) -> None:
     global ROUTE_ID, ROUTE_NAME, ROUTE_STATE, START_STATE, FINISH_ROADS, UNDERPASS_US, SEARCH_FROM, SEARCH_TO, SEARCH_VIA
     global ROAD_BBOX, ORIGIN, START_STOP_LINE_M, FINISH_STOP_LINE_M, PRE_ROLL_M, RUN_OUT_M
     global START_NO_PASSING_M, FINISH_NO_PASSING_M, NHD_HU8, START_LABEL, FINISH_LABEL, OUT_DIR, PREVIEW_DIR
+    global AERIAL_QUADS
     r = ROUTES[route_id]
     ROUTE_ID, ROUTE_NAME = route_id, r["name"]
     ROUTE_STATE, START_STATE = r["route_state"], r["start_state"]
@@ -117,6 +122,7 @@ def use(route_id: str) -> None:
     PRE_ROLL_M, RUN_OUT_M = r["pre_roll_m"], r["run_out_m"]
     START_NO_PASSING_M, FINISH_NO_PASSING_M = r["start_no_passing_m"], r["finish_no_passing_m"]
     NHD_HU8 = list(r["nhd_hu8"])
+    AERIAL_QUADS = list(r.get("aerial_quads", []))
     START_LABEL, FINISH_LABEL = r["start_label"], r["finish_label"]
     OUT_DIR, PREVIEW_DIR = ROOT / r["out_dir"], ROOT / r["preview_dir"]
 
