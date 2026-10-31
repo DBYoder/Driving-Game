@@ -64,6 +64,7 @@ var streamer: WorldStreamer
 var scenery: Scenery
 var landmarks: Landmarks
 var lots: Lots
+var ghost: Ghost
 var intersections: Intersections
 var junction: Junction
 var bridges: Bridges
@@ -180,6 +181,11 @@ func _ready() -> void:
 		"" if _testing else RunTracker.SAVE_PATH)
 	run = Run.new()
 	add_child(run)
+	ghost = Ghost.new()
+	if _testing:
+		ghost.dir = ""
+	add_child(ghost)
+	run.ghost = ghost
 	run.setup(car, tracker)
 	run.score.par_seconds = route.info.par_seconds
 	run.wrecked.connect(_on_wrecked)
@@ -257,6 +263,7 @@ func _ready() -> void:
 	Leaderboard.posted.connect(_on_posted)
 	hud.cops = cops
 	hud.deer = deer
+	hud.ghost = ghost
 	radio.now_playing.connect(func(title: String):
 		hud.note(title)
 		Cockpit.radio_text = title.trim_prefix("♪  ").to_upper())

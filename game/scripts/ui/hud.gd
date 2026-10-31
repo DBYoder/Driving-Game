@@ -32,6 +32,7 @@ var _name_callback: JavaScriptObject  ## (kept, or the browser's call back finds
 var touch := false
 var _results_buttons: HBoxContainer
 var deer: Deer  ## for the run's title (deer honked off the road)
+var ghost: Ghost  ## how far ahead or behind your best run you are
 var _trip: Label
 var _clock: Label
 var _score: Label
@@ -116,7 +117,7 @@ func _process(delta: float) -> void:
 	_trip.text = "\n".join(lines)
 
 	var best := "Best  %s" % RunTracker.format_time(tracker.best_time) if tracker.best_time > 0.0 else "No best time yet"
-	_clock.text = "%s\n%s" % [RunTracker.format_time(tracker.elapsed), best]
+	_clock.text = "%s\n%s%s" % [RunTracker.format_time(tracker.elapsed), best, ghost_text()]
 	_score.text = _fmt(run.score.banked)
 	var score_keeper := run.score
 	_combo.text = "+%s  x%d" % [_fmt(score_keeper.pot), score_keeper.multiplier] if score_keeper.multiplier > 0 else ""
@@ -186,6 +187,16 @@ func _tuck_results(delta: float) -> void:
 		results_tucked = true
 	elif results_tucked and -_gas_time > OFF_GAS_TO_SHOW:
 		results_tucked = false
+
+
+## "  ·  ghost −1.3" while the ghost's running: seconds behind it (+) or ahead (−).
+func ghost_text() -> String:
+	if ghost == null or not ghost.visible or not tracker.running():
+		return ""
+	var gap := ghost.gap_at(car.station, tracker.elapsed)
+	if is_nan(gap):
+		return ""
+	return "  ·  ghost %s%.1f" % ["+" if gap >= 0.0 else "−", absf(gap)]
 
 
 ## How far, the way a road sign says it: "1.4 mi", or in feet when it's close ("300 ft").

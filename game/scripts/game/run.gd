@@ -18,6 +18,7 @@ var car: Car
 var tracker: RunTracker
 var score := ScoreKeeper.new()
 var condition := Condition.preset("summer")  ## records are kept per car and condition
+var ghost: Ghost  ## your best run's, driving beside you (main sets it)
 var _air_time := 0.0
 var _rolled_time := 0.0
 
@@ -33,10 +34,14 @@ func setup(c: Car, t: RunTracker) -> void:
 func car_changed() -> void:
 	score.car_multiplier = car.stats.score_multiplier
 	tracker.set_car(condition.records_key(car.stats.display_name))
+	if ghost:
+		ghost.prepare(condition.records_key(car.stats.display_name), car.stats)
 
 
 func restart() -> void:
 	tracker.reset()
+	if ghost:
+		ghost.start_recording()
 	score.reset()
 	car.boost.reset()
 	_air_time = 0.0
@@ -48,6 +53,15 @@ func _physics_process(delta: float) -> void:
 	tracker.update(car.station, delta)
 	if was == RunTracker.State.READY and tracker.running():
 		score.reset()
+	if ghost:
+		if was == RunTracker.State.READY and tracker.running():
+			ghost.start_recording()
+		if tracker.running() and tracker.counts():
+			ghost.record(tracker.elapsed, car.station, car.global_transform)
+		if was == RunTracker.State.RUNNING and tracker.state == RunTracker.State.FINISHED and tracker.new_best:
+			ghost.keep(tracker.elapsed, car.station, car.global_transform)
+		ghost.show_at(tracker.elapsed, Settings.ghost and not tracker.practice and not tracker.demo
+			and not tracker.over())
 	if was == RunTracker.State.RUNNING and tracker.state == RunTracker.State.FINISHED:
 		score.finish(tracker.elapsed)
 		tracker.record_score(score.banked)
