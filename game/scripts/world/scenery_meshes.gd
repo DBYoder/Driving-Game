@@ -62,6 +62,8 @@ static func build(kind: String, lod: int) -> ArrayMesh:
 			_barn(st, lod)
 		"shed":
 			_shed(st, lod)
+		"store":
+			_store(st, lod)
 		"bin":
 			_bin(st, lod)
 		"elevator":  # a co-op's leg and headhouse: a tall box, a smaller one on top
@@ -185,6 +187,43 @@ static func _shed(st: SurfaceTool, lod: int) -> void:
 	_frame(st, Vector3(-0.05, 0.42, 0.5), Vector2(0.32, 0.84), Vector3(0, 0, 1), 0.012, false)
 	_frame(st, Vector3(0.5, 0.38, 0.0), Vector2(0.42, 0.74), Vector3(1, 0, 0), 0.012, false)
 	_corners(st, 0.008, SHED_TRIM)
+
+
+## A store, office or cafe in town, its front (+z) to the street: a flat roof inside a
+## parapet (the roof stretch is the parapet: Scenery puts the eaves a little under the
+## top), a glass front under a sign band and an awning, a door, small windows up the
+## sides, a back door.
+static func _store(st: SurfaceTool, lod: int) -> void:
+	_walls(st)
+	for side: float in [-1.0, 1.0]:  # the parapet, y 1 to 2
+		MeshKit.quad(st, Vector3(-0.5, 1, side * 0.5), Vector3(0.5, 1, side * 0.5), Vector3(0.5, 2, side * 0.5),
+			Vector3(-0.5, 2, side * 0.5), Vector3(0, 0, side), WALL)
+		MeshKit.quad(st, Vector3(side * 0.5, 1, -0.5), Vector3(side * 0.5, 1, 0.5), Vector3(side * 0.5, 2, 0.5),
+			Vector3(side * 0.5, 2, -0.5), Vector3(side, 0, 0), WALL)
+	_part(st, ROOF, Color(1, 1, 1), Vector2(1.0, 0.0))  # flat
+	MeshKit.quad(st, Vector3(-0.5, 1, -0.5), Vector3(0.5, 1, -0.5), Vector3(0.5, 1, 0.5), Vector3(-0.5, 1, 0.5), Vector3.UP, WALL)
+	_part(st, WALLS)
+	var front := Vector3(0, 0, 1)
+	_patch(st, Vector3(0.02, 0.36, 0.5), Vector2(0.86, 0.5), front, WINDOW)  # the glass
+	if lod != 0:
+		return
+	_patch(st, Vector3(-0.3, 0.3, 0.5), Vector2(0.07, 0.6), front, DOOR)
+	_patch(st, Vector3(0.0, 0.77, 0.5), Vector2(0.86, 0.16), front, Color(0.55, 0.55, 0.55, 0.0))  # the sign band
+	_part(st, WALL_TRIM, PORCH_ROOF)
+	for x: float in [-0.21, 0.03, 0.24]:  # mullions
+		_patch(st, Vector3(x, 0.36, 0.502), Vector2(0.012, 0.5), front, PLAIN)
+	_patch(st, Vector3(0.02, 0.105, 0.502), Vector2(0.86, 0.03), front, PLAIN)  # the kickplate's top
+	# An awning over the glass, out over the sidewalk.
+	_part(st, WALLS)
+	var a := Vector3(-0.42, 0.66, 0.5)
+	var b := Vector3(0.46, 0.66, 0.5)
+	var drop := Vector3(0, -0.08, 0.06)
+	MeshKit.quad(st, a, b, b + drop, a + drop, Vector3(0, 1, 0.6), Color(0.62, 0.3, 0.26, 0.0))
+	MeshKit.quad(st, a, b, b + drop, a + drop, Vector3(0, -1, 0), Color(0.4, 0.2, 0.17, 0.0))
+	for side: float in [-1.0, 1.0]:
+		for z: float in [-0.25, 0.15]:
+			_patch(st, Vector3(side * 0.5, 0.62, z), Vector2(0.08, 0.2), Vector3(side, 0, 0), WINDOW)
+	_patch(st, Vector3(0.3, 0.3, -0.5), Vector2(0.06, 0.6), Vector3(0, 0, -1), DOOR)  # the back door
 
 
 ## A round steel grain bin with a cone roof: ring seams, a concrete footing, the vent on

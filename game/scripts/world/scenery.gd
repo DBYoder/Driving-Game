@@ -24,7 +24,8 @@ const SMALL_LOD_SHARE := 0.55  ## ...at this share of `near_lod`
 const LOD_HYSTERESIS := 50.0
 const COLLIDE_RADIUS := 250.0
 const COLLIDE_UNLOAD := 400.0
-const KINDS := ["house", "barn", "shed", "bin", "elevator", "tree", "conifer", "yard_light"]
+const KINDS := ["house", "barn", "shed", "store", "bin", "elevator", "tree", "conifer", "yard_light"]
+const BUILDING_KINDS := ["house", "barn", "shed", "store", "bin", "elevator"]
 const YARD_LIGHT_HEIGHT := 8.0
 const TRUNK_RADIUS := 0.35
 const TRUNK_HEIGHT := 5.0
@@ -36,7 +37,8 @@ const BUILD_BUDGET_USEC := 3000
 const SLICE := 64  ## buildings and trees placed between looks at the clock, working a block out here
 const STRIDE := 20  ## floats an instance takes in a MultiMesh buffer: transform, color, custom data
 ## Where a building has no eaves in its data: their share of the height.
-const EAVES := {"house": 0.6, "barn": 0.45, "shed": 0.75}
+const EAVES := {"house": 0.6, "barn": 0.45, "shed": 0.75, "store": 1.0}
+const PARAPET_M := 0.7  ## a store's parapet stands this far over its roof
 const MIN_WALL_M := 2.2
 ## Roofs a building has no photo of: dark shingles on houses; steel, mostly, on the rest.
 const HOUSE_ROOFS: Array[Color] = [Color(0.27, 0.26, 0.26), Color(0.22, 0.21, 0.22), Color(0.33, 0.27, 0.22),
@@ -55,6 +57,9 @@ const BARN_COLORS: Array[Color] = [Color(0.62, 0.13, 0.10), Color(0.62, 0.13, 0.
 	Color(0.92, 0.92, 0.90), Color(0.60, 0.58, 0.55)]
 ## Grain elevators: galvanized steel, or concrete.
 const ELEVATOR_COLORS: Array[Color] = [Color(0.86, 0.87, 0.88), Color(0.80, 0.80, 0.78), Color(0.74, 0.73, 0.70)]
+## Stores: brick, painted block, stucco, a white front.
+const STORE_COLORS: Array[Color] = [Color(0.62, 0.33, 0.26), Color(0.55, 0.30, 0.24), Color(0.80, 0.74, 0.62),
+	Color(0.90, 0.89, 0.85), Color(0.68, 0.66, 0.62), Color(0.74, 0.62, 0.50)]
 const SHED_COLORS: Array[Color] = [Color(0.88, 0.89, 0.90), Color(0.80, 0.81, 0.82), Color(0.93, 0.93, 0.91),
 	Color(0.62, 0.15, 0.12), Color(0.72, 0.66, 0.55), Color(0.55, 0.62, 0.66)]
 
@@ -323,6 +328,8 @@ func _place_building(by_kind: Dictionary, i: int) -> void:
 	var x := float(b.x)
 	var z := float(b.z)
 	var yaw := float(b.yaw)
+	if b.kind == "store" and float(b.get("front", 1)) < 0.0:
+		yaw += PI  # (its model's front is +z)
 	var length := float(b.length)
 	var width := float(b.width)
 	var basis := Basis(Vector3.UP, yaw)
@@ -378,12 +385,15 @@ func _roof(b: Dictionary, kind: String, i: int, below: float, height: float) -> 
 		color = Color(pow(float(c[0]) / 255.0, PHOTO_GAMMA), pow(float(c[1]) / 255.0, PHOTO_GAMMA),
 			pow(float(c[2]) / 255.0, PHOTO_GAMMA)) * PHOTO_GAIN
 	else:
-		var choices: Array[Color] = HOUSE_ROOFS if kind == "house" else BARN_ROOFS if kind == "barn" else SHED_ROOFS
+		var choices: Array[Color] = HOUSE_ROOFS if kind == "house" else BARN_ROOFS if kind == "barn" \
+			else SHED_ROOFS
 		color = choices[int(_hash(i * 17 + 3) * choices.size()) % choices.size()]
 	var top := float(b.height)
 	var eave := float(b.get("eave", top * EAVES[kind]))
 	var shape := str(b.get("roof", "gable"))
-	if shape == "flat":
+	if kind == "store":
+		eave = top - PARAPET_M  # (its roof stretch is the parapet)
+	elif shape == "flat":
 		eave = top
 	eave = clampf(eave, minf(MIN_WALL_M, top), top)
 	color.a = clampf((eave + below) / height, 0.05, 1.0)
@@ -466,6 +476,8 @@ func _building_color(kind: String, i: int) -> Color:
 			return Color.WHITE
 		"elevator":
 			return ELEVATOR_COLORS[int(h * ELEVATOR_COLORS.size()) % ELEVATOR_COLORS.size()]
+		"store":
+			return STORE_COLORS[int(h * STORE_COLORS.size()) % STORE_COLORS.size()]
 	return SHED_COLORS[int(h * SHED_COLORS.size()) % SHED_COLORS.size()]
 
 
@@ -533,7 +545,7 @@ func building_boxes(near: Vector3, radius: float) -> Array:
 	for block: Block in _blocks.values():
 		if block.node == null or _distance(block) > radius + BLOCK:
 			continue
-		for kind: String in ["house", "barn", "shed", "bin", "elevator"]:
+		for kind: String in BUILDING_KINDS:
 			if not block.multimeshes.has(kind):
 				continue
 			var buffer: PackedFloat32Array = block.buffers[kind]

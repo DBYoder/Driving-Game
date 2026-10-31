@@ -49,6 +49,9 @@ var places := {"creeks": [], "cities": [], "counties": []}
 ## ("paved", "gravel", "lane"), half_width, joins ([start, end] meet the highway) and points
 ## (PackedFloat32Array, 5 per point: x, left edge y, middle y, right edge y, z).
 var streets: Array = []
+## Parking lots and paved yards in town (tools/bake_lots.py): Dictionaries with outline
+## (x, z, ...) and color (0-255). Empty if not baked.
+var lots: Array = []
 ## Stretches that are a town's main street (landmarks.json, id "town_street"): [from, to,
 ## curbs, lights]: a parking lane and a concrete gutter where the gravel shoulders would
 ## be, and street lights.
@@ -119,6 +122,9 @@ static func load_from(dir: String) -> RouteData:
 		for st: Dictionary in streets.streets:
 			st.points = PackedFloat32Array(st.points)
 			r.streets.append(st)
+	var lots = _optional_json(dir.path_join("lots.json"))
+	if typeof(lots) == TYPE_DICTIONARY:
+		r.lots = lots.lots
 	var landmarks = _optional_json(dir.path_join("landmarks.json"))
 	if typeof(landmarks) == TYPE_DICTIONARY:
 		r.landmarks = landmarks.landmarks

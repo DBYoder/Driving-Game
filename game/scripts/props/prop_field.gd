@@ -15,6 +15,8 @@ const FENCE_OFFSET := 19.0  ## the right-of-way line, past the ditch
 const BALE_RADIUS := 0.85
 const BALE_WIDTH := 1.5
 const CROSSROAD_CLEARANCE := 20.0
+const LANE_MAILBOX := 5.0  ## a driveway's mailbox stands this far along the road from its middle
+const LANE_REACH := 120.0  ## (a driveway's no longer than this along the road from its mouth)
 
 ## The car smashed one: "Mailbox", "Fence" or "Hay bale" (its sound plays whether it
 ## scores or not: after the finish it doesn't).
@@ -46,6 +48,7 @@ var _chunks := {}  ## chunk -> {"props": Array, "nodes": {kind: MultiMeshInstanc
 var _smashed := {}  ## prop id -> true, for the current run
 var _debris: Array[RigidBody3D] = []
 var _refresh_timer := 0.0
+var _lanes: Array = []  ## driveways off the road: {"station", "side", "points" (Vector2s), "half_width"}
 ## The closest a prop has been to the car when it appeared, outside of a respawn
 ## (checked by the QA drive).
 var nearest_pop_in := INF
@@ -61,6 +64,37 @@ func setup(r: RouteData, f: Fields, c: Car, s: ScoreKeeper) -> void:
 		"fence": PropMeshes.fence_span(),
 		"bale": PropMeshes.hay_bale(BALE_RADIUS, BALE_WIDTH),
 	}
+	_find_lanes()
+
+
+## The driveways that come off the road (tools/bake_driveways.py): each has its farm's
+## mailbox by it, and the fences leave it a gap.
+func _find_lanes() -> void:
+	_lanes.clear()
+	for st: Dictionary in route.streets:
+		if not st.get("driveway", false) or not st.joins[0]:
+			continue
+		var pts: PackedFloat32Array = st.points
+		var flat := PackedVector2Array()
+		for i in pts.size() / 5:
+			flat.append(Vector2(pts[i * 5], pts[i * 5 + 4]))
+		var mouth := Vector3(flat[0].x, 0.0, flat[0].y)
+		var station := route.nearest_station(mouth, route.terrain.station_hint(mouth.x, mouth.z))
+		var side := signf(route.right_at(station).dot(mouth - route.position_at(station)))
+		_lanes.append({"station": station, "side": side, "points": flat, "half_width": float(st.half_width)})
+
+
+## Is `p` on a driveway (or within a couple of meters of one)?
+func _on_lane(p: Vector3, station: float) -> bool:
+	for lane: Dictionary in _lanes:
+		if absf(lane.station - station) > LANE_REACH:
+			continue
+		var pts: PackedVector2Array = lane.points
+		for i in pts.size() - 1:
+			var q := Geometry2D.get_closest_point_to_segment(Vector2(p.x, p.z), pts[i], pts[i + 1])
+			if q.distance_to(Vector2(p.x, p.z)) < lane.half_width + 2.0:
+				return true
+	return false
 
 
 ## Put everything back for a new run (refresh() builds it again).
@@ -127,17 +161,24 @@ func generate(chunk: int) -> Array:
 	for i in _weighted(rng, [0.4, 0.4, 0.2]):  # 0-2 mailboxes per stretch
 		var s := rng.randf_range(s0, s1)
 		var side := 1.0 if rng.randf() < 0.5 else -1.0
-		if _near_crossroad(s):
+		if _near_crossroad(s) or _on_lane(_roadside(s, side * MAILBOX_OFFSET), s):
 			continue
 		props.append(_prop(next_id, "mailbox", _roadside(s, side * MAILBOX_OFFSET), _yaw_at(s) + (0.0 if side > 0 else PI)))
 		next_id += 1
+	for lane: Dictionary in _lanes:  # each driveway's own
+		var s: float = lane.station - LANE_MAILBOX
+		if s >= s0 and s < s1 and not _near_crossroad(s):
+			var side: float = lane.side
+			props.append(_prop(next_id, "mailbox", _roadside(s, side * MAILBOX_OFFSET), _yaw_at(s) + (0.0 if side > 0 else PI)))
+			next_id += 1
 
 	for side: float in [-1.0, 1.0]:
 		# Pastures and hay ground get fenced; corn and beans usually don't.
 		if rng.randf() < 0.8:
 			var s := s0 + 2.0
 			while s < s1 - 2.0:
-				if not _near_crossroad(s) and _hay_ground(_roadside(s, side * (FENCE_OFFSET + 8.0))):
+				if not _near_crossroad(s) and _hay_ground(_roadside(s, side * (FENCE_OFFSET + 8.0))) \
+						and not _on_lane(_roadside(s, side * FENCE_OFFSET), s):
 					props.append(_prop(next_id, "fence", _roadside(s, side * FENCE_OFFSET), _yaw_at(s)))
 					next_id += 1
 				s += 4.0

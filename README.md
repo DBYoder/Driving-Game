@@ -216,6 +216,8 @@ python tools/bake_lidar.py --yards  # after editing the route's landmarks.json
 python tools/bake_lidar.py --extend OLD/route.json  # just the tiles near road added past the old end
 python tools/bake_lidar.py --tidy   # just the tidying: trees out of buildings, yard lights placed
 python tools/bake_aerial.py    # roof colors from the 2015 aerial photos (after bake_lidar; ~140 MB of maps once)
+python tools/bake_driveways.py # farm lanes traced on the photos (after bake_aerial; again after bake_streets)
+python tools/bake_lots.py      # parking lots round the stores in town, off the photos (after bake_lidar)
 python tools/preview_route.py  # writes the route-map and profile PNGs to eyeball the result
 python tools/bake_route.py --route=highway22   # (and the same for the others): Kalona to Wellman
 python -m pytest tools/tests

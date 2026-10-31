@@ -63,6 +63,7 @@ var fields: Fields
 var streamer: WorldStreamer
 var scenery: Scenery
 var landmarks: Landmarks
+var lots: Lots
 var intersections: Intersections
 var junction: Junction
 var bridges: Bridges
@@ -148,6 +149,9 @@ func _ready() -> void:
 	var roadside := Roadside.new()
 	add_child(roadside)
 	roadside.setup(route)
+	lots = Lots.new()
+	add_child(lots)
+	lots.setup(route)
 	junction = Junction.new()
 	add_child(junction)
 	junction.setup(route)
@@ -620,6 +624,7 @@ func apply_condition(c: Condition) -> void:
 		corn.reset()
 		corn.warm_up()
 	scenery.set_look(c.leaf, c.snow, c.night)
+	lots.set_look(c.asphalt, c.snow)
 	landmarks.set_look(c.snow, c.night)
 	junction.apply_condition(c)
 	bridges.set_look(c.snow)
