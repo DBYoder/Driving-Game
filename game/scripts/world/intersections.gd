@@ -7,11 +7,11 @@ extends Node3D
 ## from the south; Highway 22 in the intersection itself, pointed west straight out of it.
 ## Highway 1 ends at the traffic lights at Mormon Trek Blvd in Iowa City, which cycle like
 ## real ones; Highway 22 where 8th Ave stops for it in Wellman (a two-way stop: IA 22 goes
-## through). A banner over the road marks each line.
+## through). A banner over the road marks each line. The ways back start at those two
+## and finish at the 4-way (Routes "start" and "finish" say which is where).
 ##
 ## "IA 1" in here is whichever highway the route follows; "northbound" is our way.
 
-const START_BANNER := "KALONA  ·  START"
 const NEAR := 30.0  ## a crossroad this close to the start/finish line is that intersection
 const STOP_LINE := 12.0  ## the 4-way stop's stop lines are this far short of its middle
 const SIGN_OFFSET := 5.6  ## stop signs and lights stand this far from IA 1's middle...
@@ -41,18 +41,25 @@ func setup(r: RouteData) -> void:
 	route = r
 	start_crossroad = _crossroad_near(r.start_station)
 	finish_crossroad = _crossroad_near(r.finish_station)
-	if r.junction.is_empty():
-		_build_stop(r.start_station, start_crossroad)
-	else:
-		_build_junction_signs()
-	var finish_banner := "%s  ·  FINISH" % String(r.info.to).to_upper()
-	if r.info.finish == "light":
-		_build_lights(r.finish_station, finish_crossroad)
-		_add_banner(r.finish_station, finish_banner, 7.9)  # up over the signal heads
-	else:
-		_build_side_stop(r.finish_station, finish_crossroad)
-		_add_banner(r.finish_station, finish_banner, 5.9)
-	_add_banner(r.start_station, START_BANNER, 5.9)
+	var start_middle := r.start_station + float(r.info.start_stop_line)
+	var finish_middle := r.finish_station + float(r.info.finish_stop_line)
+	for end: Array in [[r.info.get("start", "4way"), start_middle, -float(r.info.start_stop_line), start_crossroad],
+			[r.info.finish, finish_middle, float(r.info.finish_stop_line), finish_crossroad]]:
+		match String(end[0]):
+			"4way":
+				if r.junction.is_empty():
+					_build_stop(end[1], end[3])
+				else:
+					_build_junction_signs()
+			"light":
+				_build_lights(end[1], absf(end[2]), end[3])
+			"stop":
+				_build_side_stop(end[1], end[3])
+	if r.info.finish == "stop":
+		_ia1_stop_line(r.finish_station, 1.0)  # (we don't stop: the line's just the finish)
+	for line: Array in [[r.start_station, "START", r.info.get("start", "4way"), r.info.from],
+			[r.finish_station, "FINISH", r.info.finish, r.info.to]]:
+		_add_banner(line[0], "%s  ·  %s" % [String(line[3]).to_upper(), line[1]], 7.9 if line[2] == "light" else 5.9)  # (up over the signal heads)
 	_update_lights()
 
 
@@ -161,12 +168,10 @@ func _build_junction_signs() -> void:
 	_add_buggy(Vector3(b.x, b.y, b.z), Vector3(b.forward[0], 0.0, b.forward[1]))
 
 
-## `start` is the start line: our stop line on Highway 1, past the middle on Highway 22
-## (route.info.start_stop_line).
-func _build_stop(start: float, crossroad: Dictionary) -> void:
+## A 4-way stop with its `center` (station) there, where there's no junction.json.
+func _build_stop(center: float, crossroad: Dictionary) -> void:
 	if crossroad.is_empty():
 		return
-	var center := start + float(route.info.start_stop_line)
 	var line := center - STOP_LINE  # ours
 	var far_line := center + STOP_LINE  # the southbound stop line
 	# Northbound (us) and southbound on IA 1.
@@ -207,13 +212,11 @@ func _facing(pos: Vector3, driver_forward: Vector3) -> Node3D:
 
 # --- Where the cross street stops for us ----------------------------------------------
 
-## The finish line painted across our lane, and stop signs and stop lines for the cross
-## street coming in each way (we don't stop: the line is just the finish).
-func _build_side_stop(line: float, crossroad: Dictionary) -> void:
-	_ia1_stop_line(line, 1.0)
+## Stop signs and stop lines for the cross street coming in each way to the intersection
+## at `center` (station): we don't stop.
+func _build_side_stop(center: float, crossroad: Dictionary) -> void:
 	if crossroad.is_empty():
 		return
-	var center: float = line + float(route.info.finish_stop_line)
 	for a: Dictionary in approaches(center):
 		var fwd: Vector3 = -a.out
 		var right := Vector3(-fwd.z, 0.0, fwd.x)
@@ -372,11 +375,13 @@ func _add_buggy(front: Vector3, fwd: Vector3) -> void:
 
 # --- The stop light -------------------------------------------------------------------
 
-func _build_lights(line: float, crossroad: Dictionary) -> void:
+## Traffic lights at the intersection at `center` (station), IA 1's stop lines `stop_line`
+## m short of its middle each way.
+func _build_lights(center: float, stop_line: float, crossroad: Dictionary) -> void:
 	if crossroad.is_empty():
 		return
-	var center: float = line + float(route.info.finish_stop_line)
-	var far_line: float = center + float(route.info.finish_stop_line)
+	var line: float = center - stop_line
+	var far_line: float = center + stop_line
 	var street: String = crossroad.name
 	_ia1_stop_line(line, 1.0)
 	_ia1_stop_line(far_line, -1.0)

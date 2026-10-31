@@ -60,6 +60,7 @@ var _clips := ClipProbe.new()
 var _ticks := 0
 var _chase_seen := false
 var _chase_started_at := -1.0
+var _chase_county := ""
 var _closest_cop := INF
 var _stopped_at := -1.0
 var _deer_hits := 0
@@ -216,6 +217,8 @@ static func _meters(d: float) -> String:
 func _set_up_trap_run() -> void:
 	var cops: Cops = get_parent().cops
 	var county := "Johnson" if cop_scenario == "bust" and cops.traps_per_county.has("Johnson") else "Washington"
+	if cop_scenario == "line":
+		county = cops.county_at(car.route.start_station)  # (the county before the line: Johnson on the way back)
 	var traps := cops.traps.filter(func(t): return t.county == county)
 	if traps.is_empty():
 		_fail("no %s County speed trap this run" % county)
@@ -225,13 +228,14 @@ func _set_up_trap_run() -> void:
 
 
 ## Speed past the trap; then ("bust") pull over and wait, or ("line") keep going
-## north across the county line.
+## on across the county line.
 func _cop_tick() -> void:
 	var cops: Cops = get_parent().cops
 	if cops.chasing():
 		if not _chase_seen:
 			_chase_seen = true
 			_chase_started_at = _sim_time
+			_chase_county = cops.chase.county
 		_closest_cop = minf(_closest_cop, cops.chaser.car.global_position.distance_to(car.global_position))
 	if cop_scenario == "bust" and _chase_seen and _stopped_at < 0.0 and _sim_time - _chase_started_at > 8.0:
 		_stopped_at = _sim_time
@@ -246,8 +250,8 @@ func _cop_tick() -> void:
 		else:
 			_fail("wrecked (%s) during the speed-trap test" % run.tracker.wreck_reason)
 	elif cop_scenario == "line" and run.score.totals.has("Jurisdiction"):
-		print("QA cops: the Washington County deputy gave up at the county line, %.1f s into the chase" % [
-			_sim_time - _chase_started_at])
+		print("QA cops: the %s County deputy gave up at the county line, %.1f s into the chase" % [
+			_chase_county, _sim_time - _chase_started_at])
 		_finish()
 	elif _sim_time > 150.0:
 		_fail("speed-trap test: %s" % ("no chase" if not _chase_seen else "the chase never ended the way it should (%s)" % cop_scenario))

@@ -79,7 +79,7 @@ func setup(r: RouteData) -> void:
 				WellmanLandmarks.new(self).water_tower(l)
 			"town_street":
 				if l.get("lights", false):
-					_street_lights(float(l.from), float(l.to))
+					_street_lights(l)
 	if route.road_end < route.length:
 		_road_end(route.road_end)
 
@@ -160,19 +160,26 @@ func _stripes(st: SurfaceTool, x0: float, x1: float, y0: float, y1: float, z: fl
 
 ## A town's main street's lights, from station `from` to `to`: every LIGHT_EVERY m on
 ## alternate sides, a galvanized pole behind the gutter with a mast arm and a cobra head
-## over the parking lane, lit at night. None by a crossroad or on a bridge.
-func _street_lights(from: float, to: float) -> void:
+## over the parking lane, lit at night. None by a crossroad or on a bridge. (Laid out the
+## way out, so they stand where they do on the way back too.)
+func _street_lights(street: Dictionary) -> void:
+	var way := route.way_out()
+	var from := float(street.from)
+	var to := float(street.to)
+	if route.reversed:
+		from = way.length - float(street.to)
+		to = way.length - float(street.from)
 	var st := MeshKit.begin(true)
-	var origin := route.position_at(from)
+	var origin := way.position_at(from)
 	var side := 1.0
 	var s := from
 	while s <= to:
-		var clear := route.deck_at(s, 10.0).is_empty() and not route.in_junction(s)
-		for c: Dictionary in route.crossroads:
+		var clear := way.deck_at(s, 10.0).is_empty() and not way.in_junction(s)
+		for c: Dictionary in way.crossroads:
 			clear = clear and absf(float(c.station) - s) > 16.0
 		if clear:
-			var road := route.position_at(s)
-			var right := route.right_at(s) * side
+			var road := way.position_at(s)
+			var right := way.right_at(s) * side
 			var foot := road + right * LIGHT_OFFSET - Vector3.UP * 0.9 - origin  # down the foreslope
 			var top := road + right * LIGHT_OFFSET + Vector3.UP * 9.0 - origin
 			MeshKit.box(st, Vector3(0.24, top.y - foot.y, 0.24), (foot + top) / 2.0, POLE, atan2(right.x, right.z))

@@ -5,7 +5,7 @@ extends "res://tests/test_case.gd"
 
 func test_the_day_picks_it_the_way_the_server_does() -> void:
 	# (The same days and picks as server/tests/test_app.py: the two must agree.)
-	for want: Array in [["2026-10-31", "highway22", "legend", "harvest"], ["2026-11-01", "highway1", "legend", "storm"],
+	for want: Array in [["2026-10-31", "highway22_east", "legend", "harvest"], ["2026-11-01", "highway1", "legend", "storm"],
 			["2026-12-25", "highway22", "tercel", "harvest"]]:
 		var c := Challenge.for_date(want[0])
 		check(c.route == want[1] and c.car == want[2] and c.condition == want[3],
@@ -74,7 +74,7 @@ func test_on_the_title_screen_with_its_card() -> void:
 	check(menus.daily.visible and not menus.title.visible, "it opens its card")
 	var card := Menus.challenge_card(Challenge.for_date("2026-10-31"), {"ok": false, "error": "off"})
 	var texts := _texts(card)
-	check(texts.has(Routes.headline("highway22")) and texts.any(func(t): return String(t).begins_with(CarStats.preset("legend").display_name + "  ·  ")),
+	check(texts.has(Routes.headline("highway22_east")) and texts.any(func(t): return String(t).begins_with(CarStats.preset("legend").display_name + "  ·  ")),
 		"the route and the car (%s)" % [texts])
 	check(not texts.has("TODAY'S TOP TEN"), "no top ten without a leaderboard")
 	card.free()

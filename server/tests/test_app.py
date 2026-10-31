@@ -97,7 +97,7 @@ def test_too_many_runs_from_one_place(tmp_path):
 
 def test_the_daily_challenge_is_picked_like_the_game_picks_it():
     # (The same days and picks as game/tests/test_challenge.gd: the two must agree.)
-    assert server.challenge_for("2026-10-31") == {"route": "highway22", "car": "legend", "condition": "harvest"}
+    assert server.challenge_for("2026-10-31") == {"route": "highway22_east", "car": "legend", "condition": "harvest"}
     assert server.challenge_for("2026-11-01") == {"route": "highway1", "car": "legend", "condition": "storm"}
     assert server.challenge_for("2026-12-25") == {"route": "highway22", "car": "tercel", "condition": "harvest"}
 
@@ -105,13 +105,13 @@ def test_the_daily_challenge_is_picked_like_the_game_picks_it():
 def today_run(**over):
     day = time.strftime("%Y-%m-%d", time.gmtime())
     pick = server.challenge_for(day)
-    seconds = 900.5 if pick["route"] == "highway1" else 400.5
+    seconds = 400.5 if pick["route"].startswith("highway22") else 900.5
     return run(**{"challenge": day, "seconds": seconds, **pick, **over})
 
 
 def test_a_challenge_run_has_its_own_top_ten_and_counts_on_the_route_too(client):
     route = today_run()["route"]
-    plain = client.post("/api/runs", json=run(route=route, seconds=380.0 if route == "highway22" else 880.0))
+    plain = client.post("/api/runs", json=run(route=route, seconds=380.0 if route.startswith("highway22") else 880.0))
     assert plain.status_code == 200
     r = client.post("/api/runs", json=today_run(name="Daily")).json()
     assert r["challenge_time_rank"] == 1 and r["challenge_points_rank"] == 1

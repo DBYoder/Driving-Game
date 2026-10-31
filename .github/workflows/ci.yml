@@ -119,6 +119,8 @@ jobs:
         run: |
           timeout 120 ./build/linux/HighwayOne.x86_64 --headless -- --smoke-test
           timeout 120 ./build/linux/HighwayOne.x86_64 --headless -- --smoke-test --route=highway22
+          timeout 120 ./build/linux/HighwayOne.x86_64 --headless -- --smoke-test --route=highway1_south
+          timeout 120 ./build/linux/HighwayOne.x86_64 --headless -- --smoke-test --route=highway22_east
 
       # Packaged right after the build, so the zip is there to grab even while the long
       # checks below are still running (the release still waits for all of them).
@@ -152,6 +154,12 @@ jobs:
           timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive --route=highway22 --car=windstar --condition=storm
           timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive --route=highway22 --car=tercel --condition=night
 
+      - name: QA drive the ways back (Iowa City and Wellman to Kalona)
+        run: |
+          timeout 600 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive --route=highway1_south --car=windstar --condition=summer
+          timeout 600 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive --route=highway1_south --car=legend --autopilot-mph=110 --condition=night
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-drive --route=highway22_east --car=tercel --condition=winter
+
       - name: QA drift (a handbrake turn slides at least 35 degrees and recovers, every car)
         run: |
           for car in windstar tercel legend; do
@@ -173,11 +181,13 @@ jobs:
             timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-cops=boost --no-traffic --car=$car
           done
           timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-cops=bust --no-traffic --car=tercel --route=highway22
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-cops=line --no-traffic --car=legend --route=highway1_south
 
       - name: QA deer (a herd crosses and misses a car holding its line; then one gets hit)
         run: |
           timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-deer --no-traffic --car=legend
           timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-deer --no-traffic --car=windstar --route=highway22
+          timeout 300 ./build/linux/HighwayOne.x86_64 --headless --fixed-fps 60 -- --qa-deer --no-traffic --car=tercel --route=highway22_east
 
       - name: QA menus (click through the title, settings, records, a practice run, pause and back)
         run: |

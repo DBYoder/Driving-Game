@@ -79,7 +79,7 @@ func _find_lanes() -> void:
 		for i in pts.size() / 5:
 			flat.append(Vector2(pts[i * 5], pts[i * 5 + 4]))
 		var mouth := Vector3(flat[0].x, 0.0, flat[0].y)
-		var station := route.nearest_station(mouth, route.terrain.station_hint(mouth.x, mouth.z))
+		var station := route.nearest_station(mouth, route.station_hint(mouth.x, mouth.z))
 		var side := signf(route.right_at(station).dot(mouth - route.position_at(station)))
 		_lanes.append({"station": station, "side": side, "points": flat, "half_width": float(st.half_width)})
 

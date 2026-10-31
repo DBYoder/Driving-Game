@@ -43,9 +43,11 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.routing import Route
 
-# The fastest believable time on each route: 150 mph the whole way (Highway 1 is 15.4
-# miles, Highway 22 6.75). Anything quicker is someone poking at the API.
-ROUTES = {"highway1": 15.37 / 150.0 * 3600.0, "highway22": 6.75 / 150.0 * 3600.0}
+# The fastest believable time on each route (and the way back along it): 150 mph the
+# whole way (Highway 1 is 15.4 miles, Highway 22 6.75). Anything quicker is someone poking
+# at the API.
+ROUTES = {"highway1": 15.37 / 150.0 * 3600.0, "highway22": 6.75 / 150.0 * 3600.0,
+          "highway1_south": 15.37 / 150.0 * 3600.0, "highway22_east": 6.75 / 150.0 * 3600.0}
 CARS = {"windstar", "tercel", "legend"}
 CONDITIONS = {"summer", "harvest", "night", "storm", "winter"}
 MAX_SECONDS = 3 * 3600.0
@@ -56,7 +58,7 @@ TOP = 10
 # game does (game/scripts/game/challenge.gd: change one, change the other). Its runs count
 # on the route's boards too, and on the day's own. A day's challenge takes runs from an
 # hour before it starts (a clock a little fast) until two hours after it ends.
-CHALLENGE_ROUTES = ["highway1", "highway22"]
+CHALLENGE_ROUTES = ["highway1", "highway22", "highway1_south", "highway22_east"]
 CHALLENGE_CARS = ["windstar", "tercel", "legend"]
 CHALLENGE_CONDITIONS = ["summer", "harvest", "night", "storm", "winter"]
 CHALLENGE_EARLY = 3600.0

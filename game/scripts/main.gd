@@ -119,7 +119,7 @@ func _ready() -> void:
 	if not Routes.current in Routes.IDS:
 		push_error("unknown route %s" % Routes.current)
 		Routes.current = Routes.DEFAULT
-	route = RouteData.load_from(Routes.dir(Routes.current))
+	route = RouteData.load_route(Routes.current)
 	if route == null:
 		get_tree().quit(1)
 		return
@@ -542,10 +542,17 @@ func _start_demo() -> void:
 	car.driver = _demo
 
 
-## Where practice runs can start: Kalona, then every mile (with the crossroad there, if
-## there's one close by).
+## Where practice runs can start: the start (Kalona, or the far end on a way back), then
+## every mile (with the crossroad there, if there's one close by).
 func _practice_starts() -> Array:
-	var out: Array = [[route.start_station - SPAWN_BEHIND_START, "Kalona (the 4-way stop)"]]
+	var first := "Kalona (the 4-way stop)"
+	if route.info.get("start", "4way") != "4way":  # (a way back: from the far end)
+		first = String(route.info.from)
+		for c: Dictionary in route.crossroads:
+			if absf(float(c.station) - route.start_station) < Intersections.NEAR and c.kind != "ramp":
+				first = "%s (%s)" % [route.info.from, c.name]
+				break
+	var out: Array = [[route.start_station - SPAWN_BEHIND_START, first]]
 	var mile := 1
 	while route.start_station + (mile + 0.5) * RouteData.MILE_M < route.finish_station:
 		var s := route.start_station + mile * RouteData.MILE_M

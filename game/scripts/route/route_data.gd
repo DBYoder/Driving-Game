@@ -17,7 +17,7 @@ const ROAD_END_M := 25.0  ## a road that runs on past the finish is closed this 
 const BUILDING_CELL := 32.0  ## near_building()'s grid
 const BUILDING_REACH := 4.0  ## the farthest near_building() looks past a footprint
 
-var id := Routes.DEFAULT  ## the route's folder name (one of Routes.IDS)
+var id := Routes.DEFAULT  ## which route (one of Routes.IDS)
 var info: Dictionary  ## what the game knows about it besides the data (Routes.INFO)
 var title: String
 var spacing: float
@@ -74,6 +74,18 @@ var _junction_box := Rect2()  ## round the second
 var _building_cells := {}  ## Vector2i -> indices of the buildings reaching it (near_building)
 var _no_pass_north := PackedByteArray()  ## per sample: 1 = solid line for northbound
 var _no_pass_south := PackedByteArray()
+## The way back (Routes "reversed"): the baked route, stations running the other way
+## (reversed_as). "Northbound" is our way either way.
+var reversed := false
+var _way_out: RouteData  ## the baked route it's the way back along (null: this is it)
+
+
+## A route by its id (Routes.IDS): its baked data, the other way along it for a way back.
+static func load_route(route_id: String) -> RouteData:
+	var r := load_from(Routes.dir(route_id))
+	if r == null or not bool(Routes.info(route_id).get("reversed", false)):
+		return r
+	return r.reversed_as(route_id)
 
 
 static func load_from(dir: String) -> RouteData:
@@ -143,6 +155,99 @@ static func load_from(dir: String) -> RouteData:
 	return r
 
 
+## The way back along this route, as route `route_id`: the same road and world, the
+## stations running the other way (s -> length - s), so it starts at the far end and left
+## is right. What's placed by station (the road, crossroads, bridges, passing zones, town
+## streets, creeks, city limits and the county line, the 4-way's gap) is turned round;
+## what's placed in the world (the ground, buildings, trees, streets, lots, landmarks, the
+## 4-way itself) is shared as it is.
+func reversed_as(route_id: String) -> RouteData:
+	var r := RouteData.new()
+	var L := length
+	r.id = route_id
+	r.info = Routes.info(route_id)
+	r.title = title
+	r.spacing = spacing
+	r.length = length
+	r.reversed = true
+	r._way_out = self
+	# Its start is past the middle of the far intersection, its finish at the 4-way's stop
+	# line coming the other way.
+	var kalona_middle := start_station + float(info.start_stop_line)
+	var far_middle := finish_station + float(info.finish_stop_line)
+	r.start_station = L - far_middle - float(r.info.start_stop_line)
+	r.finish_station = L - kalona_middle - float(r.info.finish_stop_line)
+	r.road_end = L - ROAD_END_M if L - r.finish_station > 200.0 else L
+	r.points = points.duplicate()
+	r.points.reverse()
+	r.crossroads = crossroads.map(func(c: Dictionary) -> Dictionary:
+		var m := c.duplicate()
+		m.station = L - float(c.station)
+		m.side = {"left": "right", "right": "left"}.get(c.get("side", ""), c.get("side", ""))
+		return m)
+	r.crossroads.reverse()
+	r.bridges = bridges.map(func(b: Array) -> Array:
+		var m := b.duplicate()
+		m[0] = L - float(b[1])
+		m[1] = L - float(b[0])
+		return m)
+	r.bridges.reverse()
+	r.decks = r.bridges.filter(func(b: Array) -> bool: return b.size() >= 4 and float(b[2]) >= RAILED_BRIDGE_M)
+	r._no_pass_north = _no_pass_south.duplicate()  # (theirs is ours now)
+	r._no_pass_north.reverse()
+	r._no_pass_south = _no_pass_north.duplicate()
+	r._no_pass_south.reverse()
+	r.terrain = terrain
+	r.horizon = horizon
+	r.buildings = buildings
+	r.trees = trees
+	r.places = places.duplicate()
+	r.places.creeks = _mirrored(places.get("creeks", []), func(m: Dictionary, _c: Dictionary): pass)
+	r.places.cities = _mirrored(places.get("cities", []), func(m: Dictionary, c: Dictionary): m.entering = not bool(c.entering))
+	r.places.counties = _mirrored(places.get("counties", []), func(m: Dictionary, c: Dictionary):
+		m.entering = c.leaving
+		m.leaving = c.entering)
+	r.streets = streets
+	r.lots = lots
+	r.landmarks = landmarks.map(func(l: Dictionary) -> Dictionary:
+		if l.id != "town_street":
+			return l
+		var m := l.duplicate()
+		m.from = L - float(l.to)
+		m.to = L - float(l.from)
+		return m)
+	for t: Array in town_streets:
+		r.town_streets.append([L - float(t[1]), L - float(t[0]), t[2], t[3]])
+	r.landmark_boxes = landmark_boxes
+	r.junction = junction
+	if junction_gap.y > 0.0:
+		r.junction_gap = Vector2(L - junction_gap.y, L - junction_gap.x)
+	r._junction_outline = _junction_outline
+	r._junction_near = _junction_near
+	r._junction_box = _junction_box
+	r._building_cells = _building_cells
+	return r
+
+
+## The baked route this is the way back along, or itself: for what's built by walking
+## the road (the power line, a main street's lights), so they stand where they do going
+## the other way.
+func way_out() -> RouteData:
+	return _way_out if _way_out else self
+
+
+## A copy of a list of things at stations, each mirrored (and `turn` called on the copy
+## and the original to turn it round), in the new order.
+func _mirrored(list: Array, turn: Callable) -> Array:
+	var out := list.map(func(c: Dictionary) -> Dictionary:
+		var m := c.duplicate()
+		m.station = length - float(c.station)
+		turn.call(m, c)
+		return m)
+	out.reverse()
+	return out
+
+
 func _set_junction(j: Dictionary) -> void:
 	junction = j
 	junction_gap = Vector2(j.gap[0], j.gap[1])
@@ -197,6 +302,8 @@ func in_junction(station: float) -> bool:
 func lane_offset(station: float) -> float:
 	if not in_junction(station):
 		return LANE
+	if _way_out:
+		return _way_out.lane_offset(length - station)  # (its lanes shift out both ways alike)
 	var lanes: Array = junction.lanes
 	var f := clampf((station - junction_gap.x) / float(junction.lane_step), 0.0, lanes.size() - 1.0)
 	var i := mini(int(f), lanes.size() - 2)
@@ -290,7 +397,7 @@ func position_at(station: float) -> Vector3:
 	return points[i].lerp(points[i + 1], f - i)
 
 
-## Unit direction of travel (northbound) at a station.
+## Unit direction of travel (our way) at a station.
 func tangent_at(station: float) -> Vector3:
 	return (position_at(station + spacing) - position_at(station - spacing)).normalized()
 
@@ -299,6 +406,13 @@ func tangent_at(station: float) -> Vector3:
 func right_at(station: float) -> Vector3:
 	var t := tangent_at(station)
 	return Vector3(-t.z, 0.0, t.x).normalized()
+
+
+## Station of the road point nearest the terrain tile under (x, z), or -1 off the
+## corridor: a hint for nearest_station.
+func station_hint(x: float, z: float) -> float:
+	var h := terrain.station_hint(x, z)
+	return length - h if _way_out and h >= 0.0 else h
 
 
 ## Station of the centerline point closest to `pos` (ignoring height).
@@ -320,7 +434,7 @@ func nearest_station(pos: Vector3, hint := -1.0, window := 250.0) -> float:
 	return best * spacing
 
 
-## True where the center line is solid for traffic going `direction` (+1 north, -1 south):
+## True where the center line is solid for traffic going `direction` (+1 our way, -1 the other):
 ## not enough sight distance to pass, or in town.
 func no_passing(station: float, direction: float) -> bool:
 	var i := clampi(roundi(station / spacing), 0, points.size() - 1)
@@ -336,7 +450,7 @@ func _flags(zones: Array) -> PackedByteArray:
 	return flags
 
 
-## Miles driven from the Kalona start line.
+## Miles driven from the start line.
 func mile_at(station: float) -> float:
 	return (station - start_station) / MILE_M
 

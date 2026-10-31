@@ -8,7 +8,7 @@ extends RefCounted
 ## server/app.py picks the route, car and condition the same way (challenge_for), to check
 ## a posted run is the day's: change the picking here and there together.
 
-const ROUTES := ["highway1", "highway22"]  ## (in this order: the server's lists are the same)
+const ROUTES := ["highway1", "highway22", "highway1_south", "highway22_east"]  ## (in this order: the server's lists are the same)
 const CARS := ["windstar", "tercel", "legend"]
 const CONDITIONS := ["summer", "harvest", "night", "storm", "winter"]
 const MONTHS := ["January", "February", "March", "April", "May", "June", "July", "August", "September",
