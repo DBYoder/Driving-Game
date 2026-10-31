@@ -150,7 +150,7 @@ func _point(flat: PackedFloat32Array, i: int) -> Vector3:
 ## Slide an end-row vertex along the street until it's on the edge of IA 1's pavement
 ## (on its own side), so the end follows IA 1 instead of cutting square across it.
 func _onto_ia1_edge(v: Vector3, fwd: Vector3) -> Vector3:
-	var s := route.nearest_station(v, route.terrain.station_hint(v.x, v.z))
+	var s := route.nearest_station(v, route.station_hint(v.x, v.z))
 	var c := route.position_at(s)
 	var right := route.right_at(s)
 	var lateral := (v - c).dot(right)

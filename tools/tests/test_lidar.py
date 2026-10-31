@@ -273,3 +273,37 @@ def test_a_co_ops_bin_and_elevator_stay_one_tall_box():
     roof, top = _patch(40, inside, lambda e, nn: 30.0)
     out = bl.buildings_from_mask(roof, top, -20.0, 20.0, 1.0)
     assert len(out) == 1 and out[0]["height"] > 25.0, out
+
+
+def test_a_flat_roofed_building_in_town_by_a_street_is_a_store_facing_it(tmp_path, monkeypatch):
+    import json
+    import config
+    monkeypatch.setattr(config, "OUT_DIR", tmp_path)
+    (tmp_path / "places.json").write_text(json.dumps({"towns": [{"name": "Town", "outline": [-500, -500, 500, -500, 500, 500, -500, 500]}]}))
+    # A street east-west along z = 0; the route far off.
+    (tmp_path / "streets.json").write_text(json.dumps({"streets": [
+        {"name": "Main", "kind": "paved", "half_width": 3.6, "joins": [False, False],
+         "points": [v for x in range(-200, 201, 20) for v in (x, 0, 0, 0, 0)]}]}))
+    store = {"x": 0.0, "z": 20.0, "length": 30.0, "width": 12.0, "yaw": math.pi / 2, "height": 6.0, "eave": 6.0,
+             "roof": "flat", "kind": "shed"}  # turned: its length runs north-south, its end to the street
+    house = {"x": 60.0, "z": 20.0, "length": 12.0, "width": 9.0, "yaw": 0.0, "height": 7.0, "eave": 4.0,
+             "roof": "gable", "kind": "house"}
+    far = dict(store, x=0.0, z=300.0)
+    route_xz = np.array([[5000.0, -5000.0], [5000.0, 5000.0]])
+    n = bl.mark_stores([store, house, far], tmp_path, route_xz)
+    assert n == 1 and store["kind"] == "store" and house["kind"] == "house" and far["kind"] == "shed"
+    # Turned so the street's off its own z side (the front's built there), length and width
+    # swapped with it; its front toward the street at z = 0.
+    assert abs(store["length"] - 12.0) < 1e-6 and abs(store["width"] - 30.0) < 1e-6
+    c, s = math.cos(store["yaw"]), math.sin(store["yaw"])
+    front = (s * store["front"], c * store["front"])  # local +z is world (sin, cos)
+    assert abs(front[0]) < 1e-6 and front[1] < 0
+
+
+def test_slivers_are_left_out(tmp_path, monkeypatch):
+    import config
+    monkeypatch.setattr(config, "OUT_DIR", tmp_path)
+    keep = {"x": 0.0, "z": 0.0, "length": 12.0, "width": 8.0, "yaw": 0.0, "height": 6.0, "kind": "house"}
+    sliver = {"x": 40.0, "z": 0.0, "length": 16.0, "width": 2.0, "yaw": 0.0, "height": 5.0, "kind": "shed"}
+    out, _ = bl.tidy([keep, sliver], np.zeros((0, 5), dtype="<f4"), tmp_path, np.array([[5000.0, 0.0], [5000.0, 10.0]]))
+    assert [b["x"] for b in out] == [0.0]

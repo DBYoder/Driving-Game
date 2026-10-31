@@ -8,8 +8,9 @@
 // the ridge. Plus 2 for a roof sloping one way, up to the +z side (a lean-to, or half a
 // gable roof the lidar cut along its ridge), 4 up to the -z side: the ridge is moved to
 // that side. Trees, bins and the rest have a = 1 and nothing over y = 1.
-// UV.x is the part (walls, roof, roof trim, wall trim; +10/+20 for a one- or two-story
-// house's windows), UV.y and UV2 its color or the roof's slope.
+// UV.x is the part (walls, roof, roof trim, wall trim; +10/+20/+30 for a house's lower
+// and upper rows of windows and its door: moved to suit a one-story house), UV.y and UV2
+// its color or the roof's slope.
 // Vertex alpha says what a face is: 0 plain, 1/3 a window (glows warm at night), 2/3 a
 // lamp (a yard light, glows white), 1 leaves (the season's color: green, fall colors,
 // bare branches). Snow settles on whatever faces up.
@@ -26,7 +27,7 @@ uniform vec3 snow_color : source_color = vec3(0.90, 0.92, 0.96);
 uniform float night : hint_range(0.0, 1.0) = 0.0;  // lit windows
 uniform bool fitted = false;  // Scenery's instances: walls and roofs fitted to each building
 
-const float TWO_STORY_M = 4.4;  // eaves this high: a two-story house's windows
+const float TWO_STORY_M = 4.4;  // eaves this high: a two-story house's windows and door
 
 varying float up;
 varying float shade;
@@ -42,9 +43,14 @@ void vertex() {
 		float code = UV.x + 0.01;
 		float story = floor(code / 10.0);
 		float part = floor(code - story * 10.0);
-		bool two = e * scale.y > TWO_STORY_M;
-		if ((story == 1.0 && two) || (story == 2.0 && !two)) {
-			VERTEX = vec3(0.0);  // the other set of windows: not drawn
+		if (story > 0.5 && e * scale.y < TWO_STORY_M) {  // a one-story house (see SceneryMeshes)
+			if (story == 1.0) {
+				VERTEX.y = 0.52 + (VERTEX.y - 0.27) * 1.9;  // the lower row of windows, up the wall
+			} else if (story == 2.0) {
+				VERTEX = vec3(0.0);  // no upper row
+			} else {
+				VERTEX.y *= 2.0;  // the door and porch
+			}
 		}
 		float y = VERTEX.y;
 		bool roofy = part == 1.0 || part == 2.0 || y > 1.0;

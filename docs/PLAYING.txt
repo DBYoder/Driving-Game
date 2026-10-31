@@ -2,7 +2,7 @@ HIGHWAY 1: KALONA TO IOWA CITY (OR WELLMAN)
 ============================================
 
 A homemade game about real Iowa highways out of Kalona: 15 miles of Highway 1 north to
-Iowa City, or 7 miles of Highway 22 west to Wellman.
+Iowa City, or 7 miles of Highway 22 west to Wellman, and each of them back.
 
 
 HOW TO RUN
@@ -16,15 +16,34 @@ HOW TO RUN
 
 HOW TO PLAY
 -----------
-The title screen: Drive, Practice, Records, Settings or Quit. Then pick the route, a
-car, a paint color and the conditions in the garage, and get there causing as much
-chaos as you can. Both routes start at the four-way stop where IA 1 meets IA 22 in
-Kalona; the clock and the scoring start when you cross the line.
-  Highway 1   north, 15.4 miles, from the stop sign to the first stop light in Iowa City
-              (Mormon Trek Blvd).
-  Highway 22  west, 6.7 miles, from the middle of the intersection, over the English
-              River and past Mid-Prairie High School to 8th Ave in downtown Wellman.
+The title screen: Drive, Daily challenge, Practice, Records, Settings or Quit. Then pick
+the route, a car, a paint color and the conditions in the garage, and get there causing
+as much chaos as you can. The routes start or finish at the four-way stop where IA 1
+meets IA 22 in Kalona; the clock and the scoring start when you cross the line.
+  Highway 1        north, 15.4 miles, from the stop sign to the first stop light in
+                   Iowa City (Mormon Trek Blvd).
+  Highway 1 South  the same road back: from the lights at Mormon Trek to the stop sign
+                   in Kalona.
+  Highway 22       west, 6.7 miles, from the middle of the intersection, over the English
+                   River and past Mid-Prairie High School to 8th Ave in downtown Wellman.
+  Highway 22 East  back from 8th Ave in Wellman to the stop sign in Kalona.
 Your best score and best time are saved for each route, car and condition.
+
+
+THE DAILY CHALLENGE
+-------------------
+One run a day, the same for everyone: the day picks the route, the car and its paint,
+the conditions, and where the speed traps and the deer are, the same on every try (R
+runs it again). The title screen's Daily challenge shows today's, and today's top ten
+when the game's on the web. A new one at midnight UTC (6 or 7 in the evening in Iowa).
+
+
+THE GHOST
+---------
+Set a best time and next run your best run drives again beside you: your car,
+see-through and pale blue (you drive right through it). The clock says how far ahead
+(-) or behind (+) it you are. One for each route, car and condition; turn it off in
+Settings.
 
 
 THE CARS
@@ -44,14 +63,14 @@ Points:
   Squeezing past something in your lane with almost no room (a close pass) 100
   Passing a car 100 · a buggy 150 · a tractor 200 · a semi 300
   A deer in your path that you miss 100
-  Losing a cop 1,000 · dragging the Washington County deputy over the county line 2,000
+  Losing a cop 1,000 · dragging a deputy over the county line 2,000
 
 Chain things together within 4 seconds and the combo multiplier climbs to x5. When
 the combo runs out, its points are banked and safe. A hard hit, the tow truck, or a
 wreck throws away the combo you haven't banked yet.
 
 Make it to the finish and your whole score is multiplied by 1.5, plus 20 points for
-every second under par (15 minutes to Iowa City, 6:40 to Wellman). Every point is also
+every second under par (15 minutes for Highway 1, 6:40 for Highway 22). Every point is also
 multiplied by your car's number.
 
 The run is over if:
@@ -102,6 +121,7 @@ From the title screen or the pause menu. Saved as you change them.
   Display       a window or full screen
   Volume        overall, the car and effects, and the radio, separately
   Controller rumble  on or off
+  Ghost car     your best run beside you, or not
 
 
 THE HORN
@@ -128,8 +148,8 @@ every run. Go past one at over 72 mph, or hit one, and you've got a deputy on yo
   - Get 400 m ahead and stay there, or wreck the cruiser: lost the cop, 1,000.
     A deputy drives a little faster than your car can, so flooring it won't do it.
     Boosting will: two full boosts and they're gone.
-  - The Washington County deputy stops at the county line: 2,000 if you drag them
-    over it.
+  - A deputy stops at the county line (Washington County's going north, Johnson
+    County's coming back): 2,000 if you drag them over it.
   - Keep it going for 2 and a half minutes and they give up: 1,000.
 
 Deer cross near the creeks, and anywhere else now and then, a few at a time. If you

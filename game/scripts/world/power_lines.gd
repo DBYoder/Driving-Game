@@ -29,7 +29,7 @@ var _body: StaticBody3D
 
 
 func setup(r: RouteData, streets: Streets) -> void:
-	route = r
+	route = r.way_out()  # (walked the way out, so it stands where it does on the way back too)
 	_place(streets)
 	_build()
 

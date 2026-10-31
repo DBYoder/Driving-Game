@@ -35,6 +35,7 @@ var master_volume := 1.0
 var effects_volume := 1.0
 var radio_volume := 0.8
 var rumble := true
+var ghost := true  ## your best run's ghost car (Ghost)
 var player_name := ""  ## on the shared leaderboard ("": asked after the next run)
 var touch_controls := "auto"  ## see Touch: "auto", "on" or "off"
 var save_path := ""  ## "" = don't save (tests)
@@ -89,6 +90,7 @@ func reset() -> void:
 	effects_volume = 1.0
 	radio_volume = 0.8
 	rumble = true
+	ghost = true
 	player_name = ""
 	touch_controls = "auto"
 	_apply_volumes()
@@ -127,6 +129,7 @@ func load_file(path := SAVE_PATH) -> void:
 	effects_volume = clampf(float(cfg.get_value("sound", "effects", effects_volume)), 0.0, 1.0)
 	radio_volume = clampf(float(cfg.get_value("sound", "radio", radio_volume)), 0.0, 1.0)
 	rumble = bool(cfg.get_value("controller", "rumble", true))
+	ghost = bool(cfg.get_value("graphics", "ghost", true))
 	player_name = str(cfg.get_value("leaderboard", "name", ""))
 	var t: String = cfg.get_value("controls", "touch", "auto")
 	touch_controls = t if t in ["auto", "on", "off"] else "auto"
@@ -145,6 +148,7 @@ func save() -> void:
 	cfg.set_value("sound", "effects", effects_volume)
 	cfg.set_value("sound", "radio", radio_volume)
 	cfg.set_value("controller", "rumble", rumble)
+	cfg.set_value("graphics", "ghost", ghost)
 	cfg.set_value("leaderboard", "name", player_name)
 	cfg.set_value("controls", "touch", touch_controls)
 	cfg.save(save_path)
@@ -175,6 +179,8 @@ func step(setting: String, direction: int) -> void:
 			set(setting, clampf(snappedf(float(get(setting)) + 0.1 * direction, 0.1), 0.0, 1.0))
 		"rumble":
 			rumble = not rumble
+		"ghost":
+			ghost = not ghost
 		"player_name":
 			player_name = ""  # asked again after the next run
 		"touch_controls":
@@ -198,6 +204,8 @@ func describe(setting: String) -> String:
 			return "%d%%" % roundi(float(get(setting)) * 100.0)
 		"rumble":
 			return "On" if rumble else "Off"
+		"ghost":
+			return "Your best run's" if ghost else "Off"
 		"player_name":
 			return player_name + "  (◀ ▶ to change)" if player_name != "" else "Asked after your next run"
 		"touch_controls":

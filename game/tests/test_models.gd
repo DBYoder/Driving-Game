@@ -37,7 +37,7 @@ func test_buildings_are_built_in_two_stretches() -> void:
 			check(p.roof_slopes > 0 and p.roof_above, label + ": the roof up top (y 1 to 2), its slope with it")
 			check(p.walls_below, label + ": nothing over the ridge but a chimney or cupola")
 	var house := _parts(SceneryMeshes.build("house", 0))
-	check(house.sets.has(1) and house.sets.has(2), "a house has windows for one story and for two")
+	check(house.sets.has(1) and house.sets.has(2) and house.sets.has(3), "a house has two rows of windows and a door, for the shader to fit")
 	check(house.parts.has(int(SceneryMeshes.ROOF_TRIM)) and house.parts.has(int(SceneryMeshes.WALL_TRIM)), "and trim")
 	for kind: String in ["tree", "conifer", "bin", "elevator", "yard_light"]:
 		var verts: PackedVector3Array = SceneryMeshes.build(kind, 0).surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
@@ -128,3 +128,34 @@ func test_power_poles_step_round_buildings() -> void:
 				hits += 1
 		check(lines.poles.size() > 100 and hits == 0, "%s: %d poles, none by a building (%d)" % [route.id, lines.poles.size(), hits])
 		lines.free()
+
+
+func test_kalonas_stores_face_the_road_on_their_lots() -> void:
+	for r: RouteData in [hw1, hw22]:
+		var stores := r.buildings.filter(func(b): return b.kind == "store")
+		check(stores.size() >= 50, "%s: stores in town (%d)" % [r.id, stores.size()])
+		var mesh := SceneryMeshes.build("store", 0)
+		check(mesh.surface_get_array_len(0) > 0, "a store has a model")
+		check(r.lots.size() >= 50, "%s: parking lots off the photos (%d)" % [r.id, r.lots.size()])
+		var lots := Lots.new()
+		lots.setup(r)
+		check(lots.triangle_count > 1000 and lots.get_child_count() > 0, "%s: laid on the ground (%d triangles)" % [r.id, lots.triangle_count])
+		lots.free()
+		# No tree standing in a lot.
+		var trunks := 0
+		for lot: Dictionary in r.lots:
+			var outline := PackedVector2Array()
+			for i in lot.outline.size() / 2:
+				outline.append(Vector2(lot.outline[i * 2], lot.outline[i * 2 + 1]))
+			var box := Rect2(outline[0], Vector2.ZERO)
+			for p in outline:
+				box = box.expand(p)
+			for i in r.trees.size() / 5:
+				var t := Vector2(r.trees[i * 5], r.trees[i * 5 + 1])
+				if box.has_point(t) and Geometry2D.is_point_in_polygon(t, outline):
+					trunks += 1
+		check(trunks == 0, "%s: no tree in a lot (%d)" % [r.id, trunks])
+	# The stores round the Kalona 4-way, where both runs start.
+	var near := hw1.buildings.filter(func(b): return b.kind == "store" \
+		and Vector2(b.x, b.z).distance_to(Vector2(-1080.9, 11689.8)) < 250.0)
+	check(near.size() >= 3, "stores by the 4-way in Kalona (%d)" % near.size())

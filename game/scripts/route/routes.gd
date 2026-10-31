@@ -1,21 +1,25 @@
 class_name Routes
 extends RefCounted
 ## The routes you can drive, each baked by the tools (tools/config.py ROUTES) into
-## data/routes/<id>/, and which one is on. Both start at the 4-way stop in Kalona: Highway 1
-## north to Iowa City, Highway 22 west to Wellman. The garage picks one (and remembers it);
-## the world is rebuilt for it (Main.change_route).
+## data/routes/<id>/, and which one is on. Highway 1 north from the 4-way stop in Kalona to
+## Iowa City, Highway 22 west from it to Wellman, and each the other way, back to Kalona:
+## the same baked road and world, the other way along it (RouteData.reverse). The garage
+## picks one (and remembers it); the world is rebuilt for it (Main.change_route).
 
-const IDS := ["highway1", "highway22"]
+const IDS := ["highway1", "highway1_south", "highway22", "highway22_east"]
 const DEFAULT := "highway1"
 ## What the game needs to know about each route that isn't in its baked data:
 ##   title, from, to   for the menus and the HUD ("HIGHWAY 1  ·  Kalona → Iowa City")
 ##   number, heading   the route markers along the road (NORTH over IOWA 1)
-##   start_stop_line   the start line is this far short of the middle of the 4-way stop,
-##                     m (tools/config.py start_stop_line_m): Highway 1 at the stop line
-##                     coming up from the south, Highway 22 past the middle, pointed west
-##                     straight out of it
-##   finish            "light": traffic lights at the finish; "stop": the cross street
-##                     stops for us (Intersections)
+##   data, reversed    which baked route it drives (data/routes/<data>/), and whether the
+##                     other way along it (back to Kalona)
+##   start             what the start is: "4way" (the 4-way stop in Kalona, Junction),
+##                     "light" (traffic lights) or "stop" (the cross street stops for us)
+##   start_stop_line   the start line is this far short of the middle of that
+##                     intersection, m (tools/config.py start_stop_line_m): Highway 1 at
+##                     the stop line coming up from the south, Highway 22 past the middle,
+##                     pointed west straight out of it; the ways back past the middle too
+##   finish            what the finish is (like start)
 ##   finish_stop_line  the finish line is this far short of the middle of the
 ##                     intersection, m (tools/config.py finish_stop_line_m)
 ##   section_corner    a crossroad on the section lines both ways, where the patchwork of
@@ -31,8 +35,32 @@ const INFO := {
 		"number": "1",
 		"heading": "NORTH",
 		"tagline": "15 miles north to Iowa City's first stop light, over the county line.",
+		"data": "highway1",
+		"reversed": false,
+		"start": "4way",
 		"start_stop_line": 12.0,
 		"finish": "light",
+		"finish_stop_line": 12.0,
+		"section_corner": "540th St SW",
+		"traps": {"Washington": 1, "Johnson": 3},
+		"par_seconds": 900.0,
+		"min_miles": 14.5,
+		"min_buildings": 500,
+		"min_trees": 5000,
+		"landmark": true,
+	},
+	"highway1_south": {
+		"title": "HIGHWAY 1 SOUTH",
+		"from": "Iowa City",
+		"to": "Kalona",
+		"number": "1",
+		"heading": "SOUTH",
+		"tagline": "15 miles south from Mormon Trek, back over the county line to the 4-way stop in Kalona.",
+		"data": "highway1",
+		"reversed": true,
+		"start": "light",
+		"start_stop_line": -12.0,
+		"finish": "4way",
 		"finish_stop_line": 12.0,
 		"section_corner": "540th St SW",
 		"traps": {"Washington": 1, "Johnson": 3},
@@ -49,9 +77,33 @@ const INFO := {
 		"number": "22",
 		"heading": "WEST",
 		"tagline": "7 miles west to downtown Wellman, over the English River.",
+		"data": "highway22",
+		"reversed": false,
+		"start": "4way",
 		"start_stop_line": -12.0,
 		"finish": "stop",
 		"finish_stop_line": 8.0,
+		"section_corner": "Kiwi Ave",
+		"traps": {"Washington": 2},
+		"par_seconds": 400.0,
+		"min_miles": 6.5,
+		"min_buildings": 1000,
+		"min_trees": 30000,
+		"landmark": true,
+	},
+	"highway22_east": {
+		"title": "HIGHWAY 22 EAST",
+		"from": "Wellman",
+		"to": "Kalona",
+		"number": "22",
+		"heading": "EAST",
+		"tagline": "7 miles east from downtown Wellman, over the English River to the 4-way stop in Kalona.",
+		"data": "highway22",
+		"reversed": true,
+		"start": "stop",
+		"start_stop_line": -8.0,
+		"finish": "4way",
+		"finish_stop_line": 12.0,
 		"section_corner": "Kiwi Ave",
 		"traps": {"Washington": 2},
 		"par_seconds": 400.0,
@@ -70,8 +122,9 @@ static func info(id := "") -> Dictionary:
 	return INFO.get(current if id.is_empty() else id, INFO[DEFAULT])
 
 
+## Where its baked data is (the way back shares the way out's).
 static func dir(id: String) -> String:
-	return "res://data/routes".path_join(id)
+	return "res://data/routes".path_join(String(info(id).get("data", id)) if INFO.has(id) else id)
 
 
 ## "HIGHWAY 22  ·  Kalona → Wellman"

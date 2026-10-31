@@ -42,6 +42,18 @@ gas, brake, boost, handbrake and horn on the right), tappable menus and garage, 
 phone's own keyboard for the leaderboard name, sideways full screen, and lighter graphics
 to start with. The web build is single-threaded now, so it runs on iPhones too.
 
+**v0.9.6: the ways back, a daily challenge and a ghost.** Two new routes: Highway 1
+south from Mormon Trek in Iowa City and Highway 22 east from 8th Ave in Wellman, both back
+to the 4-way stop in Kalona (the same road and world, the other way along it, with their
+own signs, speed traps, records and leaderboards). The Daily challenge on the title screen
+is one run a day, the same for everyone: the day picks the route, the car and its paint,
+the conditions, and where the speed traps and the deer are, the same on every try, with
+its own top ten for the day. A see-through ghost of your best run drives beside you, and
+the clock says how far ahead or behind it you are. Farm lanes and driveways are traced
+on the aerial photos (each with its mailbox and a gap in the fence), Kalona's stores
+face their streets with glass fronts, awnings and parking lots off the photos, and the
+scenery is lighter to draw (a fifth fewer triangles at the start).
+
 **v0.9.5: the buildings, from the air.** Every farmhouse, barn and shed now has its own
 roof: its pitch and eaves read off the lidar (gable, flat, or a single slope), its color
 off the 2015 aerial photos in the USGS US Topo maps, and an L-shaped house or a shed
@@ -216,6 +228,8 @@ python tools/bake_lidar.py --yards  # after editing the route's landmarks.json
 python tools/bake_lidar.py --extend OLD/route.json  # just the tiles near road added past the old end
 python tools/bake_lidar.py --tidy   # just the tidying: trees out of buildings, yard lights placed
 python tools/bake_aerial.py    # roof colors from the 2015 aerial photos (after bake_lidar; ~140 MB of maps once)
+python tools/bake_driveways.py # farm lanes traced on the photos (after bake_aerial; again after bake_streets)
+python tools/bake_lots.py      # parking lots round the stores in town, off the photos (after bake_lidar)
 python tools/preview_route.py  # writes the route-map and profile PNGs to eyeball the result
 python tools/bake_route.py --route=highway22   # (and the same for the others): Kalona to Wellman
 python -m pytest tools/tests
