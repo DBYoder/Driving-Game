@@ -5,9 +5,12 @@ single-threaded build doesn't need it, but a threaded one would), using the gzip
 made at build time when the browser takes them, and a small JSON API:
 
   GET  /api/leaderboard?route=highway1   the top ten times and the top ten scores on a route
+       &challenge=2026-10-31              ...from that day's daily challenge only
   POST /api/runs                          a run that ended, finished or not: {route, name,
                                           points, seconds (null if it didn't finish), car,
-                                          condition, version}; answers with where it placed
+                                          condition, version, challenge (the day, or absent)};
+                                          answers with where it placed (and on the day's
+                                          challenge, where it placed that day)
   GET  /api/health
   GET  /manifest.webmanifest              lets a phone keep it on the home screen, full screen
                                           and sideways
@@ -21,6 +24,7 @@ Run it:  uvicorn app:app --port 8080
 
 from __future__ import annotations
 
+import calendar
 import contextlib
 import json
 import math
@@ -48,6 +52,16 @@ MAX_SECONDS = 3 * 3600.0
 MAX_POINTS = 5_000_000
 NAME = re.compile(r"^[A-Za-z0-9 .'_-]{1,16}$")
 TOP = 10
+# The daily challenge: the day (UTC) picks the route, car and condition, the same way the
+# game does (game/scripts/game/challenge.gd: change one, change the other). Its runs count
+# on the route's boards too, and on the day's own. A day's challenge takes runs from an
+# hour before it starts (a clock a little fast) until two hours after it ends.
+CHALLENGE_ROUTES = ["highway1", "highway22"]
+CHALLENGE_CARS = ["windstar", "tercel", "legend"]
+CHALLENGE_CONDITIONS = ["summer", "harvest", "night", "storm", "winter"]
+CHALLENGE_EARLY = 3600.0
+CHALLENGE_LATE = 2 * 3600.0
+DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 POSTS_PER_WINDOW = 20  # runs one address can post...
 WINDOW_SECONDS = 600.0  # ...in this long
 # Cross-origin isolation: what a threaded build would need (SharedArrayBuffer); harmless
@@ -83,8 +97,13 @@ class Store:
                 id {serial}, route TEXT NOT NULL, name TEXT NOT NULL, points INTEGER NOT NULL,
                 seconds DOUBLE PRECISION, car TEXT NOT NULL, condition TEXT NOT NULL,
                 version TEXT NOT NULL, created DOUBLE PRECISION NOT NULL)""")
+            if url:
+                cur.execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS challenge TEXT")
+            elif "challenge" not in [row[1] for row in cur.execute("PRAGMA table_info(runs)").fetchall()]:
+                cur.execute("ALTER TABLE runs ADD COLUMN challenge TEXT")  # (a board from before the challenge)
             cur.execute("CREATE INDEX IF NOT EXISTS runs_by_time ON runs (route, seconds)")
             cur.execute("CREATE INDEX IF NOT EXISTS runs_by_points ON runs (route, points)")
+            cur.execute("CREATE INDEX IF NOT EXISTS runs_by_day ON runs (challenge, seconds)")
             db.commit()
 
     @contextlib.contextmanager
@@ -105,23 +124,25 @@ class Store:
     def add(self, run: dict) -> int:
         with self._lock, self._connect() as db:
             cur = db.cursor()
-            cur.execute(self._sql("""INSERT INTO runs (route, name, points, seconds, car, condition, version, created)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id"""),
+            cur.execute(self._sql("""INSERT INTO runs (route, name, points, seconds, car, condition, version, created,
+                challenge) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id"""),
                         (run["route"], run["name"], run["points"], run["seconds"], run["car"], run["condition"],
-                         run["version"], time.time()))
+                         run["version"], time.time(), run.get("challenge")))
             new_id = cur.fetchone()[0]
             db.commit()
             return int(new_id)
 
-    def top(self, route: str) -> dict:
+    def top(self, route: str, challenge: str | None = None) -> dict:
+        """The route's top tens, or a day's challenge's."""
         cols = "id, name, points, seconds, car, condition, created"
+        where, args = ("route = ? AND challenge = ?", (route, challenge)) if challenge else ("route = ?", (route,))
         with self._connect() as db:
             cur = db.cursor()
-            cur.execute(self._sql(f"SELECT {cols} FROM runs WHERE route = ? AND seconds IS NOT NULL "
-                                  "ORDER BY seconds ASC, created ASC LIMIT ?"), (route, TOP))
+            cur.execute(self._sql(f"SELECT {cols} FROM runs WHERE {where} AND seconds IS NOT NULL "
+                                  "ORDER BY seconds ASC, created ASC LIMIT ?"), (*args, TOP))
             times = cur.fetchall()
-            cur.execute(self._sql(f"SELECT {cols} FROM runs WHERE route = ? ORDER BY points DESC, created ASC LIMIT ?"),
-                        (route, TOP))
+            cur.execute(self._sql(f"SELECT {cols} FROM runs WHERE {where} ORDER BY points DESC, created ASC LIMIT ?"),
+                        (*args, TOP))
             points = cur.fetchall()
         return {"times": [_entry(r) for r in times], "points": [_entry(r) for r in points]}
 
@@ -130,6 +151,37 @@ def _entry(row) -> dict:
     run_id, name, points, seconds, car, condition, created = row
     return {"id": run_id, "name": name, "points": points, "seconds": seconds, "car": car,
             "condition": condition, "date": time.strftime("%Y-%m-%d", time.gmtime(created))}
+
+
+def _fnv(text: str) -> int:
+    h = 2166136261
+    for b in text.encode():
+        h = ((h ^ b) * 16777619) & 0xFFFFFFFF
+    return h
+
+
+def _next(h: int) -> int:
+    return (h * 1103515245 + 12345) & 0xFFFFFFFF
+
+
+def challenge_for(day: str) -> dict:
+    """A day's challenge: its route, car and condition (as the game picks them)."""
+    h = _fnv(day)
+    out = {}
+    for key, options in (("route", CHALLENGE_ROUTES), ("car", CHALLENGE_CARS), ("condition", CHALLENGE_CONDITIONS)):
+        h = _next(h)
+        out[key] = options[(h >> 16) % len(options)]
+    return out
+
+
+def challenge_open(day: str, now: float | None = None) -> bool:
+    """Whether a day's challenge still takes runs."""
+    try:
+        start = calendar.timegm(time.strptime(day, "%Y-%m-%d"))  # (00:00 UTC)
+    except ValueError:
+        return False
+    now = time.time() if now is None else now
+    return start - CHALLENGE_EARLY <= now <= start + 86400.0 + CHALLENGE_LATE
 
 
 def check_run(body) -> tuple[dict | None, str]:
@@ -157,8 +209,16 @@ def check_run(body) -> tuple[dict | None, str]:
             return None, "time out of range"
         seconds = round(float(seconds), 2)
     version = str(body.get("version", ""))[:16]
+    day = body.get("challenge")
+    if day is not None:
+        if not isinstance(day, str) or not DAY.match(day):
+            return None, "not a day"
+        if not challenge_open(day):
+            return None, "that day's challenge is over"
+        if challenge_for(day) != {"route": route, "car": car, "condition": condition}:
+            return None, "not that day's challenge"
     return {"route": route, "name": name, "points": int(points), "seconds": seconds, "car": car,
-            "condition": condition, "version": version}, ""
+            "condition": condition, "version": version, "challenge": day}, ""
 
 
 class RateLimit:
@@ -192,11 +252,14 @@ def create_app(game_dir: str | Path | None = None, store: Store | None = None,
         return JSONResponse(MANIFEST, media_type="application/manifest+json")
 
     async def leaderboard(request: Request) -> Response:
-        route = request.query_params.get("route", "")
+        day = request.query_params.get("challenge") or None
+        if day is not None and not DAY.match(day):
+            return JSONResponse({"error": "not a day"}, status_code=400)
+        route = request.query_params.get("route") or (challenge_for(day)["route"] if day else "")
         if route not in ROUTES:
             return JSONResponse({"error": "unknown route"}, status_code=400)
-        board = await run_in_threadpool(store.top, route)
-        return JSONResponse({"route": route, **board}, headers={"Cache-Control": "no-store"})
+        board = await run_in_threadpool(store.top, route, day)
+        return JSONResponse({"route": route, "challenge": day, **board}, headers={"Cache-Control": "no-store"})
 
     async def post_run(request: Request) -> Response:
         who = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or \
@@ -216,8 +279,13 @@ def create_app(game_dir: str | Path | None = None, store: Store | None = None,
         new_id = await run_in_threadpool(store.add, run)
         board = await run_in_threadpool(store.top, run["route"])
         rank = lambda rows: next((i + 1 for i, r in enumerate(rows) if r["id"] == new_id), None)
-        return JSONResponse({"id": new_id, "time_rank": rank(board["times"]), "points_rank": rank(board["points"]),
-                             "route": run["route"], **board})
+        out = {"id": new_id, "time_rank": rank(board["times"]), "points_rank": rank(board["points"]),
+               "route": run["route"], **board}
+        if run["challenge"]:
+            day = await run_in_threadpool(store.top, run["route"], run["challenge"])
+            out.update({"challenge": run["challenge"], "challenge_time_rank": rank(day["times"]),
+                        "challenge_points_rank": rank(day["points"])})
+        return JSONResponse(out)
 
     async def static(request: Request) -> Response:
         rel = request.path_params.get("path", "") or "index.html"

@@ -19,6 +19,7 @@ var camera: ChaseCamera
 var cops: Cops
 var condition_name := ""
 var practice := false  ## a practice run: nothing's saved
+var challenge := false  ## the daily challenge
 ## The shared leaderboard on the results: where the run placed ("" = nothing to say), or a
 ## box asking for the player's name the first time.
 signal name_entered(text: String)
@@ -106,7 +107,7 @@ func _process(delta: float) -> void:
 		return
 	var s := car.station
 	var finish_mile := route.mile_at(route.finish_station)
-	var lines := ["PRACTICE  ·  nothing's saved" if practice else Routes.headline(route.id),
+	var lines := ["PRACTICE  ·  nothing's saved" if practice else ("DAILY CHALLENGE  ·  " if challenge else "") + Routes.headline(route.id),
 		"%s  ·  points ×%s%s" % [car.stats.display_name, str(car.stats.score_multiplier),
 			"  ·  " + condition_name if condition_name != "" else ""],
 		"Mile %.1f of %.1f    %s view" % [clampf(route.mile_at(s), 0.0, finish_mile), finish_mile, camera.mode_name()]]
@@ -243,7 +244,8 @@ func _fill_results() -> void:
 		child.free()
 	var score := run.score
 	var finished := tracker.state == RunTracker.State.FINISHED
-	_row(("PRACTICE: " if practice else "") + (String(route.info.to).to_upper() + "!" if finished else "WRECKED: %s" % tracker.wreck_reason), "", 34)
+	_row(("PRACTICE: " if practice else "DAILY CHALLENGE: " if challenge else "")
+		+ (String(route.info.to).to_upper() + "!" if finished else "WRECKED: %s" % tracker.wreck_reason), "", 34)
 	_row(Awards.title_for({"finished": finished, "wreck": "" if finished else tracker.wreck_reason,
 		"car": car.stats.id, "seconds": tracker.elapsed, "score": score.banked, "counts": score.counts,
 		"raw": score.raw, "honked": deer.honked_off if deer else 0}), "", 24, Color(1.0, 0.85, 0.3))

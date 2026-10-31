@@ -22,6 +22,7 @@ extends Node3D
 ##   --preset=<id>        graphics preset for this run: low, medium or high (not saved)
 ##   --seed=<n>           fix where the speed traps and deer are (random each run
 ##                        otherwise; tests and screenshots default to 1)
+##   --challenge[=<day>]  drive the daily challenge (today's, or YYYY-MM-DD's)
 ##   --tune=<k:v,...>     override CarStats values, e.g. --tune=handbrake_grip:0.2
 ##   --no-traffic         an empty road
 ##   --no-cops            no speed traps
@@ -99,9 +100,12 @@ var _testing := false
 var _spawn_station := 0.0
 var _lost_time := 0.0
 var _seed := 0  ## where the speed traps and deer are this run (fixed in tests, random otherwise)
+var challenge: Challenge  ## the daily challenge being driven, or null
 ## Set when the garage switched routes and the game reloaded for it: open the garage
-## again ("garage" or "practice") on the new route, which takes over from --route.
+## again ("garage" or "practice") on the new route, which takes over from --route; or
+## "challenge": start the daily challenge (on _challenge_day) that's on this route.
 static var _reopen := ""
+static var _challenge_day := ""
 
 
 func _ready() -> void:
@@ -282,6 +286,7 @@ func _ready() -> void:
 	add_child(menus)
 	menus.setup("" if _testing else RunTracker.SAVE_PATH)
 	menus.drive.connect(open_garage)
+	menus.challenge.connect(start_challenge)
 	menus.resume.connect(resume)
 	menus.restart.connect(func():
 		resume()
@@ -314,10 +319,15 @@ func _ready() -> void:
 		deer.cross_now(45.0 if args.deer is bool else float(args.deer))
 	var skip_garage := args.has("car") or _testing or args.has("smoke-test") or args.has("screenshot") \
 		or args.has("benchmark") or args.has("autopilot")
-	if not _reopen.is_empty():
+	if _reopen == "challenge":
+		_reopen = ""
+		start_challenge(_challenge_day)
+	elif not _reopen.is_empty():
 		var practice_run := _reopen == "practice"
 		_reopen = ""
 		open_garage(practice_run, true)
+	elif args.has("challenge"):
+		start_challenge(Challenge.today() if args.challenge is bool else String(args.challenge))
 	elif args.has("garage"):
 		open_garage(args.has("practice"))
 	elif args.has("title") or args.has("qa-menus") or not skip_garage:
@@ -433,7 +443,7 @@ func _on_run_over() -> void:
 		return
 	var seconds := tracker.elapsed if tracker.state == RunTracker.State.FINISHED else 0.0
 	_pending_run = Leaderboard.run_body(Routes.current, Settings.player_name, run.score.banked, seconds,
-		car.stats.id, condition.id, Menus.VERSION)
+		car.stats.id, condition.id, Menus.VERSION, challenge.date if challenge else "")
 	if Settings.player_name.is_empty():
 		hud.ask_name()
 	else:
@@ -462,7 +472,7 @@ func _send_run() -> void:
 
 func _on_posted(result: Dictionary) -> void:
 	if not _pending_run.is_empty():
-		hud.set_leaderboard(Leaderboard.placing(result, String(route.info.title).capitalize()))
+		hud.set_leaderboard(Leaderboard.placing(result, String(route.info.title).capitalize(), _pending_run.has("challenge")))
 		_pending_run = {}
 
 
@@ -471,9 +481,14 @@ func _reset_world() -> void:
 	car.repair()
 	camera.crash_cam = false
 	props.reset()
-	traffic.reset()
 	corn.reset()
-	_seed += 1
+	if challenge:  # every try the same: the traps, the deer, the traffic, the gusts
+		_seed = challenge.seed_value
+		traffic.reset(_seed)
+		weather.reseed(_seed)
+	else:
+		_seed += 1
+		traffic.reset()
 	cops.reset(_seed)
 	deer.reset(_seed)
 	_spawn(_spawn_station)
@@ -505,6 +520,7 @@ func open_title() -> void:
 	_practice = false
 	tracker.practice = false
 	hud.practice = false
+	_end_challenge()
 	_spawn_station = _default_spawn
 	var c := garage.current_condition()
 	if condition == null or condition.id != c:
@@ -556,6 +572,7 @@ func open_garage(practice := false, on_route := false) -> void:
 	get_tree().paused = false
 	menus.close_all()
 	_practice = practice
+	_end_challenge()
 	tracker.demo = false
 	run.restart()
 	cops.reset(_seed)  # a deputy on your tail doesn't follow you into the garage
@@ -566,13 +583,54 @@ func open_garage(practice := false, on_route := false) -> void:
 	garage.open(practice, on_route)
 
 
+## The daily challenge for `day`: its route (the world's built again for it first, if it's
+## another), car, paint and condition, from Kalona, with its seed every try.
+func start_challenge(day: String) -> void:
+	var c := Challenge.for_date(day)
+	if not _reopen.is_empty():
+		return  # (on its way already)
+	if c.route != Routes.current:
+		_challenge_day = day
+		menus.daily.set_body(CarSelect._label("Loading %s..." % String(Routes.info(c.route).title).capitalize(), 22, Menu.DIM))
+		_reload_for(c.route, "challenge")
+		return
+	get_tree().paused = false
+	menus.close_all()
+	garage.visible = false
+	_practice = false
+	tracker.practice = false
+	tracker.demo = false
+	hud.practice = false
+	challenge = c
+	hud.challenge = true
+	if condition == null or condition.id != c.condition:
+		apply_condition(Condition.preset(c.condition))
+	car.change(c.car_stats())
+	run.car_changed()
+	camera.showroom = false
+	hud.visible = true
+	_spawn_station = _default_spawn
+	restart()
+	radio.start()
+
+
+func _end_challenge() -> void:
+	challenge = null
+	hud.challenge = false
+
+
 ## The garage picked another route: build the world again for it. The whole game reloads
 ## (a frame later, so the garage's "Loading..." shows) and the garage opens again.
 func change_route(id: String) -> void:
 	if id == Routes.current or not id in Routes.IDS:
 		return
+	_reload_for(id, "practice" if _practice else "garage")
+
+
+## The whole game again on route `id`, then `reopen` (see _reopen).
+func _reload_for(id: String, reopen: String) -> void:
 	Routes.current = id
-	_reopen = "practice" if _practice else "garage"
+	_reopen = reopen
 	await get_tree().process_frame
 	await get_tree().process_frame
 	get_tree().paused = false

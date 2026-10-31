@@ -38,6 +38,13 @@ var _brown := 0.0
 var _hiss := 0.0
 
 
+## The gusts from the start again, on this seed (the daily challenge: every try the same).
+func reseed(seed_value: int) -> void:
+	_gust_rng.seed = seed_value * 104729 + 7
+	_next_gust = 3.0
+	_gust_t = -1.0
+
+
 func setup(c: Car, cam: Camera3D, environment: Environment, sky_material: ShaderMaterial, seed_value := 1) -> void:
 	car = c
 	camera = cam

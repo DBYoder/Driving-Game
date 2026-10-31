@@ -1,6 +1,9 @@
 """The web server: the game's files with the right headers, and the leaderboard."""
+import calendar
 import gzip
 import os
+import sqlite3
+import time
 
 os.environ["HIGHWAY_NO_APP"] = "1"  # (no default app, and no leaderboard.db, on import)
 
@@ -90,3 +93,68 @@ def test_too_many_runs_from_one_place(tmp_path):
     c = TestClient(server.create_app(tmp_path, store, server.RateLimit(2, 60.0)))
     codes = [c.post("/api/runs", json=run()).status_code for _ in range(3)]
     assert codes == [200, 200, 429]
+
+
+def test_the_daily_challenge_is_picked_like_the_game_picks_it():
+    # (The same days and picks as game/tests/test_challenge.gd: the two must agree.)
+    assert server.challenge_for("2026-10-31") == {"route": "highway22", "car": "legend", "condition": "harvest"}
+    assert server.challenge_for("2026-11-01") == {"route": "highway1", "car": "legend", "condition": "storm"}
+    assert server.challenge_for("2026-12-25") == {"route": "highway22", "car": "tercel", "condition": "harvest"}
+
+
+def today_run(**over):
+    day = time.strftime("%Y-%m-%d", time.gmtime())
+    pick = server.challenge_for(day)
+    seconds = 900.5 if pick["route"] == "highway1" else 400.5
+    return run(**{"challenge": day, "seconds": seconds, **pick, **over})
+
+
+def test_a_challenge_run_has_its_own_top_ten_and_counts_on_the_route_too(client):
+    route = today_run()["route"]
+    plain = client.post("/api/runs", json=run(route=route, seconds=380.0 if route == "highway22" else 880.0))
+    assert plain.status_code == 200
+    r = client.post("/api/runs", json=today_run(name="Daily")).json()
+    assert r["challenge_time_rank"] == 1 and r["challenge_points_rank"] == 1
+    assert r["time_rank"] == 2, "the run that wasn't the challenge is still faster on the route's board"
+    day = today_run()["challenge"]
+    board = client.get("/api/leaderboard", params={"challenge": day}).json()
+    assert board["route"] == route and board["challenge"] == day
+    assert [e["name"] for e in board["times"]] == ["Daily"]
+    route_board = client.get("/api/leaderboard", params={"route": route}).json()
+    assert len(route_board["times"]) == 2
+
+
+def test_only_the_days_challenge_and_only_while_its_on(client):
+    pick = today_run()
+    other_car = next(c for c in server.CHALLENGE_CARS if c != pick["car"])
+    assert client.post("/api/runs", json=today_run(car=other_car)).json()["error"] == "not that day's challenge"
+    assert client.post("/api/runs", json=run(challenge="2020-01-01", **server.challenge_for("2020-01-01"))) \
+        .json()["error"] == "that day's challenge is over"
+    for bad in ["today", "2026-13-01", 20261031]:
+        assert client.post("/api/runs", json=today_run(challenge=bad)).status_code == 400
+    assert client.get("/api/leaderboard", params={"challenge": "soon"}).status_code == 400
+
+
+def test_a_challenge_takes_runs_until_two_hours_after_its_day():
+    start = calendar.timegm((2026, 10, 31, 0, 0, 0))
+    assert not server.challenge_open("2026-10-31", start - 3601)
+    assert server.challenge_open("2026-10-31", start - 3600)  # (a clock a little fast)
+    assert server.challenge_open("2026-10-31", start + 86400 + 7200)
+    assert not server.challenge_open("2026-10-31", start + 86400 + 7201)
+    assert not server.challenge_open("2026-02-30")
+
+
+def test_a_board_from_before_the_challenge_gets_its_column(tmp_path):
+    path = tmp_path / "old.db"
+    db = sqlite3.connect(path)
+    db.execute("""CREATE TABLE runs (id INTEGER PRIMARY KEY AUTOINCREMENT, route TEXT NOT NULL, name TEXT NOT NULL,
+        points INTEGER NOT NULL, seconds DOUBLE PRECISION, car TEXT NOT NULL, condition TEXT NOT NULL,
+        version TEXT NOT NULL, created DOUBLE PRECISION NOT NULL)""")
+    db.execute("INSERT INTO runs (route, name, points, seconds, car, condition, version, created) "
+               "VALUES ('highway1', 'Old', 5, 950.0, 'legend', 'summer', 'v0.9', 1.0)")
+    db.commit()
+    db.close()
+    store = server.Store(path=str(path))
+    assert store.top("highway1")["times"][0]["name"] == "Old"
+    store.add({**run(), "challenge": "2026-10-31"})
+    assert store.top("highway1", "2026-10-31")["times"][0]["name"] == "Dave"
