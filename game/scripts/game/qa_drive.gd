@@ -220,6 +220,8 @@ func _set_up_trap_run() -> void:
 	if cop_scenario == "line":
 		county = cops.county_at(car.route.start_station)  # (the county before the line: Johnson on the way back)
 	var traps := cops.traps.filter(func(t): return t.county == county)
+	if cop_scenario == "line":  # (the one nearest the line: on the way back it's Johnson's last, not its first)
+		traps.sort_custom(func(a, b): return absf(a.station - cops.county_line) < absf(b.station - cops.county_line))
 	if traps.is_empty():
 		_fail("no %s County speed trap this run" % county)
 		return
@@ -312,7 +314,11 @@ func _boost_tick() -> void:
 ## set to freeze in the lane; start 900 m back at the usual 70 mph.
 func _set_up_deer_run() -> void:
 	var deer: Deer = get_parent().deer
-	_deer_station = Bridges.deer_station(car.route, car.route.bridges[0])
+	# The first bridge up the road from the start (on a way back the list starts with the
+	# culvert past Iowa City, behind the start).
+	var route := car.route
+	var ahead := route.bridges.filter(func(b): return Bridges.deer_station(route, b) > route.start_station + 1000.0)
+	_deer_station = Bridges.deer_station(route, ahead[0] if not ahead.is_empty() else route.bridges[0])
 	deer.spots.clear()
 	deer.add_spot(_deer_station, 1.0, 3, true)
 	get_parent()._spawn(_deer_station - 900.0)
