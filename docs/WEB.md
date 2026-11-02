@@ -1,8 +1,9 @@
 # Highway 1 in a browser
 
 The game also runs in a browser, from a small web server that keeps the shared
-leaderboard: the top ten times and the top ten scores on each route, from everyone's
-runs. It's open to anyone with the address; there's no password.
+leaderboard: the top ten times and the top ten scores on each route (and each day's
+daily challenge), from everyone's runs. It's open to anyone with the address; there's no
+password.
 
 ## How it fits together
 

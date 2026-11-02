@@ -5,14 +5,17 @@ extends Node
 ## Title screen (its car drives itself, on runs that don't count) → Settings (High
 ## graphics) → Records → Practice from mile 4 (gas, horn, a deputy on your tail) → pause →
 ## Change car (the chase stays behind) → back to the title → Drive a real run from Kalona →
-## pause → quit to the title. Checks each screen shows up and does what it should; prints
-## a report and exits 0/1.
+## pause → quit to the title → the daily challenge (a day's that's on this route): its car,
+## condition and seed, the same traps again on a restart → quit to the title. Checks each
+## screen shows up and does what it should; prints a report and exits 0/1.
 
 var main: Node
 var _steps: Array[Callable] = []
 var _wait := 0.0
 var _problems: Array[String] = []
 var _log: Array[String] = []
+var _challenge: Challenge
+var _traps: Array = []
 
 
 func _ready() -> void:
@@ -23,8 +26,8 @@ func _ready() -> void:
 		func():
 			_expect(main.car.forward_speed() > 5.0, "the title screen's car drives itself (%.0f mph)" % (main.car.forward_speed() * Hud.MPH))
 			_expect(main.tracker.running() and not main.tracker.counts(), "on a run that doesn't count (no records, nothing posted)")
-			_press("menu_down", 3)
-			_expect(main.menus.title.selected_id() == "settings", "▼ ▼ ▼ gets to Settings")
+			_press("menu_down", 4)
+			_expect(main.menus.title.selected_id() == "settings", "▼ ×4 gets to Settings")
 			_press("menu_accept"),
 		func():
 			_expect(main.menus.settings.visible and not main.menus.title.visible, "Settings opens over the title")
@@ -97,8 +100,45 @@ func _ready() -> void:
 			_press("menu_accept"),
 		func():
 			_expect(main.menus.title.visible and not get_tree().paused, "back at the title screen, unpaused")
+			_challenge = _challenge_here()
+			main.menus.challenge_day = _challenge.date
+			_press("menu_down")
+			_expect(main.menus.title.selected_id() == "challenge", "▼ to Daily challenge")
+			_press("menu_accept"),
+		func():
+			_expect(main.menus.daily.visible, "the daily challenge's card (%s: %s, %s)" % [_challenge.date, _challenge.car, _challenge.condition])
+			_press("menu_accept"),
+		func():
+			_expect(main.hud.visible and not main.menus.any_open() and main.challenge != null and main.hud.challenge,
+				"Drive it starts the challenge")
+			_expect(main.car.stats.id == _challenge.car and main.condition.id == _challenge.condition,
+				"in its car and condition (%s, %s)" % [main.car.stats.id, main.condition.id])
+			_expect(main.car.station < main.route.start_station and main.tracker.counts(), "from Kalona, a run that counts")
+			_expect(main._seed == _challenge.seed_value, "on the day's seed")
+			_traps = main.cops.traps.map(func(t): return t.station)
+			_press("restart"),
+		func():
+			_expect(main.challenge != null and main._seed == _challenge.seed_value, "R: the challenge again, the same seed")
+			_expect(main.cops.traps.map(func(t): return t.station) == _traps, "and the speed traps in the same places (%s)" % [_traps])
+			_press("pause"),
+		func():
+			_press("menu_up", 2)
+			_press("menu_accept"),
+		func():
+			_expect(main.menus.title.visible and main.challenge == null and not main.hud.challenge, "quit to the title: the challenge is over")
+			_expect(main.car.stats.id == main.garage.current_car(), "and the garage's car is back")
 			_finish(),
 	]
+
+
+## A day whose challenge is on this route (the walk can't build the world again).
+func _challenge_here() -> Challenge:
+	var t := Time.get_unix_time_from_datetime_string(Challenge.today() + "T12:00:00")
+	for i in 60:
+		var c := Challenge.for_date(Time.get_date_string_from_unix_time(t + i * 86400))
+		if c.route == Routes.current:
+			return c
+	return Challenge.for_date(Challenge.today())
 
 
 func _process(delta: float) -> void:

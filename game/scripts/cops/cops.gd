@@ -41,7 +41,7 @@ var run: Run
 var traffic: Traffic
 var enabled := true
 var night := false  ## cruisers drive with their headlights on
-var county_line := INF  ## station: Washington County before here, Johnson County after (none: INF)
+var county_line := INF  ## station: one county before here, the other after (none: INF)
 var traps_per_county := {"Washington": 1, "Johnson": 3}
 var traps: Array[Trap] = []
 var chase: Pursuit  ## the chase on now, or null
@@ -51,6 +51,7 @@ var _rails := false  ## the chaser is far back, frozen and moving along the road
 var _rail_station := 0.0
 var _cop_rolled := 0.0
 var _rng := RandomNumberGenerator.new()
+var _counties := ["Washington", "Johnson"]  ## before the county line and after it
 
 
 func setup(r: RouteData, p: Car, game_run: Run, t: Traffic, seed_value: int) -> void:
@@ -64,6 +65,8 @@ func setup(r: RouteData, p: Car, game_run: Run, t: Traffic, seed_value: int) -> 
 	for c in route.crossroads:
 		if c.name == COUNTY_LINE_ROAD:
 			county_line = c.station
+	for c: Dictionary in route.places.get("counties", []):  # (which way round: Washington first going north)
+		_counties = [String(c.leaving), String(c.entering)]
 	siren = Siren.new()
 	add_child(siren)
 	reset(seed_value)
@@ -98,7 +101,7 @@ func reset(seed_value: int) -> void:
 
 
 func county_at(station: float) -> String:
-	return "Washington" if station < county_line else "Johnson"
+	return _counties[0] if station < county_line else _counties[1]
 
 
 func chasing() -> bool:

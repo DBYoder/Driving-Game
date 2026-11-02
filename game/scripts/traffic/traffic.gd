@@ -92,7 +92,10 @@ func setup(r: RouteData, c: Car, game_run: Run, seed_value := 1) -> void:
 	_rng.seed = seed_value
 
 
-func reset() -> void:
+## Clear the road (and with a seed, start the traffic's dice over: the daily challenge).
+func reset(seed_value := -1) -> void:
+	if seed_value >= 0:
+		_rng.seed = seed_value
 	for v in vehicles:
 		v.node.queue_free()
 	vehicles.clear()

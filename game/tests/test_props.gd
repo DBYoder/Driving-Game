@@ -91,3 +91,27 @@ func test_corn_canopy_tops_the_corn_fields() -> void:
 				walls += 1
 		check(verts.size() > walls, "tile %d has a top, not just walls" % i)
 	check(with_corn > 5, "corn somewhere along the route (%d tiles sampled)" % with_corn)
+
+
+func test_driveways_have_mailboxes_and_fences_leave_them_a_gap() -> void:
+	for r: RouteData in [route, RouteData.load_from("res://data/routes/highway22")]:
+		var f := PropField.new()
+		f.route = r
+		f.fields = Fields.new(r)
+		f._find_lanes()
+		check(f._lanes.size() >= 5, "%s: driveways off the road (%d)" % [r.id, f._lanes.size()])
+		var props := []
+		for c in ceili(r.length / PropField.CHUNK_LENGTH):
+			props.append_array(f.generate(c))
+		var missing := 0
+		for lane: Dictionary in f._lanes:
+			var mouth: Vector2 = lane.points[0]
+			var has := props.any(func(p): return p.kind == "mailbox" \
+				and Vector2(p.position.x, p.position.z).distance_to(mouth) < PropField.LANE_MAILBOX + 3.0)
+			var crossing: bool = f._near_crossroad(float(lane.station) - PropField.LANE_MAILBOX)
+			if not has and not crossing:
+				missing += 1
+		check(missing == 0, "%s: a mailbox by every driveway (%d without)" % [r.id, missing])
+		var blocked := props.filter(func(p): return p.kind == "fence" and f._on_lane(p.position, r.nearest_station(p.position)))
+		check(blocked.is_empty(), "%s: no fence across a driveway (%d)" % [r.id, blocked.size()])
+		f.free()

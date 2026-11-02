@@ -19,6 +19,7 @@ var camera: ChaseCamera
 var cops: Cops
 var condition_name := ""
 var practice := false  ## a practice run: nothing's saved
+var challenge := false  ## the daily challenge
 ## The shared leaderboard on the results: where the run placed ("" = nothing to say), or a
 ## box asking for the player's name the first time.
 signal name_entered(text: String)
@@ -32,6 +33,7 @@ var _name_callback: JavaScriptObject  ## (kept, or the browser's call back finds
 var touch := false
 var _results_buttons: HBoxContainer
 var deer: Deer  ## for the run's title (deer honked off the road)
+var ghost: Ghost  ## how far ahead or behind your best run you are
 var _trip: Label
 var _clock: Label
 var _score: Label
@@ -105,7 +107,7 @@ func _process(delta: float) -> void:
 		return
 	var s := car.station
 	var finish_mile := route.mile_at(route.finish_station)
-	var lines := ["PRACTICE  ·  nothing's saved" if practice else Routes.headline(route.id),
+	var lines := ["PRACTICE  ·  nothing's saved" if practice else ("DAILY CHALLENGE  ·  " if challenge else "") + Routes.headline(route.id),
 		"%s  ·  points ×%s%s" % [car.stats.display_name, str(car.stats.score_multiplier),
 			"  ·  " + condition_name if condition_name != "" else ""],
 		"Mile %.1f of %.1f    %s view" % [clampf(route.mile_at(s), 0.0, finish_mile), finish_mile, camera.mode_name()]]
@@ -116,7 +118,7 @@ func _process(delta: float) -> void:
 	_trip.text = "\n".join(lines)
 
 	var best := "Best  %s" % RunTracker.format_time(tracker.best_time) if tracker.best_time > 0.0 else "No best time yet"
-	_clock.text = "%s\n%s" % [RunTracker.format_time(tracker.elapsed), best]
+	_clock.text = "%s\n%s%s" % [RunTracker.format_time(tracker.elapsed), best, ghost_text()]
 	_score.text = _fmt(run.score.banked)
 	var score_keeper := run.score
 	_combo.text = "+%s  x%d" % [_fmt(score_keeper.pot), score_keeper.multiplier] if score_keeper.multiplier > 0 else ""
@@ -188,6 +190,16 @@ func _tuck_results(delta: float) -> void:
 		results_tucked = false
 
 
+## "  ·  ghost −1.3" while the ghost's running: seconds behind it (+) or ahead (−).
+func ghost_text() -> String:
+	if ghost == null or not ghost.visible or not tracker.running():
+		return ""
+	var gap := ghost.gap_at(car.station, tracker.elapsed)
+	if is_nan(gap):
+		return ""
+	return "  ·  ghost %s%.1f" % ["+" if gap >= 0.0 else "−", absf(gap)]
+
+
 ## How far, the way a road sign says it: "1.4 mi", or in feet when it's close ("300 ft").
 static func distance_text(meters: float) -> String:
 	if meters >= 0.1 * RouteData.MILE_M:
@@ -232,7 +244,8 @@ func _fill_results() -> void:
 		child.free()
 	var score := run.score
 	var finished := tracker.state == RunTracker.State.FINISHED
-	_row(("PRACTICE: " if practice else "") + (String(route.info.to).to_upper() + "!" if finished else "WRECKED: %s" % tracker.wreck_reason), "", 34)
+	_row(("PRACTICE: " if practice else "DAILY CHALLENGE: " if challenge else "")
+		+ (String(route.info.to).to_upper() + "!" if finished else "WRECKED: %s" % tracker.wreck_reason), "", 34)
 	_row(Awards.title_for({"finished": finished, "wreck": "" if finished else tracker.wreck_reason,
 		"car": car.stats.id, "seconds": tracker.elapsed, "score": score.banked, "counts": score.counts,
 		"raw": score.raw, "honked": deer.honked_off if deer else 0}), "", 24, Color(1.0, 0.85, 0.3))

@@ -38,6 +38,13 @@ var _brown := 0.0
 var _hiss := 0.0
 
 
+## The gusts from the start again, on this seed (the daily challenge: every try the same).
+func reseed(seed_value: int) -> void:
+	_gust_rng.seed = seed_value * 104729 + 7
+	_next_gust = 3.0
+	_gust_t = -1.0
+
+
 func setup(c: Car, cam: Camera3D, environment: Environment, sky_material: ShaderMaterial, seed_value := 1) -> void:
 	car = c
 	camera = cam
@@ -96,7 +103,7 @@ static func ice_patches(route: RouteData) -> PackedFloat32Array:
 		var z := route.trees[i * 5 + 1]
 		if route.terrain.road_distance_smooth(x, z) - route.trees[i * 5 + 3] > ICE_TREE_REACH:
 			continue
-		var hint := route.terrain.station_hint(x, z)
+		var hint := route.station_hint(x, z)
 		if hint >= 0.0:
 			spots.append(route.nearest_station(Vector3(x, 0, z), hint, 300.0))
 	spots = spots.filter(func(s: float) -> bool: return not route.in_junction(s))  # concrete there, and it'd never show

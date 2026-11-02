@@ -2,7 +2,7 @@ extends "res://tests/test_case.gd"
 ## The routes: Highway 1 (Kalona north to Iowa City) and Highway 22 (Kalona west to
 ## Wellman) both load, start at the same 4-way stop (Highway 22 in the middle of it,
 ## pointed west), finish where they should, and keep their own records; Wellman's finish is
-## a stop sign on 8th Ave, not a light.
+## a stop sign on 8th Ave, not a light. (The ways back: test_ways_back.gd.)
 
 const Main := preload("res://scripts/main.gd")
 
@@ -19,12 +19,13 @@ func _crossroad(route: RouteData, name: String) -> Dictionary:
 
 func test_every_route_loads_with_its_details() -> void:
 	for id: String in Routes.IDS:
-		var r := RouteData.load_from(Routes.dir(id))
+		var r := RouteData.load_route(id)
 		check(r != null, "%s loads from %s" % [id, Routes.dir(id)])
 		if r == null:
 			continue
 		check(r.id == id and r.info == Routes.INFO[id], "%s knows which route it is" % id)
-		for key: String in ["title", "from", "to", "number", "heading", "tagline", "finish", "finish_stop_line",
+		for key: String in ["title", "from", "to", "number", "heading", "tagline", "data", "reversed", "start",
+				"start_stop_line", "finish", "finish_stop_line",
 				"section_corner", "traps", "par_seconds", "min_miles", "min_buildings", "min_trees", "landmark"]:
 			check(Routes.INFO[id].has(key), "%s has %s" % [id, key])
 		check(not _crossroad(r, Routes.INFO[id].section_corner).is_empty(),
@@ -61,7 +62,7 @@ func test_highway_22_runs_from_kalona_to_wellman() -> void:
 func test_both_routes_start_at_the_same_4_way_stop() -> void:
 	# Each route has its own origin; compare in real (UTM) meters.
 	var at := []
-	for id: String in Routes.IDS:
+	for id: String in ["highway1", "highway22"]:
 		var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(Routes.dir(id).path_join("route.json")))
 		var r := RouteData.load_from(Routes.dir(id))
 		var p := r.position_at(r.start_station)
@@ -169,7 +170,7 @@ func test_the_garage_switches_routes() -> void:
 	right.action = "menu_right"
 	right.pressed = true
 	garage._unhandled_input(right)
-	check(asked == ["highway22"], "▶ on the route line asks for Highway 22: %s" % [asked])
+	check(asked == ["highway1_south"], "▶ on the route line asks for the way back: %s" % [asked])
 	garage._unhandled_input(right)
 	check(asked.size() == 1, "and only once while it loads")
 	garage.free()

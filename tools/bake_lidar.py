@@ -68,10 +68,13 @@ SPLIT_MAX_PIECES = 12
 SPLIT_MAX_HEIGHT_M = 14.0  # ...but not a co-op's bins and elevators (as tall as no barn is)
 FLAT_PITCH = 0.1          # rise per run: flatter than this (6 degrees) is a flat roof
 MIN_EAVE_M = 2.4
+SLIVER_M = 3.0            # narrower than this, a piece is what was left cutting a roof up: left out
 OVERLAP_DROP = 0.2        # a building this much inside a bigger one is part of it (or a misread): left out
 STREET_CLEAR_M = 1.0      # buildings and tree trunks keep this far off a street's edge...
 STREET_SHIFT_M = 4.0      # ...a building moved up to this far to (the lidar's edges are a meter or two out)
 TRUNK_CLEAR_M = 0.6       # a trunk this far outside a footprint at least
+STORE_ROAD_M = 60.0       # a flat-roofed building in town this near a road is a store (its front to it)...
+STORE_HOUSE_M2 = 260.0    # ...as is a "house" that big
 YARD_LIGHT_CLEAR_M = 2.0  # a yard light's pole this far from any building or street at least
 CROWN_OVERLAP = 0.25      # a crown low enough to hit the walls reaches this share of its radius over the roof at most
 
@@ -560,12 +563,15 @@ def game_structures(buildings: list[dict], o: dict) -> list[dict]:
 
 def street_area(out_dir: Path) -> shapely.Geometry:
     """The town streets and side roads (the route's streets.json, game x/z), each out to
-    STREET_CLEAR_M past its edge."""
+    STREET_CLEAR_M past its edge. (Not the driveways: they were traced round the
+    buildings, after them; bake_driveways.py.)"""
     path = out_dir / "streets.json"
     if not path.exists():
         return shapely.Polygon()
     parts = []
     for st in json.loads(path.read_text())["streets"]:
+        if st.get("driveway"):
+            continue
         p = np.reshape(st["points"], (-1, 5))
         if len(p) >= 2:
             parts.append(shapely.LineString(p[:, [0, 4]]).buffer(st["half_width"] + STREET_CLEAR_M))
@@ -593,7 +599,8 @@ def tidy(structures: list[dict], trees: np.ndarray, out_dir: Path, route_xz: np.
     """Buildings and trees that don't run into each other, the streets or the landmarks:
     - buildings on a street are moved off it (up to STREET_SHIFT_M) or left out, and ones in a
       landmark's rectangles are left out (the landmark stands there);
-    - a building mostly inside a bigger one (OVERLAP_DROP) is left out;
+    - a building mostly inside a bigger one (OVERLAP_DROP) is left out, as is a sliver
+      narrower than SLIVER_M (what was left over cutting a roof patch up);
     - a tree with its trunk in a building, or a crown low enough to hit the walls reaching
       well over the roof, is moved out from it (the lidar puts a tree where its crown is,
       and a crown hangs over a roof from a trunk in the yard); one that can't be is
@@ -603,9 +610,12 @@ def tidy(structures: list[dict], trees: np.ndarray, out_dir: Path, route_xz: np.
     lm = shapely.union_all(landmarks) if landmarks else shapely.Polygon()
     shapely.prepare(lm)
     route_tree = cKDTree(route_xz)
-    counts = {"off street": 0, "street": 0, "landmark": 0, "inside another": 0}
+    counts = {"off street": 0, "street": 0, "landmark": 0, "inside another": 0, "sliver": 0}
     kept: list[dict] = []
     for b in structures:
+        if b["width"] < SLIVER_M and b["kind"] != "bin":
+            counts["sliver"] += 1
+            continue
         poly = footprint(b)
         if lm.intersects(poly) and lm.intersection(poly).area > 1.0:
             counts["landmark"] += 1
@@ -682,9 +692,56 @@ def tidy(structures: list[dict], trees: np.ndarray, out_dir: Path, route_xz: np.
         tree_out.append((x, z, h, r, conifer))
     trees_out = np.array(tree_out, dtype="<f4").reshape(-1, 5)
     lights = place_yard_lights(out, polys, index, trees_out, streets, lm, route_tree)
+    stores = mark_stores(out, out_dir, route_xz)
     print(f"tidy: buildings {counts}; trees moved out of buildings {moved}, shrunk {shrunk}, left out {dropped}; "
-          f"yard lights {lights}")
+          f"yard lights {lights}; stores {stores}")
     return out, trees_out
+
+
+def mark_stores(buildings: list[dict], out_dir: Path, route_xz: np.ndarray) -> int:
+    """The flat-roofed buildings in town that aren't houses (or are big for one) and stand
+    by a road are shops, offices, the bank, the cafe: kind "store", turned (yaw, length
+    and width) so the road is off its +z or -z side, and "front" that side (+1 or -1)."""
+    path = out_dir / "places.json"
+    towns = json.loads(path.read_text()).get("towns", []) if path.exists() else []
+    if not towns:
+        return 0
+    area = shapely.union_all([shapely.Polygon(np.reshape(t["outline"], (-1, 2))) for t in towns])
+    shapely.prepare(area)
+    lines = [shapely.LineString(route_xz)]
+    spath = out_dir / "streets.json"
+    if spath.exists():
+        lines += [shapely.LineString(np.reshape(st["points"], (-1, 5))[:, [0, 4]])
+                  for st in json.loads(spath.read_text())["streets"]
+                  if not st.get("driveway") and st["kind"] != "lane" and len(st["points"]) >= 10]
+    roads = shapely.STRtree(lines)
+    n = 0
+    for b in buildings:
+        b.pop("front", None)
+        if b["kind"] == "store":
+            b["kind"] = "shed"  # (decided afresh)
+        if b.get("roof") != "flat" or b["kind"] in ("bin", "elevator") \
+                or (b["kind"] == "house" and b["length"] * b["width"] < STORE_HOUSE_M2):
+            continue
+        p = shapely.Point(b["x"], b["z"])
+        if not area.contains(p):
+            continue
+        k = roads.nearest(p)
+        line = lines[k]
+        if line.distance(footprint(b)) > STORE_ROAD_M:
+            continue
+        q = line.interpolate(line.project(p))
+        dx, dz = q.x - b["x"], q.y - b["z"]
+        c, s = math.cos(b["yaw"]), math.sin(b["yaw"])
+        lx, lz = dx * c - dz * s, dx * s + dz * c  # in the building's own frame (x along, z across)
+        if abs(lx) / (b["length"] / 2) > abs(lz) / (b["width"] / 2):  # the road's off an end: turn it
+            b["yaw"] = b["yaw"] + math.pi / 2
+            b["length"], b["width"] = b["width"], b["length"]
+            lx, lz = -lz, lx
+        b["kind"] = "store"
+        b["front"] = 1 if lz > 0 else -1
+        n += 1
+    return n
 
 
 def place_yard_lights(buildings: list[dict], polys: list, index, trees: np.ndarray, streets, lm, route_tree) -> int:

@@ -8,7 +8,9 @@ extends Node3D
 ## fitted to its own eaves and ridge and given its roof's color from the 2015 aerial
 ## photos (tools/bake_aerial.py) where it has one, in BLOCK-sized
 ## squares that load and unload around the car at the same distances as the detailed
-## terrain under them, with plainer models past `near_lod`. A block's instances are worked
+## terrain under them, with plainer models past `near_lod` (trees, conifers and yard lights
+## at SMALL_LOD_SHARE of it: there are thousands, and a block's whole half-kilometer
+## switches at once). A block's instances are worked
 ## out the first time it's needed (a wooded one has thousands of trees) and kept: on a
 ## worker thread, or without one (a single-threaded web build) a slice a frame. Near the
 ## car they're solid: buildings as boxes (and cylinders for bins), trees as their trunks.
@@ -17,10 +19,13 @@ const BLOCK := 512.0
 const LOAD_RADIUS := 1250.0  ## the detailed terrain's (WorldStreamer.RADII.tile)
 const UNLOAD_RADIUS := 1550.0
 const NEAR_LOD := 450.0  ## the usual `near_lod` (the High preset pushes it out)
+const SMALL_KINDS := ["tree", "conifer", "yard_light"]  ## plainer models nearer in...
+const SMALL_LOD_SHARE := 0.55  ## ...at this share of `near_lod`
 const LOD_HYSTERESIS := 50.0
 const COLLIDE_RADIUS := 250.0
 const COLLIDE_UNLOAD := 400.0
-const KINDS := ["house", "barn", "shed", "bin", "elevator", "tree", "conifer", "yard_light"]
+const KINDS := ["house", "barn", "shed", "store", "bin", "elevator", "tree", "conifer", "yard_light"]
+const BUILDING_KINDS := ["house", "barn", "shed", "store", "bin", "elevator"]
 const YARD_LIGHT_HEIGHT := 8.0
 const TRUNK_RADIUS := 0.35
 const TRUNK_HEIGHT := 5.0
@@ -32,7 +37,8 @@ const BUILD_BUDGET_USEC := 3000
 const SLICE := 64  ## buildings and trees placed between looks at the clock, working a block out here
 const STRIDE := 20  ## floats an instance takes in a MultiMesh buffer: transform, color, custom data
 ## Where a building has no eaves in its data: their share of the height.
-const EAVES := {"house": 0.6, "barn": 0.45, "shed": 0.75}
+const EAVES := {"house": 0.6, "barn": 0.45, "shed": 0.75, "store": 1.0}
+const PARAPET_M := 0.7  ## a store's parapet stands this far over its roof
 const MIN_WALL_M := 2.2
 ## Roofs a building has no photo of: dark shingles on houses; steel, mostly, on the rest.
 const HOUSE_ROOFS: Array[Color] = [Color(0.27, 0.26, 0.26), Color(0.22, 0.21, 0.22), Color(0.33, 0.27, 0.22),
@@ -51,6 +57,9 @@ const BARN_COLORS: Array[Color] = [Color(0.62, 0.13, 0.10), Color(0.62, 0.13, 0.
 	Color(0.92, 0.92, 0.90), Color(0.60, 0.58, 0.55)]
 ## Grain elevators: galvanized steel, or concrete.
 const ELEVATOR_COLORS: Array[Color] = [Color(0.86, 0.87, 0.88), Color(0.80, 0.80, 0.78), Color(0.74, 0.73, 0.70)]
+## Stores: brick, painted block, stucco, a white front.
+const STORE_COLORS: Array[Color] = [Color(0.62, 0.33, 0.26), Color(0.55, 0.30, 0.24), Color(0.80, 0.74, 0.62),
+	Color(0.90, 0.89, 0.85), Color(0.68, 0.66, 0.62), Color(0.74, 0.62, 0.50)]
 const SHED_COLORS: Array[Color] = [Color(0.88, 0.89, 0.90), Color(0.80, 0.81, 0.82), Color(0.93, 0.93, 0.91),
 	Color(0.62, 0.15, 0.12), Color(0.72, 0.66, 0.55), Color(0.55, 0.62, 0.66)]
 
@@ -68,7 +77,8 @@ class Block:
 	var buildings := PackedInt32Array()
 	var trees := PackedInt32Array()
 	var node: Node3D
-	var lod := -1
+	var lod := -1  ## buildings' model (0 detailed, 1 plain; -1 not built)
+	var small_lod := -1  ## trees' and yard lights'
 	var multimeshes := {}  ## kind -> MultiMeshInstance3D
 	var body := RID()
 	var shapes: Array[RID] = []
@@ -190,6 +200,16 @@ func _distance(block: Block) -> float:
 	return p.distance_to(q)
 
 
+## The model a block `d` m off wants: detailed within `near` (a little nearer to switch
+## back, so it doesn't flicker on the line).
+func _lod(d: float, current: int, near: float) -> int:
+	return 0 if d < near - (LOD_HYSTERESIS if current == 1 else 0.0) else 1
+
+
+func _kind_lod(block: Block, kind: String) -> int:
+	return maxi(block.small_lod if kind in SMALL_KINDS else block.lod, 0)
+
+
 func _refresh_all() -> void:
 	_queue.clear()
 	var wanted: Array = []
@@ -202,8 +222,10 @@ func _refresh_all() -> void:
 			_drop_body(block)
 		if d > LOAD_RADIUS:
 			continue
-		var lod := 0 if d < near_lod - (LOD_HYSTERESIS if block.lod == 1 else 0.0) else 1
-		if block.node == null or block.lod != lod or (d < COLLIDE_RADIUS and not block.body.is_valid()):
+		var lod := _lod(d, block.lod, near_lod)
+		var small := _lod(d, block.small_lod, near_lod * SMALL_LOD_SHARE)
+		if block.node == null or block.lod != lod or block.small_lod != small \
+				or (d < COLLIDE_RADIUS and not block.body.is_valid()):
 			wanted.append([d, block])
 	wanted.sort_custom(func(a, b): return a[0] < b[0])
 	for w in wanted:
@@ -216,7 +238,8 @@ func _build(block: Block, deadline := 0) -> bool:
 	var d := _distance(block)
 	if d > LOAD_RADIUS:
 		return true
-	var lod := 0 if d < near_lod - (LOD_HYSTERESIS if block.lod == 1 else 0.0) else 1
+	var lod := _lod(d, block.lod, near_lod)
+	var small := _lod(d, block.small_lod, near_lod * SMALL_LOD_SHARE)
 	if block.node == null:
 		if block.task == -1 and block.buffers.is_empty():
 			if _warming_up:
@@ -238,11 +261,13 @@ func _build(block: Block, deadline := 0) -> bool:
 		block.node = Node3D.new()
 		add_child(block.node)
 		block.lod = lod
+		block.small_lod = small
 		_instantiate(block)
-	if block.lod != lod:
+	if block.lod != lod or block.small_lod != small:
 		block.lod = lod
+		block.small_lod = small
 		for kind: String in block.multimeshes:
-			block.multimeshes[kind].multimesh.mesh = _meshes["%s:%d" % [kind, lod]]
+			block.multimeshes[kind].multimesh.mesh = _meshes["%s:%d" % [kind, _kind_lod(block, kind)]]
 	if d < COLLIDE_RADIUS and not block.body.is_valid():
 		_make_body(block)
 	return true
@@ -303,6 +328,8 @@ func _place_building(by_kind: Dictionary, i: int) -> void:
 	var x := float(b.x)
 	var z := float(b.z)
 	var yaw := float(b.yaw)
+	if b.kind == "store" and float(b.get("front", 1)) < 0.0:
+		yaw += PI  # (its model's front is +z)
 	var length := float(b.length)
 	var width := float(b.width)
 	var basis := Basis(Vector3.UP, yaw)
@@ -358,12 +385,15 @@ func _roof(b: Dictionary, kind: String, i: int, below: float, height: float) -> 
 		color = Color(pow(float(c[0]) / 255.0, PHOTO_GAMMA), pow(float(c[1]) / 255.0, PHOTO_GAMMA),
 			pow(float(c[2]) / 255.0, PHOTO_GAMMA)) * PHOTO_GAIN
 	else:
-		var choices: Array[Color] = HOUSE_ROOFS if kind == "house" else BARN_ROOFS if kind == "barn" else SHED_ROOFS
+		var choices: Array[Color] = HOUSE_ROOFS if kind == "house" else BARN_ROOFS if kind == "barn" \
+			else SHED_ROOFS
 		color = choices[int(_hash(i * 17 + 3) * choices.size()) % choices.size()]
 	var top := float(b.height)
 	var eave := float(b.get("eave", top * EAVES[kind]))
 	var shape := str(b.get("roof", "gable"))
-	if shape == "flat":
+	if kind == "store":
+		eave = top - PARAPET_M  # (its roof stretch is the parapet)
+	elif shape == "flat":
 		eave = top
 	eave = clampf(eave, minf(MIN_WALL_M, top), top)
 	color.a = clampf((eave + below) / height, 0.05, 1.0)
@@ -398,7 +428,7 @@ func _instantiate(block: Block) -> void:
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		mm.use_colors = true
 		mm.use_custom_data = true
-		mm.mesh = _meshes["%s:%d" % [kind, maxi(block.lod, 0)]]
+		mm.mesh = _meshes["%s:%d" % [kind, _kind_lod(block, kind)]]
 		mm.instance_count = buffer.size() / STRIDE
 		mm.buffer = buffer
 		var inst := MultiMeshInstance3D.new()
@@ -446,6 +476,8 @@ func _building_color(kind: String, i: int) -> Color:
 			return Color.WHITE
 		"elevator":
 			return ELEVATOR_COLORS[int(h * ELEVATOR_COLORS.size()) % ELEVATOR_COLORS.size()]
+		"store":
+			return STORE_COLORS[int(h * STORE_COLORS.size()) % STORE_COLORS.size()]
 	return SHED_COLORS[int(h * SHED_COLORS.size()) % SHED_COLORS.size()]
 
 
@@ -503,6 +535,7 @@ func _free(block: Block) -> void:
 	block.node = null
 	block.multimeshes.clear()
 	block.lod = -1
+	block.small_lod = -1
 
 
 ## Solid boxes of the buildings within `radius` of a point (QA's clip probe), as
@@ -512,7 +545,7 @@ func building_boxes(near: Vector3, radius: float) -> Array:
 	for block: Block in _blocks.values():
 		if block.node == null or _distance(block) > radius + BLOCK:
 			continue
-		for kind: String in ["house", "barn", "shed", "bin", "elevator"]:
+		for kind: String in BUILDING_KINDS:
 			if not block.multimeshes.has(kind):
 				continue
 			var buffer: PackedFloat32Array = block.buffers[kind]

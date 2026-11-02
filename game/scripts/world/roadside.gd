@@ -51,7 +51,7 @@ func setup(r: RouteData) -> void:
 	for c: Dictionary in route.places.cities:
 		if c.entering:
 			_add_sign(c.station, 8.5, "%s\nPOP %s" % [String(c.name).to_upper(), _thousands(int(c.population))], green, gray)
-		elif c.station > route.start_station and c.station < route.start_station + RouteData.MILE_M:
+		elif c.station > route.start_station and c.station < route.start_station + 1.5 * RouteData.MILE_M:
 			leave_town = c.station
 	var s := leave_town + 150.0
 	while s < route.finish_station - RouteData.MILE_M:

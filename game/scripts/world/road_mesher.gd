@@ -116,6 +116,9 @@ func build_chunk(c: int, step := 1) -> ArrayMesh:
 			# Clockwise seen from above while driving north (+row is forward, +col is right).
 			indices.append_array([a, c2, d, a, d, b])
 
+	var mesh := ArrayMesh.new()
+	if indices.is_empty():
+		return mesh  # (all the 4-way's: nothing of ours)
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
@@ -123,6 +126,5 @@ func build_chunk(c: int, step := 1) -> ArrayMesh:
 	arrays[Mesh.ARRAY_TEX_UV2] = lines
 	arrays[Mesh.ARRAY_COLOR] = decks
 	arrays[Mesh.ARRAY_INDEX] = indices
-	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
