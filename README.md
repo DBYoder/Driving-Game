@@ -42,6 +42,15 @@ gas, brake, boost, handbrake and horn on the right), tappable menus and garage, 
 phone's own keyboard for the leaderboard name, sideways full screen, and lighter graphics
 to start with. The web build is single-threaded now, so it runs on iPhones too.
 
+**v0.9.7: shadows, the ground up close, and night lights.** Trees, buildings, cars,
+poles and signs cast the sun's shadows now (a Shadows setting: on for Medium and High,
+off on Low and on phones). The ground has its detail: grass in patches, soybeans and cut
+corn in rows, hay in swaths, a fence row between fields, worn wheel paths, tar-sealed
+cracks and patches in the asphalt, gravel shoulders of loose stones (and the far-off cut
+fields no longer shimmer). At night the street lights, the lots and the farm yard lights
+throw pools of light on the ground, oncoming traffic's headlights light the road ahead
+of it, every lamp has a soft halo, and the brake lights come on.
+
 **v0.9.6: the ways back, a daily challenge and a ghost.** Two new routes: Highway 1
 south from Mormon Trek in Iowa City and Highway 22 east from 8th Ave in Wellman, both back
 to the 4-way stop in Kalona (the same road and world, the other way along it, with their

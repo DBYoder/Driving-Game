@@ -11,7 +11,7 @@ signal garage
 signal to_title
 signal quit
 
-const VERSION := "v0.9.6"
+const VERSION := "v0.9.7"
 const SETTINGS := [["preset", "Graphics"], ["render_scale", "Resolution"], ["scenery", "Scenery"],
 	["shadows", "Shadows"], ["fullscreen", "Display"], ["master_volume", "Volume"], ["effects_volume", "Car and effects"],
 	["radio_volume", "Radio"], ["rumble", "Controller rumble"], ["ghost", "Ghost car"], ["touch_controls", "Touch controls"]]
