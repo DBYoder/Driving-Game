@@ -25,6 +25,18 @@ var cloud_cover := 0.32  ## share of the sky (sky.gdshader)
 var cloud_color := Color(1.0, 1.0, 1.0)  ## sunlit
 var cloud_shade := Color(0.70, 0.74, 0.80)  ## underneath
 var stars := 0.0
+## The sun's shadows (the Shadows setting): how dark (0: none, as at night), and how much
+## of the sun's and the sky's light to use with them. The renderer draws a light that
+## casts shadows in a pass of its own, added on top, which comes out brighter than the
+## same light without them: these bring each condition back to how it looks without
+## (matched by eye and by the picture's average brightness, within a few percent).
+var shadow := 0.75
+var shadow_sun := 0.33  ## of sun_energy
+var shadow_ambient := 0.85  ## of ambient_energy
+## The sky's faint reflection on the ground, the roads and the buildings (linear light,
+## added to them): what the renderer's own came to, measured, now that the lit shaders
+## draw it themselves (shaders/sun.gdshaderinc: the shadows' fix has to know it).
+var sky_sheen := Vector3(0.0043, 0.0080, 0.0134)
 var clock := 16 * 60 + 12  ## the time on the dash clock (minutes after midnight) as the run starts
 
 # The land
@@ -74,6 +86,9 @@ static func preset(condition_id: String) -> Condition:
 			c.sun_rotation = Vector3(-9.0, -78.0, 0.0)
 			c.sun_color = Color(1.0, 0.68, 0.42)
 			c.sun_energy = 0.95
+			c.shadow = 0.8  # long ones, across the road
+			c.shadow_sun = 0.49
+			c.sky_sheen = Vector3(0.0039, 0.0035, 0.0065)
 			c.fog_begin = 350.0
 			c.fog_end = 2600.0
 			c.cloud_cover = 0.3
@@ -104,6 +119,8 @@ static func preset(condition_id: String) -> Condition:
 			c.sun_rotation = Vector3(-35.0, 140.0, 0.0)  # the moon
 			c.sun_color = Color(0.55, 0.62, 0.85)
 			c.sun_energy = 0.12
+			c.shadow = 0.0
+			c.sky_sheen = Vector3.ZERO
 			c.fog_begin = 250.0
 			c.fog_end = 2400.0
 			c.cloud_cover = 0.22
@@ -124,6 +141,10 @@ static func preset(condition_id: String) -> Condition:
 			c.sun_rotation = Vector3(-60.0, -20.0, 0.0)
 			c.sun_color = Color(0.80, 0.86, 0.88)
 			c.sun_energy = 0.45
+			c.shadow = 0.3  # faint, under the overcast
+			c.shadow_sun = 0.38
+			c.shadow_ambient = 0.92
+			c.sky_sheen = Vector3(0.0024, 0.0030, 0.0033)
 			c.fog_begin = 120.0
 			c.fog_end = 1500.0
 			c.cloud_cover = 0.95
@@ -148,6 +169,10 @@ static func preset(condition_id: String) -> Condition:
 			c.sun_rotation = Vector3(-22.0, -20.0, 0.0)
 			c.sun_color = Color(0.95, 0.96, 1.0)
 			c.sun_energy = 0.7
+			c.shadow = 0.35
+			c.shadow_sun = 0.14  # (snow's nearly white already: any more and it's all one white)
+			c.shadow_ambient = 0.7
+			c.sky_sheen = Vector3(0.0090, 0.0104, 0.0120)
 			c.fog_begin = 60.0
 			c.fog_end = 900.0
 			c.cloud_cover = 0.8
@@ -171,6 +196,14 @@ static func preset(condition_id: String) -> Condition:
 			c.same_direction = {"buggy": 0.0, "snowplow": 0.12, "tractor": 0.05, "car": 0.83}
 			c.oncoming = {"snowplow": 0.08, "semi": 0.17, "pickup": 0.35, "car": 0.4}
 	return c
+
+
+## The sun's and the sky's light, with the sun's shadows or without: {shadows, sun,
+## ambient} (the energies main gives the sun and the environment).
+func light(with_shadows: bool) -> Dictionary:
+	var on := with_shadows and shadow > 0.0
+	return {"shadows": on, "sun": sun_energy * (shadow_sun if on else 1.0),
+		"ambient": ambient_energy * (shadow_ambient if on else 1.0)}
 
 
 ## How lit the (unshaded) corn should look: roughly what the sky and sun give a lit

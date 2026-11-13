@@ -110,7 +110,7 @@ func _build() -> void:
 			_body.add_child(holder)
 		var node := MultiMeshInstance3D.new()
 		node.multimesh = multimesh
-		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		node.visibility_range_end = DRAW_RANGE
 		add_child(node)
 		# Wires from each pole to the next (this chunk's last runs on to the next chunk's first).

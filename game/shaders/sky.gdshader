@@ -13,6 +13,7 @@ uniform vec3 cloud_color : source_color = vec3(1.0);  // sunlit tops
 uniform vec3 cloud_shade : source_color = vec3(0.72, 0.76, 0.82);  // undersides
 uniform float stars : hint_range(0.0, 1.0) = 0.0;
 uniform float sun_size = 0.025;  // radians across
+uniform float sun_energy = 1.1;  // the sun's own (the light's is turned down when it casts shadows)
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -47,7 +48,7 @@ void sky() {
 	// The sun (or the moon at night): a disk and a soft glow around it.
 	if (LIGHT0_ENABLED) {
 		float a = acos(clamp(dot(d, LIGHT0_DIRECTION), -1.0, 1.0));
-		vec3 light = LIGHT0_COLOR * min(LIGHT0_ENERGY, 1.2);
+		vec3 light = LIGHT0_COLOR * min(sun_energy, 1.2);
 		col += light * (1.0 - smoothstep(sun_size * 0.45, sun_size * 0.5, a)) * 2.0;
 		col += light * exp(-a * 9.0) * 0.18 * step(0.0, up);
 	}

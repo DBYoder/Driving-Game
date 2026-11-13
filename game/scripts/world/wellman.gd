@@ -251,6 +251,7 @@ func _lamp_post(st: SurfaceTool, g: Dictionary, at: Vector2) -> void:
 	MeshKit.box(st, Vector3(0.4, 0.5, 0.4), foot + Vector3(0, 0.25, 0), POST)
 	MeshKit.box(st, Vector3(0.16, 4.0, 0.16), foot + Vector3(0, 2.2, 0), POST)
 	MeshKit.box(st, Vector3(0.5, 0.55, 0.5), foot + Vector3(0, 4.45, 0), Landmarks.LAMP)
+	lm._lamp(g, foot + Vector3(0, 4.45, 0), "globe")
 	MeshKit.box(st, Vector3(0.62, 0.12, 0.62), foot + Vector3(0, 4.78, 0), POST)
 	lm._solid(g, foot + Vector3(0, 2.2, 0), Vector3(0.12, 2.2, 0.12))
 

@@ -168,3 +168,102 @@ func test_the_score_counts_what_happened() -> void:
 	check(s.raw.Corn == 25, "5 m of corn")
 	s.reset()
 	check(s.counts.is_empty() and s.raw.is_empty(), "a new run starts from nothing")
+
+
+func test_the_suns_shadows_are_a_setting() -> void:
+	var s = SettingsScript.new()
+	s.set_preset("low", false)
+	check(not s.shadows, "Low: no shadows (they cost half as many draw calls again)")
+	s.set_preset("medium", false)
+	check(s.shadows and s.describe("shadows") == "On", "Medium: shadows")
+	s.set_preset("high", false)
+	check(s.shadows and s.shadow_distance() > 200.0 and s.shadow_splits() == 4, "High: further out, in more detail")
+	s.step("shadows", 1)
+	check(not s.shadows and s.preset == "high" and s.describe("shadows").begins_with("Off"), "they switch off on their own; the preset stays")
+	s.save_path = TEMP_SETTINGS
+	s.save()
+	var t = SettingsScript.new()
+	t.load_file(TEMP_SETTINGS)
+	check(not t.shadows, "and that's saved")
+	var old := ConfigFile.new()
+	old.set_value("graphics", "preset", "medium")
+	old.save(TEMP_SETTINGS)
+	t.load_file(TEMP_SETTINGS)
+	check(t.shadows == SettingsScript.preset_shadows("medium"), "a settings file from before shadows takes its preset's")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(TEMP_SETTINGS))
+	s.free()
+	t.free()
+
+
+func test_each_condition_is_lit_for_its_shadows() -> void:
+	for id: String in Condition.IDS:
+		var c := Condition.preset(id)
+		var without: Dictionary = c.light(false)
+		var with: Dictionary = c.light(true)
+		check(not without.shadows and is_equal_approx(without.sun, c.sun_energy) and is_equal_approx(without.ambient, c.ambient_energy),
+			"%s without shadows: its own light" % id)
+		if c.shadow > 0.0:
+			check(with.shadows and with.sun < c.sun_energy and with.ambient <= c.ambient_energy,
+				"%s with shadows: the light turned down to suit them (sun %.2f, sky %.2f)" % [id, with.sun, with.ambient])
+		else:
+			check(not with.shadows and is_equal_approx(with.sun, c.sun_energy), "%s: no shadows (by moonlight)" % id)
+	check(Condition.preset("night").shadow == 0.0 and Condition.preset("harvest").shadow > Condition.preset("storm").shadow,
+		"none at night; long dark ones at dusk, faint ones under the storm")
+
+
+func test_the_ground_eases_its_facets_and_keeps_its_detail_off_on_low() -> void:
+	var mesh := route.terrain.build_mesh(0)
+	var arrays := mesh.surface_get_arrays(0)
+	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+	check(normals.size() == (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size(), "the terrain has a normal per vertex")
+	check(normals.size() > 0 and normals[normals.size() / 2].y > 0.8, "pointing up off gentle ground (%s)" % normals[normals.size() / 2])
+	var far := route.horizon.build_mesh(0).surface_get_arrays(0)
+	check((far[Mesh.ARRAY_NORMAL] as PackedVector3Array).size() > 0, "so has the ground out to the horizon")
+	var s = SettingsScript.new()
+	s.set_preset("low", false)
+	check(s.ground_detail() == 0.0, "Low: only the broad patches on the ground")
+	s.set_preset("medium", false)
+	check(s.ground_detail() == 1.0, "Medium: the rows, grain and stones too")
+	s.free()
+
+
+func test_the_lamps_light_the_ground_at_night() -> void:
+	var yard := Scenery.yard_lamps(route)
+	check(yard.size() > 500, "a yard light at most farmhouses (%d)" % yard.size())
+	var lamps := NightLamps.new()
+	lamps.add_all(yard, "yard")
+	lamps.add(Vector3(10, 8, 10), "street")
+	check(lamps.lamp_count() == yard.size() + 1, "all of them kept")
+	lamps._ready()
+	lamps.pick(Vector3(10, 0, 10))
+	check(lamps.count >= 1 and lamps.count <= NightLamps.MAX_LAMPS, "the nearest picked, at most %d (%d)" % [NightLamps.MAX_LAMPS, lamps.count])
+	var first: Color = lamps._image.get_pixel(0, 0)
+	check(Vector3(first.r, first.g, first.b).distance_to(Vector3(10, 8, 10)) < 0.01, "the nearest first")
+	lamps.max_lamps = 6
+	lamps.pick(yard[0])
+	check(lamps.count <= 6, "fewer on Low")
+	lamps.set_lit(false)
+	check(lamps.count == 0, "none by day")
+	lamps.free()
+
+
+func test_brake_lights() -> void:
+	var model := CarModel.new()
+	var stats := CarStats.preset("legend")
+	var wheels := []
+	for i in 4:
+		var w := Car.Wheel.new()
+		w.mount = Vector3(-0.7 if i % 2 == 0 else 0.7, stats.mount_y, -1.3 if i < 2 else 1.3)
+		w.front = i < 2
+		wheels.append(w)
+	model.build(stats, wheels)
+	model.set_brake(1.0, false)
+	var lights: ShaderMaterial = model._lights
+	check(lights.get_shader_parameter("brake") == 1.0 and lights.get_shader_parameter("reversing") == 0.0, "the brake lights come on")
+	model.set_brake(0.0, true)
+	check(lights.get_shader_parameter("reversing") == 1.0, "and the reversing lights going backward")
+	model.set_headlights(true)
+	check(model._halos != null and model._halos.multimesh.instance_count == 4, "two headlights and two tail lights glow at night")
+	model.set_headlights(false)
+	check(not model._halos.visible, "and not by day")
+	model.free()

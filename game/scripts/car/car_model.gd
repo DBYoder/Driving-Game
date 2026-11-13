@@ -197,7 +197,8 @@ var _shape: Dictionary
 var _paint: StandardMaterial3D
 var _trim: StandardMaterial3D
 var _glass: StandardMaterial3D
-var _lights: StandardMaterial3D
+var _lights: ShaderMaterial  ## shaders/car_lights.gdshader: brake lights, night, reversing
+var _halos: MultiMeshInstance3D  ## the head and tail lights' at night (Glow)
 var _body: Node3D  ## everything that leans (not the wheels)
 var _body_mesh: MeshInstance3D
 var _floor_mesh: MeshInstance3D  ## the top of the body under the cabin (see show_cabin_floor)
@@ -297,10 +298,10 @@ func build(stats: CarStats, wheels: Array) -> void:
 	_glass.vertex_color_use_as_albedo = true
 	_glass.metallic = 0.25
 	_glass.roughness = 0.2
-	_lights = StandardMaterial3D.new()
-	_lights.vertex_color_use_as_albedo = true
-	_lights.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_lights = ShaderMaterial.new()
+	_lights.shader = preload("res://shaders/car_lights.gdshader")
 	_body = Node3D.new()
+	_halos = null  # (it went with the body before)
 	add_child(_body)
 
 	_shape = SHAPES.get(stats.style, SHAPES.sedan)
@@ -320,10 +321,10 @@ func build(stats: CarStats, wheels: Array) -> void:
 		offsets.resize(surfaces[s][0].size())
 		_dents[s] = offsets
 	_body_mesh = MeshInstance3D.new()
-	_body_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_body_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	_body.add_child(_body_mesh)
 	_floor_mesh = MeshInstance3D.new()
-	_floor_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_floor_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	_body.add_child(_floor_mesh)
 	_rebuild_body()
 
@@ -551,6 +552,49 @@ func set_boost(on: bool) -> void:
 
 
 ## A cruiser's lights: flashing red and blue while it's chasing someone.
+## The brake lights (0..1), and the reversing lights.
+func set_brake(amount: float, backing_up: bool) -> void:
+	_lights.set_shader_parameter("brake", amount)
+	_lights.set_shader_parameter("reversing", 1.0 if backing_up else 0.0)
+
+
+## A halo round each headlight and tail light at night (Glow): where the lamps are, from
+## the lights surface's faces, a pair each end.
+func _make_halos() -> void:
+	if _halos:
+		_halos.queue_free()
+		_halos = null
+	if not _rest.has("lights"):
+		return
+	var verts: PackedVector3Array = _rest["lights"]
+	var colors: PackedColorArray = _colors["lights"]
+	var sums := {}  # [front?, right?] -> [sum, count, outermost along]
+	for i in verts.size():
+		var c := colors[i]
+		var red := c.r > 0.4 and c.g < 0.2 and c.b < 0.2
+		var white := c.g > 0.7 and c.b > 0.7
+		var v := verts[i]
+		if not (red and v.z > 0.0) and not (white and v.z < 0.0):
+			continue
+		var key := [v.z < 0.0, v.x > 0.0]
+		if not sums.has(key):
+			sums[key] = [Vector3.ZERO, 0, v.z]
+		sums[key][0] += v
+		sums[key][1] += 1
+		sums[key][2] = minf(sums[key][2], v.z) if v.z < 0.0 else maxf(sums[key][2], v.z)
+	var points := PackedVector3Array()
+	var tints := PackedColorArray()
+	for key: Array in sums:
+		var at: Vector3 = sums[key][0] / float(sums[key][1])
+		at.z = sums[key][2] + (-0.12 if key[0] else 0.12)
+		points.append(at)
+		tints.append(Glow.HEAD if key[0] else Glow.TAIL * 0.75)
+	if points.is_empty():
+		return
+	_halos = Glow.colored(points, tints, 0.34)
+	_body.add_child(_halos)
+
+
 func set_beacons(on: bool) -> void:
 	_beacons_on = on
 
@@ -560,8 +604,13 @@ func set_headlights(on: bool) -> void:
 	for light in _headlights:
 		light.queue_free()
 	_headlights.clear()
+	_lights.set_shader_parameter("night", 1.0 if on else 0.0)
+	if _halos:
+		_halos.visible = on
 	if not on or _stats == null:
 		return
+	if _halos == null:
+		_make_halos()
 	var w := _stats.body_size.x
 	var l := _stats.body_size.z
 	for side: float in [-1.0, 1.0]:
@@ -1426,7 +1475,7 @@ func _mesh_of(out: Array, material: Material) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
 	node.mesh = _array_mesh(out)
 	node.material_override = material
-	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	return node
 
 

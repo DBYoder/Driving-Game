@@ -5,6 +5,8 @@
 // it), UV2 (m north of IA 22's middle, m east along it).
 shader_type spatial;
 render_mode diffuse_lambert, specular_disabled;
+#include "res://shaders/sun.gdshaderinc"
+#include "res://shaders/ground.gdshaderinc"
 
 uniform vec3 concrete : source_color = vec3(0.58, 0.58, 0.55);
 uniform vec3 gravel : source_color = vec3(0.56, 0.51, 0.42);
@@ -34,12 +36,17 @@ void vertex() {
 }
 
 void fragment() {
+	sun_dist = length(VERTEX);
 	vec3 n = normalize(cross(dFdx(VERTEX), dFdy(VERTEX)));
 	NORMAL = dot(n, VIEW) < 0.0 ? -n : n;
-	float grain = hash(floor(world_pos.xz * 3.0)) - 0.5;
+	float px = g_pixel(world_pos);
+	vec2 wp = world_pos.xz;
 	vec3 col;
 	if (info.y < 0.25) {
-		col = concrete * (1.0 + 0.07 * grain);
+		// Each slab a shade of its own, a fine grain in it.
+		float slab = g_hash(floor(vec2(ia1.x / 3.66, ia1.y / 4.6)) + 3.0);
+		col = concrete * (0.96 + 0.08 * slab) * (1.0 + (g_hash(floor(wp * 9.0)) - 0.5) * 0.08 * g_fine(0.11, px))
+			* (1.0 + (g_noise(wp / 3.0) - 0.5) * 0.06);
 		// Joints along the lanes and across every 4.6 m, the way the slabs were poured.
 		float axis = info.x * 3.0;
 		float j1 = max(joint(ia1.x, 3.66, 1.83), joint(ia1.y, 4.6, 0.0));
@@ -47,9 +54,12 @@ void fragment() {
 		float j = axis < 0.5 ? j1 : (axis < 1.5 ? j22 : (axis < 2.5 ? max(j1, j22) : 0.0));
 		col = mix(col, col * 0.6, j * 0.7);
 	} else if (info.y < 0.75) {
-		col = gravel * (0.96 + 0.16 * grain);
+		col = g_gravel(gravel * 0.98, wp, px);
 	} else {
-		col = verge * (0.95 + 0.06 * grain);
+		col = g_grass(verge * 0.97, wp, px);
 	}
 	ALBEDO = col;
+	// (The sky's reflection, as the sun's fix needs to know it: shaders/sun.gdshaderinc.)
+	SPECULAR = 0.0;
+	EMISSION = g_emission(ALBEDO, world_pos, 1.0);
 }

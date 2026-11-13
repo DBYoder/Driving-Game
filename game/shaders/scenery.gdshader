@@ -20,6 +20,7 @@
 // by the scale squared first to come out right.
 shader_type spatial;
 render_mode cull_back, diffuse_lambert, specular_disabled;
+#include "res://shaders/sun.gdshaderinc"
 
 uniform vec3 leaf : source_color = vec3(0.25, 0.42, 0.17);
 uniform float snow : hint_range(0.0, 1.0) = 0.0;
@@ -80,6 +81,7 @@ void vertex() {
 }
 
 void fragment() {
+	sun_dist = length(VERTEX);
 	vec3 base = COLOR.rgb * shade;
 	float a = COLOR.a;
 	float leafy = step(0.83, a);
@@ -89,5 +91,7 @@ void fragment() {
 	float s = snow * smoothstep(0.3, 0.7, up) * (1.0 - lamp - window);
 	ALBEDO = mix(c, snow_color, s);
 	ROUGHNESS = 0.9;
-	EMISSION = (vec3(1.0, 0.78, 0.42) * window * 0.9 + vec3(0.85, 0.92, 1.0) * lamp * 3.0) * night;
+	// (The sky's reflection, as the sun's fix needs to know it: shaders/sun.gdshaderinc.)
+	SPECULAR = 0.0;
+	EMISSION = (vec3(1.0, 0.78, 0.42) * window * 0.9 + vec3(0.85, 0.92, 1.0) * lamp * 3.0) * night + sun_sheen();
 }

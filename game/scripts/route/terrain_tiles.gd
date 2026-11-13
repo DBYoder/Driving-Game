@@ -152,11 +152,27 @@ func build_mesh(i: int, lod := 0) -> ArrayMesh:
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = grid_normals(verts, n)
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_INDEX] = _grid_indices(n)
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return mesh
+
+
+## Smooth normals for an n x n grid of vertices (rows along +z, columns along +x), from
+## each vertex's neighbors (the terrain shader eases its facets toward them).
+static func grid_normals(verts: PackedVector3Array, n: int) -> PackedVector3Array:
+	var normals := PackedVector3Array()
+	normals.resize(n * n)
+	for row in n:
+		for col in n:
+			var l := verts[row * n + maxi(col - 1, 0)]
+			var r := verts[row * n + mini(col + 1, n - 1)]
+			var u := verts[maxi(row - 1, 0) * n + col]
+			var d := verts[mini(row + 1, n - 1) * n + col]
+			normals[row * n + col] = (d - u).cross(r - l).normalized()
+	return normals
 
 
 ## Two clockwise triangles per cell, split along the (row, col) -> (row+1, col+1) diagonal.

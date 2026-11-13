@@ -48,3 +48,46 @@ common/physics_interpolation=true
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=false
+
+[shader_globals]
+
+sun_shadow_scale={
+"type": "float",
+"value": 0.0
+}
+sky_light_drawn={
+"type": "vec3",
+"value": Vector3(0.35, 0.35, 0.33)
+}
+sky_light_full={
+"type": "vec3",
+"value": Vector3(0.35, 0.35, 0.33)
+}
+haze_color={
+"type": "vec3",
+"value": Vector3(0.5, 0.6, 0.7)
+}
+haze_range={
+"type": "vec2",
+"value": Vector2(450, 3000)
+}
+sky_sheen={
+"type": "vec3",
+"value": Vector3(0, 0, 0)
+}
+ground_detail={
+"type": "float",
+"value": 1.0
+}
+night_lamps={
+"type": "sampler2D",
+"value": ""
+}
+night_lamp_count={
+"type": "int",
+"value": 0
+}
+lamp_glow={
+"type": "float",
+"value": 0.0
+}

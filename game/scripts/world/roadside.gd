@@ -177,7 +177,7 @@ func _box(parent: Node3D, size: Vector3, pos: Vector3, material: Material) -> vo
 	node.mesh = mesh
 	node.material_override = material
 	node.position = pos
-	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	node.visibility_range_end = SIGN_RANGE
 	parent.add_child(node)
 

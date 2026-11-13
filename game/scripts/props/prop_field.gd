@@ -269,7 +269,7 @@ func _build_chunk(chunk: int) -> void:
 			mm.set_instance_transform(p.index, _instance_transform(p))
 		var node := MultiMeshInstance3D.new()
 		node.multimesh = mm
-		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		add_child(node)
 		nodes[kind] = node
 	_chunks[chunk] = {"props": props, "nodes": nodes}
@@ -342,7 +342,7 @@ func _launch_debris(p: Prop, velocity: Vector3, mass: float) -> void:
 	body.collision_mask = (1 << (Car.WORLD_LAYER - 1)) | (1 << (Car.CAR_LAYER - 1))
 	var mesh := MeshInstance3D.new()
 	mesh.mesh = _meshes[p.kind]
-	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	body.add_child(mesh)
 	var shape := CollisionShape3D.new()
 	if p.kind == "bale":

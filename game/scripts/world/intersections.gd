@@ -288,7 +288,7 @@ func _triangle(holder: Node3D, radius: float, pos: Vector3, material: Material) 
 	node.mesh = mesh
 	node.material_override = material
 	node.position = pos
-	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	holder.add_child(node)
 
 
@@ -306,7 +306,7 @@ func _octagon(holder: Node3D, radius: float, pos: Vector3, material: Material) -
 	# Turned a sixteenth of a turn about its axis so the top's flat, then tipped so the
 	# axis points at the driver.
 	node.basis = Basis(Vector3.RIGHT, PI / 2.0) * Basis(Vector3.UP, PI / 8.0)
-	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	holder.add_child(node)
 
 
@@ -508,7 +508,7 @@ func _box(parent: Node3D, size: Vector3, pos: Vector3, material: Material) -> vo
 	node.mesh = mesh
 	node.material_override = material
 	node.position = pos
-	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	parent.add_child(node)
 
 

@@ -200,6 +200,9 @@ func _light_pole(st: SurfaceTool, l: Dictionary) -> void:
 	lamp.visible = false
 	add_child(lamp)
 	lamps.append(lamp)
+	var halo := Glow.sprite(Glow.STREET, 0.8)
+	halo.position = head - Vector3.UP * 0.12
+	add_child(halo)
 
 
 ## The welcome sign: two panels meeting in a point toward the junction (one reads from
@@ -260,7 +263,7 @@ func _flagpole(st: SurfaceTool, f: Dictionary) -> void:
 	var flag := MeshInstance3D.new()
 	flag.mesh = Landmarks._flag_mesh(Vector2(2.0, 1.1))
 	flag.material_override = Landmarks._flag_material("us")
-	flag.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	flag.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	flag.transform = Transform3D(Basis(Vector3.UP, PI * 0.8), foot + Vector3(0.0, 9.4, 0.0))
 	add_child(flag)
 

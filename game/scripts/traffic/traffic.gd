@@ -217,7 +217,7 @@ func _add(kind: String, direction: float, station := -1.0) -> void:
 	v.speed = v.cruise
 	v.node = MeshInstance3D.new()
 	v.node.mesh = TrafficModels.build(kind, _rng)
-	v.node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	v.node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	if night:
 		v.node.add_child(TrafficModels.lamps(kind, spec))
 	add_child(v.node)

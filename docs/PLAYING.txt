@@ -114,10 +114,12 @@ mile up the road) and nothing's saved. Good for learning a stretch or a speed tr
 SETTINGS
 --------
 From the title screen or the pause menu. Saved as you change them.
-  Graphics      Low for slow PCs (lower resolution, half the trees), Medium, or High
-                (smoother edges, more detail in the distance)
+  Graphics      Low for slow PCs (lower resolution, half the trees, no shadows, plainer
+                ground), Medium, or High (smoother edges, more detail and shadows in
+                the distance)
   Resolution    50-100%: lower it if the game stutters
   Scenery       everything, half the trees, or none (F2 does this while driving too)
+  Shadows       the sun's, from the trees, buildings and cars: off is faster
   Display       a window or full screen
   Volume        overall, the car and effects, and the radio, separately
   Controller rumble  on or off
