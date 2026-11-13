@@ -59,6 +59,11 @@ var _boxes: Array = []  ## [Transform3D at the box's center, half extents]: for 
 var _body: StaticBody3D
 
 
+## Its lamps (world positions) by kind (NightLamps.KINDS): the main streets' lights, the
+## parking lots', Wellman's globes. Each kind's halos are one draw call (Glow).
+var lamps := {"street": PackedVector3Array(), "lot": PackedVector3Array(), "globe": PackedVector3Array()}
+
+
 func setup(r: RouteData) -> void:
 	route = r
 	material = ShaderMaterial.new()
@@ -82,6 +87,15 @@ func setup(r: RouteData) -> void:
 					_street_lights(l)
 	if route.road_end < route.length:
 		_road_end(route.road_end)
+	for kind: String in lamps:
+		if not lamps[kind].is_empty():
+			add_child(Glow.batch(lamps[kind], {"street": Glow.STREET, "lot": Glow.STREET, "globe": Glow.GLOBE}[kind],
+				0.55 if kind == "globe" else 0.8))
+
+
+## A lamp of `kind` at `local` in a builder's space (`g`).
+func _lamp(g: Dictionary, local: Vector3, kind: String) -> void:
+	lamps[kind].append(g.at + g.basis * local)
 
 
 ## The end of a road that runs on past the finish: ROAD CLOSED. Three Type III barricades
@@ -188,6 +202,7 @@ func _street_lights(street: Dictionary) -> void:
 			MeshKit.box(st, Vector3(0.1, 0.1, 2.9), mid, POLE, atan2(right.x, right.z))
 			MeshKit.box(st, Vector3(0.45, 0.2, 0.8), tip - right * 0.25, POLE, atan2(right.x, right.z))
 			MeshKit.box(st, Vector3(0.32, 0.04, 0.6), tip - right * 0.25 - Vector3.UP * 0.11, LAMP, atan2(right.x, right.z))
+			lamps.street.append(origin + tip - right * 0.25 - Vector3.UP * 0.2)
 			_solid_at(Transform3D(Basis(), origin + (foot + top) / 2.0), Vector3(0.13, (top.y - foot.y) / 2.0, 0.13))
 			side = -side
 		s += LIGHT_EVERY if clear else 4.0
@@ -649,6 +664,7 @@ func _lot_light(st: SurfaceTool, g: Dictionary, at: Vector2) -> void:
 	_solid(g, foot + Vector3(0, 4.0, 0), Vector3(0.11, 4.5, 0.11))
 	MeshKit.box(st, Vector3(1.2, 0.1, 0.12), foot + Vector3(0.6, 8.4, 0), POLE)
 	MeshKit.box(st, Vector3(0.5, 0.18, 0.4), foot + Vector3(1.1, 8.25, 0), LAMP)
+	_lamp(g, foot + Vector3(1.1, 8.1, 0), "lot")
 
 
 ## The sign at the east entrance, square to the road so it reads both ways: brick piers,
@@ -883,6 +899,7 @@ func _light_pole(st: SurfaceTool, g: Dictionary, at: Vector3) -> void:
 	_solid(g, at + Vector3(0, (8.5 + g.base) / 2.0, 0), pole / 2.0)
 	MeshKit.box(st, Vector3(1.2, 0.1, 0.12), at + Vector3(0.6, 8.4, 0), POLE)
 	MeshKit.box(st, Vector3(0.5, 0.18, 0.4), at + Vector3(1.1, 8.25, 0), LAMP)
+	_lamp(g, at + Vector3(1.1, 8.1, 0), "lot")
 
 
 ## Lettering on a wall, facing `normal`. `lit` for a sign that's lit at night.

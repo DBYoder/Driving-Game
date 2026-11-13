@@ -79,3 +79,15 @@ ground_detail={
 "type": "float",
 "value": 1.0
 }
+night_lamps={
+"type": "sampler2D",
+"value": ""
+}
+night_lamp_count={
+"type": "int",
+"value": 0
+}
+lamp_glow={
+"type": "float",
+"value": 0.0
+}

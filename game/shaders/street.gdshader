@@ -73,5 +73,5 @@ void fragment() {
 	ALBEDO = col;
 	// (The sky's reflection, as the sun's fix needs to know it: shaders/sun.gdshaderinc.)
 	SPECULAR = 0.0;
-	EMISSION = sun_sheen();
+	EMISSION = g_emission(ALBEDO, world_pos, 1.0);
 }

@@ -47,19 +47,32 @@ static func lamps(kind: String, spec: Dictionary) -> MeshInstance3D:
 	var white := Color(1.0, 0.97, 0.85)
 	var red := Color(0.95, 0.08, 0.05)
 	var amber := Color(1.0, 0.65, 0.15)
+	var halos := PackedVector3Array()  # (and a halo round each: Glow)
+	var halo_colors := PackedColorArray()
 	match kind:
 		"buggy":
-			MeshKit.box(st, Vector3(0.14, 0.14, 0.14), Vector3(0.82, 1.6, back - 1.8), amber)
-			MeshKit.box(st, Vector3(0.14, 0.14, 0.14), Vector3(-0.82, 1.6, back - 1.8), amber)
-			MeshKit.box(st, Vector3(0.12, 0.12, 0.05), Vector3(0.55, 1.2, back + 0.02), red)
-			MeshKit.box(st, Vector3(0.12, 0.12, 0.05), Vector3(-0.55, 1.2, back + 0.02), red)
+			for at: Vector3 in [Vector3(0.82, 1.6, back - 1.8), Vector3(-0.82, 1.6, back - 1.8)]:
+				MeshKit.box(st, Vector3(0.14, 0.14, 0.14), at, amber)
+				halos.append(at)
+				halo_colors.append(Glow.LANTERN)
+			for at: Vector3 in [Vector3(0.55, 1.2, back + 0.02), Vector3(-0.55, 1.2, back + 0.02)]:
+				MeshKit.box(st, Vector3(0.12, 0.12, 0.05), at, red)
+				halos.append(at + Vector3(0, 0, 0.1))
+				halo_colors.append(Glow.TAIL * 0.6)
 		_:
 			var y := 0.7 if kind == "car" else 1.0
 			for side: float in [-1.0, 1.0]:
-				MeshKit.box(st, Vector3(0.28, 0.14, 0.05), Vector3(side * (w / 2.0 - 0.3), y, front - 0.03), white)
-				MeshKit.box(st, Vector3(0.22, 0.14, 0.05), Vector3(side * (w / 2.0 - 0.25), y, back + 0.03), red)
+				var head := Vector3(side * (w / 2.0 - 0.3), y, front - 0.03)
+				var tail := Vector3(side * (w / 2.0 - 0.25), y, back + 0.03)
+				MeshKit.box(st, Vector3(0.28, 0.14, 0.05), head, white)
+				MeshKit.box(st, Vector3(0.22, 0.14, 0.05), tail, red)
+				halos.append_array([head - Vector3(0, 0, 0.1), tail + Vector3(0, 0, 0.1)])
+				halo_colors.append_array([Glow.HEAD, Glow.TAIL * 0.7])
 			if kind in ["combine", "snowplow", "tractor"]:
-				MeshKit.box(st, Vector3(0.5, 0.15, 0.25), Vector3(0, 3.6 if kind == "combine" else 3.2, front + 2.0), amber)
+				var beacon := Vector3(0, 3.6 if kind == "combine" else 3.2, front + 2.0)
+				MeshKit.box(st, Vector3(0.5, 0.15, 0.25), beacon, amber)
+				halos.append(beacon)
+				halo_colors.append(Glow.LANTERN)
 	var mesh := st.commit()
 	var m := StandardMaterial3D.new()
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -68,6 +81,7 @@ static func lamps(kind: String, spec: Dictionary) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
 	node.mesh = mesh
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.add_child(Glow.colored(halos, halo_colors, 0.45))
 	return node
 
 

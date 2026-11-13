@@ -200,6 +200,9 @@ func _light_pole(st: SurfaceTool, l: Dictionary) -> void:
 	lamp.visible = false
 	add_child(lamp)
 	lamps.append(lamp)
+	var halo := Glow.sprite(Glow.STREET, 0.8)
+	halo.position = head - Vector3.UP * 0.12
+	add_child(halo)
 
 
 ## The welcome sign: two panels meeting in a point toward the junction (one reads from

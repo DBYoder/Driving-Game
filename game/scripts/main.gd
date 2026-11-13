@@ -66,6 +66,7 @@ var streamer: WorldStreamer
 var scenery: Scenery
 var landmarks: Landmarks
 var lots: Lots
+var night_lamps: NightLamps
 var ghost: Ghost
 var intersections: Intersections
 var junction: Junction
@@ -172,6 +173,11 @@ func _ready() -> void:
 	power_lines = PowerLines.new()
 	add_child(power_lines)
 	power_lines.setup(route, streamer.streets)
+	night_lamps = NightLamps.new()
+	add_child(night_lamps)
+	night_lamps.add_all(Scenery.yard_lamps(route), "yard")
+	for kind: String in landmarks.lamps:
+		night_lamps.add_all(landmarks.lamps[kind], kind)
 
 	var stats := CarStats.preset(args.get("car", "legend"))
 	if args.has("tune"):
@@ -234,6 +240,8 @@ func _ready() -> void:
 
 	camera = ChaseCamera.new()
 	add_child(camera)
+	night_lamps.camera = camera
+	night_lamps.traffic = traffic
 	if args.has("view"):
 		camera.mode = int(args.view)
 	_spawn_station = float(args.station) if args.has("station") else route.start_station - SPAWN_BEHIND_START
@@ -675,6 +683,7 @@ func apply_settings() -> void:
 	weather.set_particle_scale(Settings.particles())
 	tire_marks.particle_scale = Settings.particles()
 	RenderingServer.global_shader_parameter_set("ground_detail", Settings.ground_detail())
+	night_lamps.max_lamps = 6 if Settings.preset == "low" else NightLamps.MAX_LAMPS
 	_apply_light()
 
 
@@ -749,6 +758,8 @@ func apply_condition(c: Condition) -> void:
 	run.car_changed()
 	hud.condition_name = c.display_name
 	_apply_light()  # (after the weather's had the condition: it flashes the sky's light)
+	RenderingServer.global_shader_parameter_set("lamp_glow", c.night)
+	night_lamps.set_lit(c.night > 0.5)
 
 
 func _drive(_car_id: String, _paint: int, _condition_id: String) -> void:

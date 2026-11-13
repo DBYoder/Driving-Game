@@ -27,6 +27,7 @@ const COLLIDE_UNLOAD := 400.0
 const KINDS := ["house", "barn", "shed", "store", "bin", "elevator", "tree", "conifer", "yard_light"]
 const BUILDING_KINDS := ["house", "barn", "shed", "store", "bin", "elevator"]
 const YARD_LIGHT_HEIGHT := 8.0
+const YARD_LAMP := Vector3(0.6, 0.92, 0.0)  ## the lamp, in a yard light's instance (SceneryMeshes)
 const TRUNK_RADIUS := 0.35
 const TRUNK_HEIGHT := 5.0
 ## A crown no wider than this times the tree's height (a low, wide lidar tree drawn at its
@@ -80,6 +81,7 @@ class Block:
 	var lod := -1  ## buildings' model (0 detailed, 1 plain; -1 not built)
 	var small_lod := -1  ## trees' and yard lights'
 	var multimeshes := {}  ## kind -> MultiMeshInstance3D
+	var glows: Array[MultiMeshInstance3D] = []  ## the yard lights' halos (night only)
 	var body := RID()
 	var shapes: Array[RID] = []
 	var buffers := {}  ## kind -> PackedFloat32Array of instances, once worked out
@@ -107,6 +109,7 @@ var threads := OS.has_feature("threads")
 ## The closest a block appeared to the focus while driving (QA checks it).
 var nearest_pop_in := INF
 var _blocks := {}  ## Vector2i -> Block
+var _night := false  ## the yard lights' halos are on
 var _meshes := {}  ## "kind:lod" -> Mesh
 var _trunk_shape := RID()
 var _refresh := 0.0
@@ -168,6 +171,10 @@ func set_look(leaf: Color, snow: float, night: float) -> void:
 	material.set_shader_parameter("leaf", leaf)
 	material.set_shader_parameter("snow", snow)
 	material.set_shader_parameter("night", night)
+	_night = night > 0.5
+	for block: Block in _blocks.values():
+		for glow in block.glows:
+			glow.visible = _night
 
 
 func _process(delta: float) -> void:
@@ -358,19 +365,39 @@ func _place_building(by_kind: Dictionary, i: int) -> void:
 ## A house's pole light: where the bake found room for it in the yard ("light"; null if
 ## there's none), or (older data) off a corner.
 func _place_yard_light(by_kind: Dictionary, b: Dictionary, basis: Basis, yaw: float) -> void:
+	var pole := yard_light_at(route, b, basis, yaw)
+	if pole != Transform3D():
+		_append(by_kind["yard_light"], pole, Color.WHITE)
+
+
+## A house's pole light, as its instance's transform (Transform3D() if it has none).
+static func yard_light_at(r: RouteData, b: Dictionary, basis: Basis, yaw: float) -> Transform3D:
 	var spot: Vector3
 	if b.has("light"):
 		if b.light == null:
-			return
+			return Transform3D()
 		spot = Vector3(float(b.light[0]), 0.0, float(b.light[1]))
 	else:
 		spot = Vector3(float(b.x), 0, float(b.z)) + basis * Vector3(float(b.length) * 0.5 + 6.0, 0, float(b.width) * 0.5 + 4.0)
-	var h := route.terrain.height_at(spot.x, spot.z)
+	var h := r.terrain.height_at(spot.x, spot.z)
 	if is_nan(h):
-		return
-	var pole := Transform3D(Basis(Vector3.UP, yaw + PI * 0.5) * Basis.from_scale(Vector3(1.0, YARD_LIGHT_HEIGHT, 1.0)),
+		return Transform3D()
+	return Transform3D(Basis(Vector3.UP, yaw + PI * 0.5) * Basis.from_scale(Vector3(1.0, YARD_LIGHT_HEIGHT, 1.0)),
 		Vector3(spot.x, h - 0.2, spot.z))
-	_append(by_kind["yard_light"], pole, Color.WHITE)
+
+
+## Where every farmhouse's yard light hangs its lamp (world), for the pools of light they
+## throw at night (NightLamps).
+static func yard_lamps(r: RouteData) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for b: Dictionary in r.buildings:
+		if b.kind != "house":
+			continue
+		var yaw := float(b.yaw)
+		var pole := yard_light_at(r, b, Basis(Vector3.UP, yaw), yaw)
+		if pole != Transform3D():
+			out.append(pole * YARD_LAMP)
+	return out
 
 
 ## A building's roof for the shader: its color (from the photos, or picked), and the
@@ -437,6 +464,21 @@ func _instantiate(block: Block) -> void:
 		inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		block.node.add_child(inst)
 		block.multimeshes[kind] = inst
+		if kind == "yard_light":  # its lamp's halo at night: the same instances, a quad each
+			var glow_mm := MultiMesh.new()
+			glow_mm.transform_format = MultiMesh.TRANSFORM_3D
+			glow_mm.use_colors = true
+			glow_mm.use_custom_data = true
+			glow_mm.mesh = Glow.quad()
+			glow_mm.instance_count = mm.instance_count
+			glow_mm.buffer = buffer
+			var glow := MultiMeshInstance3D.new()
+			glow.multimesh = glow_mm
+			glow.material_override = Glow.material(Glow.YARD, 0.55, YARD_LAMP)
+			glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			glow.visible = _night
+			block.node.add_child(glow)
+			block.glows.append(glow)
 	_apply_density(block)
 
 
@@ -534,6 +576,7 @@ func _free(block: Block) -> void:
 	block.node.queue_free()
 	block.node = null
 	block.multimeshes.clear()
+	block.glows.clear()
 	block.lod = -1
 	block.small_lod = -1
 

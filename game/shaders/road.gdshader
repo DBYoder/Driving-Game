@@ -131,5 +131,5 @@ void fragment() {
 	// keeps the renderer's own: it's a mirror.)
 	ROUGHNESS = mix(1.0, 0.12, ice);
 	SPECULAR = 0.9 * ice;
-	EMISSION = sun_sheen() * (1.0 - ice);
+	EMISSION = g_emission(ALBEDO, world_pos, 1.0 - ice);
 }

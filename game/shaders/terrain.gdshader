@@ -99,5 +99,5 @@ void fragment() {
 	ALBEDO = mix(g_grass(verge, wp, px), crop, smoothstep(verge_width - 3.0, verge_width + 3.0, road_dist));
 	// (The sky's reflection, as the sun's fix needs to know it: shaders/sun.gdshaderinc.)
 	SPECULAR = 0.0;
-	EMISSION = sun_sheen();
+	EMISSION = g_emission(ALBEDO, world_pos, 1.0);
 }

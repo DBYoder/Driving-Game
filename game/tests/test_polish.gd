@@ -225,3 +225,45 @@ func test_the_ground_eases_its_facets_and_keeps_its_detail_off_on_low() -> void:
 	s.set_preset("medium", false)
 	check(s.ground_detail() == 1.0, "Medium: the rows, grain and stones too")
 	s.free()
+
+
+func test_the_lamps_light_the_ground_at_night() -> void:
+	var yard := Scenery.yard_lamps(route)
+	check(yard.size() > 500, "a yard light at most farmhouses (%d)" % yard.size())
+	var lamps := NightLamps.new()
+	lamps.add_all(yard, "yard")
+	lamps.add(Vector3(10, 8, 10), "street")
+	check(lamps.lamp_count() == yard.size() + 1, "all of them kept")
+	lamps._ready()
+	lamps.pick(Vector3(10, 0, 10))
+	check(lamps.count >= 1 and lamps.count <= NightLamps.MAX_LAMPS, "the nearest picked, at most %d (%d)" % [NightLamps.MAX_LAMPS, lamps.count])
+	var first: Color = lamps._image.get_pixel(0, 0)
+	check(Vector3(first.r, first.g, first.b).distance_to(Vector3(10, 8, 10)) < 0.01, "the nearest first")
+	lamps.max_lamps = 6
+	lamps.pick(yard[0])
+	check(lamps.count <= 6, "fewer on Low")
+	lamps.set_lit(false)
+	check(lamps.count == 0, "none by day")
+	lamps.free()
+
+
+func test_brake_lights() -> void:
+	var model := CarModel.new()
+	var stats := CarStats.preset("legend")
+	var wheels := []
+	for i in 4:
+		var w := Car.Wheel.new()
+		w.mount = Vector3(-0.7 if i % 2 == 0 else 0.7, stats.mount_y, -1.3 if i < 2 else 1.3)
+		w.front = i < 2
+		wheels.append(w)
+	model.build(stats, wheels)
+	model.set_brake(1.0, false)
+	var lights: ShaderMaterial = model._lights
+	check(lights.get_shader_parameter("brake") == 1.0 and lights.get_shader_parameter("reversing") == 0.0, "the brake lights come on")
+	model.set_brake(0.0, true)
+	check(lights.get_shader_parameter("reversing") == 1.0, "and the reversing lights going backward")
+	model.set_headlights(true)
+	check(model._halos != null and model._halos.multimesh.instance_count == 4, "two headlights and two tail lights glow at night")
+	model.set_headlights(false)
+	check(not model._halos.visible, "and not by day")
+	model.free()

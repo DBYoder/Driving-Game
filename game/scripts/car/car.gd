@@ -267,6 +267,8 @@ func _physics_process(delta: float) -> void:
 	_accel_last_velocity = linear_velocity
 	_accel = _accel.lerp(accel, 1.0 - exp(-delta * 8.0))
 	model.set_boost(boosting)
+	var backing := forward_speed() < -0.3
+	model.set_brake(clampf(brake * 3.0, 0.0, 1.0) if not backing else 0.0, backing and brake > 0.05)
 	model.update(wheels, steer_angle, _accel, speed, delta)
 
 

@@ -9,6 +9,11 @@
 // m: g_pixel(world position), once per fragment.
 
 global uniform float ground_detail;  // 0: only the broad patches (Low), 1: all of it
+// At night, the lamps and headlights nearest the camera (NightLamps): a column each, rows
+// (position, reach), (light, 0 for a lamp / 1 for headlights), (headlights' direction,
+// spread, length).
+global uniform sampler2D night_lamps : filter_nearest;
+global uniform int night_lamp_count;
 
 // An integer hash of a lattice cell to [0, 1): no sin(), so no patterns far from the
 // origin (the routes run 15 km from it).
@@ -88,4 +93,44 @@ vec3 g_gravel(vec3 base, vec2 p, float px) {
 	float stones = mix(0.84, 0.92 + 0.22 * g_hash(cell), body) / 0.94;  // (0.94: their average)
 	float mottle = g_noise(p / 1.7 + 5.5);
 	return base * mix(1.0, stones, g_fine(0.1, px)) * (1.0 + (mottle - 0.5) * 0.16 * g_fine(1.7, px) + (g_noise(p / 11.0) - 0.5) * 0.08);
+}
+
+
+// The light (linear) the lamps nearest the camera and the traffic's headlights throw on
+// the ground at `world`: a pool under each lamp, as bright as it's high (it falls off with
+// the cube of the slant distance, like a real one), and a beam down the road ahead of each
+// pair of headlights.
+vec3 g_lamps(vec3 world) {
+	vec3 sum = vec3(0.0);
+	for (int i = 0; i < night_lamp_count; i++) {
+		vec4 at = texelFetch(night_lamps, ivec2(i, 0), 0);
+		vec4 light = texelFetch(night_lamps, ivec2(i, 1), 0);
+		vec3 v = world - at.xyz;
+		float across = length(v.xz);
+		if (across > at.w) {
+			continue;
+		}
+		float f;
+		if (light.a < 0.5) {
+			float h = max(-v.y, 1.0);
+			f = pow(h / max(length(v), h), 3.0);
+		} else {
+			vec4 beam = texelFetch(night_lamps, ivec2(i, 2), 0);
+			float along = dot(v.xz, beam.xy);
+			float side = abs(v.x * beam.y - v.z * beam.x);
+			float width = along * beam.z + 0.8;
+			f = smoothstep(1.5, 7.0, along) * (1.0 - smoothstep(width * 0.5, width, side))
+				* 40.0 / (40.0 + along * along * 0.35);
+		}
+		sum += light.rgb * f * (1.0 - smoothstep(at.w * 0.6, at.w, across));
+	}
+	return sum;
+}
+
+// EMISSION for a lit ground shader: the sky's faint reflection (shaders/sun.gdshaderinc,
+// `sheen` of it) and the lamps' light at night on the surface `albedo` (as fragment()
+// has it, in sRGB).
+vec3 g_emission(vec3 albedo, vec3 world, float sheen) {
+	vec3 lamps = night_lamp_count > 0 ? sun_decode(albedo) * g_lamps(world) : vec3(0.0);
+	return sun_encode(sky_sheen * sheen + lamps);
 }
