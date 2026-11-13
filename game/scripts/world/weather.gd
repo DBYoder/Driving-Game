@@ -30,7 +30,7 @@ var _next_flash := 5.0
 var _flash := -1.0
 var _thunder_in := -1.0
 var _rumble := 0.0  ## thunder loudness, decaying
-var _base_ambient := 0.55
+var base_ambient := 0.55  ## the sky's light between lightning flashes (main sets it: _apply_light)
 var _base_sky := Color()
 var _audio: AudioStreamPlayer
 var _playback: AudioStreamGeneratorPlayback
@@ -66,7 +66,7 @@ func setup(c: Car, cam: Camera3D, environment: Environment, sky_material: Shader
 
 func apply(c: Condition) -> void:
 	condition = c
-	_base_ambient = c.ambient_energy
+	base_ambient = c.ambient_energy
 	_base_sky = c.sky_top
 	_rain.emitting = c.rain > 0.0
 	_rain.visible = c.rain > 0.0
@@ -172,11 +172,11 @@ func _lightning(delta: float) -> void:
 		_flash += delta
 		# Two quick pulses.
 		var lit := (_flash < 0.07) or (_flash > 0.14 and _flash < 0.26)
-		env.ambient_light_energy = _base_ambient + (2.2 if lit else 0.0)
+		env.ambient_light_energy = base_ambient + (2.2 if lit else 0.0)
 		sky.set_shader_parameter("sky_top_color", _base_sky.lerp(Color(0.85, 0.88, 1.0), 0.8 if lit else 0.0))
 		if _flash > 0.3:
 			_flash = -1.0
-			env.ambient_light_energy = _base_ambient
+			env.ambient_light_energy = base_ambient
 			sky.set_shader_parameter("sky_top_color", _base_sky)
 	if _thunder_in >= 0.0:
 		_thunder_in -= delta

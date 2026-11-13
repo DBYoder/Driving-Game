@@ -6,6 +6,7 @@
 // street (a parking lane and a concrete gutter where the gravel would be).
 shader_type spatial;
 render_mode diffuse_lambert, specular_disabled;
+#include "res://shaders/sun.gdshaderinc"
 
 uniform vec3 asphalt : source_color = vec3(0.17, 0.17, 0.18);
 uniform vec3 gravel : source_color = vec3(0.56, 0.51, 0.42);
@@ -41,6 +42,7 @@ void vertex() {
 }
 
 void fragment() {
+	sun_dist = length(VERTEX);
 	vec3 n = normalize(cross(dFdx(VERTEX), dFdy(VERTEX)));
 	NORMAL = dot(n, VIEW) < 0.0 ? -n : n;
 
@@ -65,6 +67,9 @@ void fragment() {
 	ice *= 1.0 - smoothstep(paved_half_width - 0.3, paved_half_width + 0.3, a);
 	col = mix(col, vec3(0.10, 0.12, 0.15), ice * 0.65);
 	ALBEDO = col;
+	// (The sky's reflection, as the sun's fix needs to know it: shaders/sun.gdshaderinc. Ice
+	// keeps the renderer's own: it's a mirror.)
 	ROUGHNESS = mix(1.0, 0.12, ice);
-	SPECULAR = mix(0.5, 0.9, ice);
+	SPECULAR = 0.9 * ice;
+	EMISSION = sun_sheen() * (1.0 - ice);
 }

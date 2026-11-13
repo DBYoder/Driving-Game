@@ -20,6 +20,7 @@ extends Node3D
 ##   --condition=<id>     summer, harvest, night, storm or winter (default: the garage's pick)
 ##   --scenery=<0..1>     how much of the buildings and trees to draw (F2 in the game)
 ##   --preset=<id>        graphics preset for this run: low, medium or high (not saved)
+##   --shadows=<0|1>      the sun's shadows off or on for this run (not saved)
 ##   --seed=<n>           fix where the speed traps and deer are (random each run
 ##                        otherwise; tests and screenshots default to 1)
 ##   --challenge[=<day>]  drive the daily challenge (today's, or YYYY-MM-DD's)
@@ -150,6 +151,8 @@ func _ready() -> void:
 		Settings.set_preset(args.preset, false)
 	if args.has("scenery"):
 		Settings.scenery = float(args.scenery)
+	if args.has("shadows"):
+		Settings.shadows = str(args.shadows) != "0"
 	scenery.density = Settings.scenery
 	var roadside := Roadside.new()
 	add_child(roadside)
@@ -659,7 +662,8 @@ func _show_car(car_id: String, paint: int, condition_id: String) -> void:
 
 
 ## The graphics settings, applied to the world (and again whenever they change): the 3D
-## resolution, anti-aliasing, how much scenery and how detailed, how much rain and snow.
+## resolution, anti-aliasing, how much scenery and how detailed, how much rain and snow,
+## the sun's shadows.
 func apply_settings() -> void:
 	var vp := get_viewport()
 	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
@@ -670,6 +674,36 @@ func apply_settings() -> void:
 		scenery.density = Settings.scenery
 	weather.set_particle_scale(Settings.particles())
 	tire_marks.particle_scale = Settings.particles()
+	_apply_light()
+
+
+## The sun and the sky's light for the condition, with the sun's shadows if the setting's
+## on and the condition has any (Condition.light: the light's turned down to suit them).
+## Trees, buildings, poles, signs, fences and everything on the road cast them; the ground,
+## the road and the corn don't.
+func _apply_light() -> void:
+	if condition == null:
+		return
+	var light := condition.light(Settings.shadows)
+	sun.light_energy = light.sun
+	environment.ambient_light_energy = light.ambient
+	weather.base_ambient = light.ambient
+	sky_material.set_shader_parameter("sun_energy", condition.sun_energy)  # (the disk in the sky stays as bright)
+	sun.shadow_enabled = light.shadows
+	# For the lit shaders' fix (shaders/sun.gdshaderinc): what the two passes are drawn with.
+	var sky := condition.ambient.srgb_to_linear()
+	var haze := condition.haze.srgb_to_linear()
+	RenderingServer.global_shader_parameter_set("sun_shadow_scale", condition.shadow_sun if light.shadows else 0.0)
+	RenderingServer.global_shader_parameter_set("sky_light_drawn", Vector3(sky.r, sky.g, sky.b) * float(light.ambient))
+	RenderingServer.global_shader_parameter_set("sky_light_full", Vector3(sky.r, sky.g, sky.b) * condition.ambient_energy)
+	RenderingServer.global_shader_parameter_set("haze_color", Vector3(haze.r, haze.g, haze.b))
+	RenderingServer.global_shader_parameter_set("haze_range", Vector2(condition.fog_begin, condition.fog_end))
+	RenderingServer.global_shader_parameter_set("sky_sheen", condition.sky_sheen)
+	if light.shadows:
+		sun.shadow_opacity = condition.shadow
+		sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if Settings.shadow_splits() >= 4 \
+			else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+		sun.directional_shadow_max_distance = Settings.shadow_distance()
 
 
 ## Light, weather, land, traffic, deer and grip for one of the five conditions.
@@ -683,13 +717,11 @@ func apply_condition(c: Condition) -> void:
 			["cloud_color", c.cloud_color], ["cloud_shade", c.cloud_shade], ["stars", c.stars]]:
 		sky_material.set_shader_parameter(pair[0], pair[1])
 	environment.ambient_light_color = c.ambient
-	environment.ambient_light_energy = c.ambient_energy
 	environment.fog_light_color = c.haze
 	environment.fog_depth_begin = c.fog_begin
 	environment.fog_depth_end = c.fog_end
 	sun.rotation_degrees = c.sun_rotation
 	sun.light_color = c.sun_color
-	sun.light_energy = c.sun_energy
 	streamer.apply_condition(c)
 	corn.apply_condition(c)
 	if harvest_changed:
@@ -715,6 +747,7 @@ func apply_condition(c: Condition) -> void:
 	run.condition = c
 	run.car_changed()
 	hud.condition_name = c.display_name
+	_apply_light()  # (after the weather's had the condition: it flashes the sky's light)
 
 
 func _drive(_car_id: String, _paint: int, _condition_id: String) -> void:
@@ -794,7 +827,10 @@ func _add_environment() -> void:
 	sun = DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-48.0, -35.0, 0.0)
 	sun.light_energy = 1.1
-	sun.shadow_enabled = false
+	sun.shadow_enabled = false  # (the Shadows setting turns them on: _apply_light)
+	sun.directional_shadow_blend_splits = true
+	sun.shadow_bias = 0.06
+	sun.shadow_normal_bias = 1.5
 	add_child(sun)
 
 

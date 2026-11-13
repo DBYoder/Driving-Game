@@ -260,7 +260,7 @@ func _flagpole(st: SurfaceTool, f: Dictionary) -> void:
 	var flag := MeshInstance3D.new()
 	flag.mesh = Landmarks._flag_mesh(Vector2(2.0, 1.1))
 	flag.material_override = Landmarks._flag_material("us")
-	flag.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	flag.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	flag.transform = Transform3D(Basis(Vector3.UP, PI * 0.8), foot + Vector3(0.0, 9.4, 0.0))
 	add_child(flag)
 

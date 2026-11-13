@@ -4,6 +4,7 @@
 // UV.x = meters from the middle, UV.y = meters along, UV2 = (kind, half width).
 shader_type spatial;
 render_mode diffuse_lambert, specular_disabled;
+#include "res://shaders/sun.gdshaderinc"
 
 uniform vec3 asphalt : source_color = vec3(0.17, 0.17, 0.18);
 uniform vec3 gravel : source_color = vec3(0.56, 0.51, 0.42);
@@ -33,6 +34,7 @@ void vertex() {
 }
 
 void fragment() {
+	sun_dist = length(VERTEX);
 	float a = abs(lateral);
 	float hw = info.y;
 	bool on_road = a <= hw + 0.01;
@@ -66,4 +68,7 @@ void fragment() {
 	}
 	col = on_road ? col : verge * (0.95 + 0.06 * grain);
 	ALBEDO = col;
+	// (The sky's reflection, as the sun's fix needs to know it: shaders/sun.gdshaderinc.)
+	SPECULAR = 0.0;
+	EMISSION = sun_sheen();
 }

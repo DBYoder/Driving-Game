@@ -320,10 +320,10 @@ func build(stats: CarStats, wheels: Array) -> void:
 		offsets.resize(surfaces[s][0].size())
 		_dents[s] = offsets
 	_body_mesh = MeshInstance3D.new()
-	_body_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_body_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	_body.add_child(_body_mesh)
 	_floor_mesh = MeshInstance3D.new()
-	_floor_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_floor_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	_body.add_child(_floor_mesh)
 	_rebuild_body()
 
@@ -1426,7 +1426,7 @@ func _mesh_of(out: Array, material: Material) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
 	node.mesh = _array_mesh(out)
 	node.material_override = material
-	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	return node
 
 

@@ -3,10 +3,12 @@ extends Node
 ## user://settings.cfg. Main loads them (unless it's a test run) and applies the graphics
 ## ones to the world; the volumes go straight to the audio buses.
 ##
-## A graphics preset sets everything at once; the resolution and scenery can then be
-## changed on their own (the preset keeps the anti-aliasing, model detail and particles).
-## (No sun shadows: in the Compatibility renderer they wash out the lighting, and the cars
-## already have their blob shadows.)
+## A graphics preset sets everything at once; the resolution, scenery and shadows can then
+## be changed on their own (the preset keeps the anti-aliasing, model detail, particles and
+## how far out the shadows go).
+## The sun's shadows cost about half as many draw calls again and more than twice the
+## triangles: off on Low, and on phones and tablets whatever the preset. (The Compatibility
+## renderer draws a light with shadows brighter: each Condition has its light for them.)
 
 signal changed
 
@@ -15,11 +17,15 @@ const OLD_SAVE_PATH := "user://records.cfg"  ## the scenery setting lived here b
 const PRESETS := ["low", "medium", "high"]
 const PRESET_NAMES := {"low": "Low (slow PCs)", "medium": "Medium", "high": "High"}
 ## What each preset sets: 3D resolution, how much scenery, anti-aliasing, how far out
-## buildings and trees get their detailed models (m), and how much rain and snow.
+## buildings and trees get their detailed models (m), how much rain and snow, and the
+## sun's shadows: whether, how far from the camera (m) and in how many steps of detail.
 const PRESET_VALUES := {
-	"low": {"render_scale": 0.75, "scenery": 0.5, "msaa": false, "detail": 300.0, "particles": 0.5},
-	"medium": {"render_scale": 1.0, "scenery": 1.0, "msaa": false, "detail": 450.0, "particles": 1.0},
-	"high": {"render_scale": 1.0, "scenery": 1.0, "msaa": true, "detail": 800.0, "particles": 1.0},
+	"low": {"render_scale": 0.75, "scenery": 0.5, "msaa": false, "detail": 300.0, "particles": 0.5,
+		"shadows": false, "shadow_distance": 120.0, "shadow_splits": 2},
+	"medium": {"render_scale": 1.0, "scenery": 1.0, "msaa": false, "detail": 450.0, "particles": 1.0,
+		"shadows": true, "shadow_distance": 160.0, "shadow_splits": 2},
+	"high": {"render_scale": 1.0, "scenery": 1.0, "msaa": true, "detail": 800.0, "particles": 1.0,
+		"shadows": true, "shadow_distance": 280.0, "shadow_splits": 4},
 }
 const RENDER_SCALES := [0.5, 0.6, 0.7, 0.75, 0.8, 0.9, 1.0]
 const SCENERY_LEVELS := [1.0, 0.5, 0.0]
@@ -30,6 +36,7 @@ const SYMBOLS := "res://fonts/symbols.ttf"  ## see _add_symbols()
 var preset := "medium"
 var render_scale := 1.0
 var scenery := 1.0
+var shadows := true  ## the sun's (when the condition has any: Condition.shadow)
 var fullscreen := false
 var master_volume := 1.0
 var effects_volume := 1.0
@@ -75,6 +82,14 @@ func msaa() -> bool:
 
 func particles() -> float:
 	return PRESET_VALUES[preset].particles
+
+
+func shadow_distance() -> float:
+	return PRESET_VALUES[preset].shadow_distance
+
+
+func shadow_splits() -> int:
+	return PRESET_VALUES[preset].shadow_splits
 
 
 ## Back to the defaults (Medium, full volume, rumble on), without saving. On a phone or
@@ -124,6 +139,7 @@ func load_file(path := SAVE_PATH) -> void:
 	preset = p if p in PRESETS else "medium"
 	render_scale = _nearest(float(cfg.get_value("graphics", "render_scale", render_scale)), RENDER_SCALES)
 	scenery = _nearest(float(cfg.get_value("graphics", "scenery", scenery)), SCENERY_LEVELS)
+	shadows = bool(cfg.get_value("graphics", "shadows", preset_shadows(preset)))  # (new in v0.9.7: the preset's)
 	fullscreen = bool(cfg.get_value("graphics", "fullscreen", false))
 	master_volume = clampf(float(cfg.get_value("sound", "master", master_volume)), 0.0, 1.0)
 	effects_volume = clampf(float(cfg.get_value("sound", "effects", effects_volume)), 0.0, 1.0)
@@ -143,6 +159,7 @@ func save() -> void:
 	cfg.set_value("graphics", "preset", preset)
 	cfg.set_value("graphics", "render_scale", render_scale)
 	cfg.set_value("graphics", "scenery", scenery)
+	cfg.set_value("graphics", "shadows", shadows)
 	cfg.set_value("graphics", "fullscreen", fullscreen)
 	cfg.set_value("sound", "master", master_volume)
 	cfg.set_value("sound", "effects", effects_volume)
@@ -154,13 +171,20 @@ func save() -> void:
 	cfg.save(save_path)
 
 
-## Pick a preset: it sets the resolution and scenery too.
+## Pick a preset: it sets the resolution, scenery and shadows too.
 func set_preset(id: String, notify := true) -> void:
 	preset = id
 	render_scale = PRESET_VALUES[id].render_scale
 	scenery = PRESET_VALUES[id].scenery
+	shadows = preset_shadows(id)
 	if notify:
 		_changed()
+
+
+## Whether a preset turns the sun's shadows on here: never on a phone or tablet (they can
+## still be switched on by hand).
+static func preset_shadows(id: String) -> bool:
+	return PRESET_VALUES[id].shadows and not handheld()
 
 
 ## Change one setting by name (the settings screen): the next or previous choice for
@@ -173,6 +197,8 @@ func step(setting: String, direction: int) -> void:
 			render_scale = RENDER_SCALES[clampi(RENDER_SCALES.find(render_scale) + direction, 0, RENDER_SCALES.size() - 1)]
 		"scenery":
 			scenery = SCENERY_LEVELS[posmod(SCENERY_LEVELS.find(scenery) + direction, SCENERY_LEVELS.size())]
+		"shadows":
+			shadows = not shadows
 		"fullscreen":
 			fullscreen = not fullscreen
 		"master_volume", "effects_volume", "radio_volume":
@@ -198,6 +224,8 @@ func describe(setting: String) -> String:
 			return "%d%%" % roundi(render_scale * 100.0)
 		"scenery":
 			return SCENERY_NAMES[scenery]
+		"shadows":
+			return "On" if shadows else "Off (faster)"
 		"fullscreen":
 			return "Full screen" if fullscreen else "Window"
 		"master_volume", "effects_volume", "radio_volume":

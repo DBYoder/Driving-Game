@@ -3,6 +3,7 @@
 // UV.x = meters from the road, UV.y = meters from the nearest building (0 in town).
 shader_type spatial;
 render_mode diffuse_lambert, specular_disabled;
+#include "res://shaders/sun.gdshaderinc"
 
 uniform vec3 corn : source_color = vec3(0.32, 0.43, 0.18);  // about corn_canopy's top from afar
 uniform vec3 stubble : source_color = vec3(0.62, 0.55, 0.38);  // a corn field after harvest
@@ -39,6 +40,7 @@ void vertex() {
 }
 
 void fragment() {
+	sun_dist = length(VERTEX);
 	// Face normal from screen-space derivatives gives the low-poly look for free.
 	vec3 n = normalize(cross(dFdx(VERTEX), dFdy(VERTEX)));
 	NORMAL = dot(n, VIEW) < 0.0 ? -n : n;
@@ -53,4 +55,7 @@ void fragment() {
 	vec3 lawn = verge * vec3(0.92, 1.08, 0.86);
 	crop = mix(lawn, crop, smoothstep(yard_width - 8.0, yard_width, yard_dist));
 	ALBEDO = mix(verge, crop, smoothstep(verge_width - 3.0, verge_width + 3.0, road_dist));
+	// (The sky's reflection, as the sun's fix needs to know it: shaders/sun.gdshaderinc.)
+	SPECULAR = 0.0;
+	EMISSION = sun_sheen();
 }

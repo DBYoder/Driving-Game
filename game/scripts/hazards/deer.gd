@@ -441,7 +441,7 @@ func _make_animal(a: Animal) -> Node3D:
 	var root := Node3D.new()
 	var body := MeshInstance3D.new()
 	body.mesh = _mesh
-	body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	root.add_child(body)
 	for z: float in [-0.5, 0.5]:
 		for x: float in [-0.14, 0.14]:
@@ -449,7 +449,7 @@ func _make_animal(a: Animal) -> Node3D:
 			hip.position = Vector3(x, 0.92, z)
 			var leg := MeshInstance3D.new()
 			leg.mesh = _leg_mesh
-			leg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			leg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			hip.add_child(leg)
 			root.add_child(hip)
 			a.legs.append(hip)

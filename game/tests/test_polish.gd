@@ -168,3 +168,44 @@ func test_the_score_counts_what_happened() -> void:
 	check(s.raw.Corn == 25, "5 m of corn")
 	s.reset()
 	check(s.counts.is_empty() and s.raw.is_empty(), "a new run starts from nothing")
+
+
+func test_the_suns_shadows_are_a_setting() -> void:
+	var s = SettingsScript.new()
+	s.set_preset("low", false)
+	check(not s.shadows, "Low: no shadows (they cost half as many draw calls again)")
+	s.set_preset("medium", false)
+	check(s.shadows and s.describe("shadows") == "On", "Medium: shadows")
+	s.set_preset("high", false)
+	check(s.shadows and s.shadow_distance() > 200.0 and s.shadow_splits() == 4, "High: further out, in more detail")
+	s.step("shadows", 1)
+	check(not s.shadows and s.preset == "high" and s.describe("shadows").begins_with("Off"), "they switch off on their own; the preset stays")
+	s.save_path = TEMP_SETTINGS
+	s.save()
+	var t = SettingsScript.new()
+	t.load_file(TEMP_SETTINGS)
+	check(not t.shadows, "and that's saved")
+	var old := ConfigFile.new()
+	old.set_value("graphics", "preset", "medium")
+	old.save(TEMP_SETTINGS)
+	t.load_file(TEMP_SETTINGS)
+	check(t.shadows == SettingsScript.preset_shadows("medium"), "a settings file from before shadows takes its preset's")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(TEMP_SETTINGS))
+	s.free()
+	t.free()
+
+
+func test_each_condition_is_lit_for_its_shadows() -> void:
+	for id: String in Condition.IDS:
+		var c := Condition.preset(id)
+		var without: Dictionary = c.light(false)
+		var with: Dictionary = c.light(true)
+		check(not without.shadows and is_equal_approx(without.sun, c.sun_energy) and is_equal_approx(without.ambient, c.ambient_energy),
+			"%s without shadows: its own light" % id)
+		if c.shadow > 0.0:
+			check(with.shadows and with.sun < c.sun_energy and with.ambient <= c.ambient_energy,
+				"%s with shadows: the light turned down to suit them (sun %.2f, sky %.2f)" % [id, with.sun, with.ambient])
+		else:
+			check(not with.shadows and is_equal_approx(with.sun, c.sun_energy), "%s: no shadows (by moonlight)" % id)
+	check(Condition.preset("night").shadow == 0.0 and Condition.preset("harvest").shadow > Condition.preset("storm").shadow,
+		"none at night; long dark ones at dusk, faint ones under the storm")

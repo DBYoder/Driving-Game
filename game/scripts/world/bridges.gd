@@ -50,7 +50,7 @@ func setup(r: RouteData) -> void:
 		var rails := MeshInstance3D.new()
 		rails.mesh = MeshKit.finish(st)
 		(rails.mesh as ArrayMesh).surface_get_material(0).metallic = 0.5
-		rails.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		rails.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		rails.visibility_range_end = 1500.0
 		add_child(rails)
 		var marker_st := SurfaceTool.new()
@@ -60,7 +60,7 @@ func setup(r: RouteData) -> void:
 		var marker_mesh := MeshInstance3D.new()
 		marker_mesh.mesh = marker_st.commit()
 		marker_mesh.material_override = marker_material
-		marker_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		marker_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		marker_mesh.visibility_range_end = 900.0
 		add_child(marker_mesh)
 		if int(b[3]) == 1:

@@ -434,7 +434,7 @@ func _instantiate(block: Block) -> void:
 		var inst := MultiMeshInstance3D.new()
 		inst.multimesh = mm
 		inst.material_override = material
-		inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		block.node.add_child(inst)
 		block.multimeshes[kind] = inst
 	_apply_density(block)

@@ -195,7 +195,7 @@ func _street_lights(street: Dictionary) -> void:
 	node.mesh = MeshKit.finish(st)
 	node.material_override = material
 	node.position = origin
-	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	node.visibility_range_end = 1500.0
 	add_child(node)
 
@@ -534,7 +534,7 @@ func _flagpole(g: Dictionary, at: Vector2) -> void:
 		var node := MeshInstance3D.new()
 		node.mesh = _flag_mesh(flag[2])
 		node.material_override = _flag_material(flag[0])
-		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		node.transform = Transform3D(g.basis, g.at + g.basis * (foot + Vector3(0.1, float(flag[1]), 0.0)))
 		add_child(node)
 
@@ -728,7 +728,7 @@ func _finish(g: Dictionary) -> void:
 	node.mesh = mesh
 	node.material_override = material
 	node.transform = Transform3D(g.basis, g.at)
-	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	add_child(node)
 
 

@@ -5,6 +5,7 @@
 // it), UV2 (m north of IA 22's middle, m east along it).
 shader_type spatial;
 render_mode diffuse_lambert, specular_disabled;
+#include "res://shaders/sun.gdshaderinc"
 
 uniform vec3 concrete : source_color = vec3(0.58, 0.58, 0.55);
 uniform vec3 gravel : source_color = vec3(0.56, 0.51, 0.42);
@@ -34,6 +35,7 @@ void vertex() {
 }
 
 void fragment() {
+	sun_dist = length(VERTEX);
 	vec3 n = normalize(cross(dFdx(VERTEX), dFdy(VERTEX)));
 	NORMAL = dot(n, VIEW) < 0.0 ? -n : n;
 	float grain = hash(floor(world_pos.xz * 3.0)) - 0.5;
@@ -52,4 +54,7 @@ void fragment() {
 		col = verge * (0.95 + 0.06 * grain);
 	}
 	ALBEDO = col;
+	// (The sky's reflection, as the sun's fix needs to know it: shaders/sun.gdshaderinc.)
+	SPECULAR = 0.0;
+	EMISSION = sun_sheen();
 }
