@@ -1,9 +1,14 @@
-// Flat-shaded farmland: a patchwork of quarter-quarter-section fields with grass along the
-// roads, and mown lawns around the farmsteads and all through town.
+// Farmland: a patchwork of quarter-quarter-section fields with grass along the roads, and
+// mown lawns around the farmsteads and all through town. Close up (shaders/ground.gdshaderinc)
+// the crops are in rows (soybeans and cut corn, each field its own way), hay lies in mown
+// swaths, the combine's passes show on a cut field, the grass is in patches, and a fence row
+// of rougher grass runs between fields. The ground's faceted, softened by the mesh's own
+// normals so the big triangles don't show from up high.
 // UV.x = meters from the road, UV.y = meters from the nearest building (0 in town).
 shader_type spatial;
 render_mode diffuse_lambert, specular_disabled;
 #include "res://shaders/sun.gdshaderinc"
+#include "res://shaders/ground.gdshaderinc"
 
 uniform vec3 corn : source_color = vec3(0.32, 0.43, 0.18);  // about corn_canopy's top from afar
 uniform vec3 stubble : source_color = vec3(0.62, 0.55, 0.38);  // a corn field after harvest
@@ -18,6 +23,11 @@ uniform float field_size = 402.336;
 uniform vec2 field_offset = vec2(0.0);
 uniform float verge_width = 16.0;
 uniform float yard_width = 24.0;
+uniform float facets = 0.45;  // how much of the faceted look stays (1: all, 0: smooth)
+const float ROW_M = 0.76;  // 30-inch rows
+const float COMBINE_M = 9.14;  // a 30-foot head's passes
+const float SWATH_M = 4.2;  // a mower-conditioner's
+const float FENCE_ROW_M = 2.6;  // the rough grass between fields
 
 varying vec3 world_pos;
 varying float road_dist;
@@ -41,20 +51,52 @@ void vertex() {
 
 void fragment() {
 	sun_dist = length(VERTEX);
-	// Face normal from screen-space derivatives gives the low-poly look for free.
+	// Face normal from screen-space derivatives for the low-poly look, eased toward the
+	// mesh's smooth one.
 	vec3 n = normalize(cross(dFdx(VERTEX), dFdy(VERTEX)));
-	NORMAL = dot(n, VIEW) < 0.0 ? -n : n;
+	n = dot(n, VIEW) < 0.0 ? -n : n;
+	vec3 smooth_n = length(NORMAL) > 0.5 ? normalize(NORMAL) : n;
+	NORMAL = normalize(mix(smooth_n, n, facets));
 
-	vec2 cell = floor((world_pos.xz - field_offset) / field_size);
+	float px = g_pixel(world_pos);
+	vec2 wp = world_pos.xz;
+	vec2 local = (wp - field_offset) / field_size;
+	vec2 cell = floor(local);
 	float h = cell_hash(cell);
+	// Each field's rows run one way or the other.
+	float along = cell_hash(cell + vec2(5.0, 91.0)) < 0.5 ? wp.x : wp.y;
+	float across = cell_hash(cell + vec2(5.0, 91.0)) < 0.5 ? wp.y : wp.x;
 	// A cut field (see Fields.crop_at) is stubble in rows.
 	bool cut = cell_hash(cell + vec2(57.0, 13.0)) < harvested;
-	vec3 crop = h < 0.45 ? (cut ? stubble * (0.93 + 0.07 * step(0.5, fract(world_pos.x / 0.76))) : corn)
-		: (h < 0.85 ? soybeans : (h < 0.93 ? hay : pasture));
+	vec3 crop;
+	if (h < 0.45) {
+		if (cut) {
+			float rows = g_rows(across, ROW_M, 2, px);
+			float passes = step(0.5, fract(across / (2.0 * COMBINE_M)));
+			crop = stubble * (0.95 + 0.10 * rows) * (0.97 + 0.06 * passes * g_fade(COMBINE_M, px))
+				* (1.0 + (g_noise(wp / 7.0) - 0.5) * 0.10);
+		} else {
+			crop = corn * (1.0 + (g_noise(wp / 13.0) - 0.5) * 0.10) * (0.96 + 0.08 * g_rows(across, ROW_M, 1, px));
+		}
+	} else if (h < 0.85) {
+		// Soybeans: the soil shows between the rows up close.
+		float rows = g_rows(across, ROW_M, 2, px);
+		crop = soybeans * (0.84 + 0.26 * rows) * (1.0 + (g_noise(wp / 11.0) - 0.5) * 0.12);
+	} else if (h < 0.93) {
+		// Hay, mown: lighter and darker swaths the mower laid down, there and back.
+		float swaths = 0.5 + 0.5 * sin(across / SWATH_M * 3.14159);
+		crop = hay * (0.94 + 0.12 * mix(0.5, swaths, g_fade(SWATH_M, px))) * (1.0 + (g_noise(wp / 9.0) - 0.5) * 0.10);
+	} else {
+		crop = g_grass(pasture, wp, px) * (1.0 + (g_noise(wp / 3.5) - 0.5) * 0.12 * g_fine(3.5, px));
+	}
 	crop *= 0.94 + 0.12 * cell_hash(cell + vec2(17.0, 31.0));
-	vec3 lawn = verge * vec3(0.92, 1.08, 0.86);
+	// The fence row between fields: rougher grass, a couple of meters either side.
+	vec2 edge = min(fract(local), 1.0 - fract(local)) * field_size;
+	float fence = 1.0 - smoothstep(FENCE_ROW_M - 0.8, FENCE_ROW_M + 0.8 + px, min(edge.x, edge.y));
+	crop = mix(crop, g_grass(verge * vec3(0.92, 0.95, 0.88), wp, px), fence * 0.85);
+	vec3 lawn = g_grass(verge * vec3(0.92, 1.08, 0.86), wp, px);
 	crop = mix(lawn, crop, smoothstep(yard_width - 8.0, yard_width, yard_dist));
-	ALBEDO = mix(verge, crop, smoothstep(verge_width - 3.0, verge_width + 3.0, road_dist));
+	ALBEDO = mix(g_grass(verge, wp, px), crop, smoothstep(verge_width - 3.0, verge_width + 3.0, road_dist));
 	// (The sky's reflection, as the sun's fix needs to know it: shaders/sun.gdshaderinc.)
 	SPECULAR = 0.0;
 	EMISSION = sun_sheen();

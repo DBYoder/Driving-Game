@@ -75,3 +75,7 @@ sky_sheen={
 "type": "vec3",
 "value": Vector3(0, 0, 0)
 }
+ground_detail={
+"type": "float",
+"value": 1.0
+}

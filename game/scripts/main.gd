@@ -674,6 +674,7 @@ func apply_settings() -> void:
 		scenery.density = Settings.scenery
 	weather.set_particle_scale(Settings.particles())
 	tire_marks.particle_scale = Settings.particles()
+	RenderingServer.global_shader_parameter_set("ground_detail", Settings.ground_detail())
 	_apply_light()
 
 

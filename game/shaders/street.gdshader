@@ -5,6 +5,7 @@
 shader_type spatial;
 render_mode diffuse_lambert, specular_disabled;
 #include "res://shaders/sun.gdshaderinc"
+#include "res://shaders/ground.gdshaderinc"
 
 uniform vec3 asphalt : source_color = vec3(0.17, 0.17, 0.18);
 uniform vec3 gravel : source_color = vec3(0.56, 0.51, 0.42);
@@ -44,11 +45,13 @@ void fragment() {
 	n = dot(n, VIEW) < 0.0 ? -n : n;
 	NORMAL = on_road ? normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz) : n;
 
-	// Speckle in world space, the same on overlapping pieces.
-	float grain = hash(floor(world_pos.xz * 3.0)) - 0.5;
+	// Grain and stones in world space (shaders/ground.gdshaderinc), the same on overlapping
+	// pieces.
+	float px = g_pixel(world_pos);
+	vec2 wp = world_pos.xz;
 	vec3 col;
 	if (info.x < 0.5) {
-		col = asphalt * (1.06 + 0.10 * grain);
+		col = g_asphalt(asphalt * 1.06, wp, px);
 		// Edge wear: a little lighter at the very edge.
 		col = mix(col, gravel * 0.8, smoothstep(hw - 0.25, hw, a) * 0.5);
 		if (hw >= 3.8) {
@@ -64,9 +67,9 @@ void fragment() {
 	} else {
 		// Two wheel tracks packed paler, loose stone in the middle and at the edges.
 		float tracks = info.x < 1.5 ? stripe(a, 1.0, 0.45) : stripe(a, 0.75, 0.3);
-		col = gravel * (0.96 + 0.16 * grain) * mix(0.93, 1.07, tracks);
+		col = g_gravel(gravel * 0.98, wp, px) * mix(0.93, 1.07, tracks);
 	}
-	col = on_road ? col : verge * (0.95 + 0.06 * grain);
+	col = on_road ? col : g_grass(verge * 0.97, wp, px);
 	ALBEDO = col;
 	// (The sky's reflection, as the sun's fix needs to know it: shaders/sun.gdshaderinc.)
 	SPECULAR = 0.0;

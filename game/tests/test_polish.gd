@@ -209,3 +209,19 @@ func test_each_condition_is_lit_for_its_shadows() -> void:
 			check(not with.shadows and is_equal_approx(with.sun, c.sun_energy), "%s: no shadows (by moonlight)" % id)
 	check(Condition.preset("night").shadow == 0.0 and Condition.preset("harvest").shadow > Condition.preset("storm").shadow,
 		"none at night; long dark ones at dusk, faint ones under the storm")
+
+
+func test_the_ground_eases_its_facets_and_keeps_its_detail_off_on_low() -> void:
+	var mesh := route.terrain.build_mesh(0)
+	var arrays := mesh.surface_get_arrays(0)
+	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+	check(normals.size() == (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size(), "the terrain has a normal per vertex")
+	check(normals.size() > 0 and normals[normals.size() / 2].y > 0.8, "pointing up off gentle ground (%s)" % normals[normals.size() / 2])
+	var far := route.horizon.build_mesh(0).surface_get_arrays(0)
+	check((far[Mesh.ARRAY_NORMAL] as PackedVector3Array).size() > 0, "so has the ground out to the horizon")
+	var s = SettingsScript.new()
+	s.set_preset("low", false)
+	check(s.ground_detail() == 0.0, "Low: only the broad patches on the ground")
+	s.set_preset("medium", false)
+	check(s.ground_detail() == 1.0, "Medium: the rows, grain and stones too")
+	s.free()

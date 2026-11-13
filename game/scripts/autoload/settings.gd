@@ -17,15 +17,17 @@ const OLD_SAVE_PATH := "user://records.cfg"  ## the scenery setting lived here b
 const PRESETS := ["low", "medium", "high"]
 const PRESET_NAMES := {"low": "Low (slow PCs)", "medium": "Medium", "high": "High"}
 ## What each preset sets: 3D resolution, how much scenery, anti-aliasing, how far out
-## buildings and trees get their detailed models (m), how much rain and snow, and the
-## sun's shadows: whether, how far from the camera (m) and in how many steps of detail.
+## buildings and trees get their detailed models (m), how much rain and snow, the sun's
+## shadows (whether, how far from the camera, m, and in how many steps of detail), and the
+## ground's fine detail (crop rows, grain, stones: shaders/ground.gdshaderinc; 0 on Low,
+## only the broad patches).
 const PRESET_VALUES := {
 	"low": {"render_scale": 0.75, "scenery": 0.5, "msaa": false, "detail": 300.0, "particles": 0.5,
-		"shadows": false, "shadow_distance": 120.0, "shadow_splits": 2},
+		"shadows": false, "shadow_distance": 120.0, "shadow_splits": 2, "ground": 0.0},
 	"medium": {"render_scale": 1.0, "scenery": 1.0, "msaa": false, "detail": 450.0, "particles": 1.0,
-		"shadows": true, "shadow_distance": 160.0, "shadow_splits": 2},
+		"shadows": true, "shadow_distance": 160.0, "shadow_splits": 2, "ground": 1.0},
 	"high": {"render_scale": 1.0, "scenery": 1.0, "msaa": true, "detail": 800.0, "particles": 1.0,
-		"shadows": true, "shadow_distance": 280.0, "shadow_splits": 4},
+		"shadows": true, "shadow_distance": 280.0, "shadow_splits": 4, "ground": 1.0},
 }
 const RENDER_SCALES := [0.5, 0.6, 0.7, 0.75, 0.8, 0.9, 1.0]
 const SCENERY_LEVELS := [1.0, 0.5, 0.0]
@@ -82,6 +84,10 @@ func msaa() -> bool:
 
 func particles() -> float:
 	return PRESET_VALUES[preset].particles
+
+
+func ground_detail() -> float:
+	return PRESET_VALUES[preset].ground
 
 
 func shadow_distance() -> float:

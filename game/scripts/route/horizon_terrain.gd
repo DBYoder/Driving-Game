@@ -83,6 +83,7 @@ func build_mesh(i: int) -> ArrayMesh:
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = TerrainTiles.grid_normals(verts, n)
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_INDEX] = _grid_indices(n)
 	var mesh := ArrayMesh.new()
